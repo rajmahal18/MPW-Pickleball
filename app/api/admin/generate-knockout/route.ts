@@ -1,2 +1,15 @@
-import { NextResponse } from "next/server";import { getCurrentUser } from "@/lib/auth";import { prisma } from "@/lib/prisma";import { computeStandings } from "@/lib/standings";
-export async function POST(req:Request){const u=await getCurrentUser();if(!u||u.role!=="ADMIN")return new NextResponse("Unauthorized",{status:401});const t=await prisma.tournament.findFirst({include:{groups:{include:{teams:{include:{group:true}}}},matchups:{where:{stage:"GROUP"}}}});if(!t)return new NextResponse("No tournament",{status:404});const ranked=t.groups.map(g=>computeStandings(g.teams,t.matchups.filter(m=>m.groupLabel===g.name)));const winners=ranked.map(r=>r[0]);const wildcard=ranked.map(r=>r[1]).sort((a,b)=>b.points-a.points||b.differential-a.differential||b.gameWins-a.gameWins)[0];const seeds=[...winners].sort((a,b)=>b.points-a.points||b.differential-a.differential||b.gameWins-a.gameWins);await prisma.matchup.upsert({where:{id:"knockout-semi-1"},update:{homeTeamId:seeds[0]?.team.id,awayTeamId:wildcard?.team.id},create:{id:"knockout-semi-1",tournamentId:t.id,stage:"SEMIFINAL",roundLabel:"Semifinal 1",order:101,homeTeamId:seeds[0]?.team.id,awayTeamId:wildcard?.team.id,status:"LINEUP_PENDING"}});const remaining=seeds.slice(1,3);await prisma.matchup.upsert({where:{id:"knockout-semi-2"},update:{homeTeamId:remaining[0]?.team.id,awayTeamId:remaining[1]?.team.id},create:{id:"knockout-semi-2",tournamentId:t.id,stage:"SEMIFINAL",roundLabel:"Semifinal 2",order:102,homeTeamId:remaining[0]?.team.id,awayTeamId:remaining[1]?.team.id,status:"LINEUP_PENDING"}});await prisma.matchup.upsert({where:{id:"knockout-final"},update:{},create:{id:"knockout-final",tournamentId:t.id,stage:"FINAL",roundLabel:"Grand Final",order:201,status:"SCHEDULED"}});return NextResponse.redirect(new URL("/bracket",req.url),303)}
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/permissions";
+import { recalculateTournament } from "@/lib/tournament/recalculate";
+import { assertSameOrigin, redirectBack } from "@/lib/request";
+
+export async function POST(request: Request) {
+  assertSameOrigin(request);
+  const user = await requireAdmin();
+  if (!user) return new NextResponse("Unauthorized", { status: 401 });
+  const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
+  if (!tournament) return new NextResponse("No tournament", { status: 404 });
+  await prisma.$transaction((tx) => recalculateTournament(tx, tournament.id, { actorId: user.id, reason: "Manual bracket refresh" }));
+  return NextResponse.redirect(redirectBack(request, "/bracket", { success: "Standings, wildcard, and bracket refreshed." }), 303);
+}

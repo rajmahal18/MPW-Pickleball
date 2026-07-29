@@ -1,1 +1,1 @@
-import { NextResponse } from "next/server";import { clearSession } from "@/lib/auth";export async function POST(req:Request){await clearSession();return NextResponse.redirect(new URL("/",req.url),303)}
+import { NextResponse } from "next/server";import { clearSession } from "@/lib/auth";import { assertSameOrigin } from "@/lib/request";export async function POST(req:Request){assertSameOrigin(req);await clearSession();return NextResponse.redirect(new URL("/",req.url),303)}
