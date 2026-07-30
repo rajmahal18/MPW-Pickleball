@@ -9,7 +9,7 @@ const allowed = new Map([
 ]);
 
 function storageRoot() {
-  return process.env.AVATAR_STORAGE_DIR || (process.env.NODE_ENV === "production" ? "" : "/tmp/rverse-pickleball-avatars");
+  return process.env.AVATAR_STORAGE_DIR || (process.env.NODE_ENV === "production" ? "" : "/tmp/mpw-pickleball-avatars");
 }
 
 export async function saveAvatar(file: File) {

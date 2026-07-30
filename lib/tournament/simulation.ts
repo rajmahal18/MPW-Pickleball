@@ -255,7 +255,7 @@ async function simulateVotingAttemptScenario(
         revokedAt: kind === "REVOKED" ? new Date() : null,
       },
     });
-    if (kind === "REUSED") await db.fanVote.create({ data: { tournamentId, votingCodeId: code.id, playerId: player.id } });
+    if (kind === "REUSED") await db.fanVote.create({ data: { tournamentId, votingCodeId: code.id, sexCategory: player.sex, playerId: player.id } });
     await db.voteAttempt.create({
       data: {
         tournamentId,
@@ -305,7 +305,7 @@ async function simulateVoting(
 ) {
   const players = await db.player.findMany({
     where: { isActive: true, team: { group: { tournamentId } } },
-    select: { id: true },
+    select: { id: true, sex: true },
   });
   if (!players.length) throw new Error("No eligible players found.");
   const count = Math.min(Math.max(options.count ?? 30, 1), 500);
@@ -326,8 +326,10 @@ async function simulateVoting(
       },
     });
     const selectedWeight = Math.min(Math.max(options.selectedWeight ?? 0.65, 0), 1);
-    const playerId = selected && random() < selectedWeight ? selected : pickOne<{ id: string }>(random, players).id;
-    await db.fanVote.create({ data: { tournamentId, votingCodeId: code.id, playerId } });
+    const player = selected && random() < selectedWeight
+      ? players.find((entry) => entry.id === selected)!
+      : pickOne<{ id: string; sex: "MALE" | "FEMALE" }>(random, players);
+    await db.fanVote.create({ data: { tournamentId, votingCodeId: code.id, sexCategory: player.sex, playerId: player.id } });
   }
   await writeAudit(db, {
     tournamentId,

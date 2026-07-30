@@ -289,7 +289,7 @@ model VotingCode {
   replacedById String?          @unique
   replacedBy   VotingCode?      @relation("CodeReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
   replaces     VotingCode?      @relation("CodeReplacement")
-  vote         FanVote?
+  votes        FanVote[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -300,13 +300,16 @@ model FanVote {
   id           String      @id @default(cuid())
   tournamentId String
   tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  votingCodeId String      @unique
+  votingCodeId String
   votingCode   VotingCode  @relation(fields: [votingCodeId], references: [id], onDelete: Restrict)
+  sexCategory  SexCategory
   playerId     String
   player       Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
   createdAt    DateTime    @default(now())
 
+  @@unique([votingCodeId, sexCategory])
   @@index([tournamentId, playerId])
+  @@index([tournamentId, sexCategory, playerId])
 }
 
 model VoteAttempt {

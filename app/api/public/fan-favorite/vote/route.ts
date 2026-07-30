@@ -8,7 +8,8 @@ import { writeAudit } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const input = await requestData(request);
-  const playerId = String(input.playerId || "");
+  const malePlayerId = String(input.malePlayerId || "");
+  const femalePlayerId = String(input.femalePlayerId || "");
   const code = normalizeVotingCode(String(input.code || ""));
   const ipHash = hashNetworkIdentifier(requestIp(request));
   const limiter = checkRateLimit(`fan-vote:${ipHash}`, 12, 60_000);
@@ -18,8 +19,8 @@ export async function POST(request: Request) {
       { status: 429, headers: { "Retry-After": String(limiter.retryAfterSeconds) } },
     );
   }
-  if (!playerId || code.length < 8) {
-    return NextResponse.json({ error: "Player and valid voting code are required." }, { status: 400 });
+  if (!malePlayerId || !femalePlayerId || code.length < 8) {
+    return NextResponse.json({ error: "Select one male player, one female player, and enter a valid voting code." }, { status: 400 });
   }
 
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
@@ -33,13 +34,17 @@ export async function POST(request: Request) {
     result = await prisma.$transaction(
     async (tx) => {
       const player = await tx.player.findFirst({
-        where: { id: playerId, isActive: true, team: { group: { tournamentId: tournament.id } } },
+        where: { id: malePlayerId, sex: "MALE", isActive: true, team: { group: { tournamentId: tournament.id } } },
+      });
+      const femalePlayer = await tx.player.findFirst({
+        where: { id: femalePlayerId, sex: "FEMALE", isActive: true, team: { group: { tournamentId: tournament.id } } },
       });
       const votingCode = await tx.votingCode.findFirst({
         where: { tournamentId: tournament.id, codeHash: hashVotingCode(code) },
       });
       let reason: string | null = null;
-      if (!player) reason = "INELIGIBLE_PLAYER";
+      if (!player) reason = "INELIGIBLE_MALE_PLAYER";
+      else if (!femalePlayer) reason = "INELIGIBLE_FEMALE_PLAYER";
       else if (!votingCode) reason = "INVALID_CODE";
       else if (!(votingCode.status === "UNUSED" || votingCode.status === "ISSUED")) {
         reason = votingCode.status === "USED" ? "REUSED_CODE" : `${votingCode.status}_CODE`;
@@ -58,6 +63,8 @@ export async function POST(request: Request) {
         });
         return { ok: false as const, reason };
       }
+      const maleVotePlayer = player!;
+      const femaleVotePlayer = femalePlayer!;
 
       const consumed = await tx.votingCode.updateMany({
         where: { id: votingCode!.id, status: { in: ["UNUSED", "ISSUED"] } },
@@ -76,9 +83,14 @@ export async function POST(request: Request) {
         return { ok: false as const, reason: "CODE_ALREADY_CONSUMED" };
       }
 
-      const vote = await tx.fanVote.create({
-        data: { tournamentId: tournament.id, votingCodeId: votingCode!.id, playerId },
-      });
+      const votes = await Promise.all([
+        tx.fanVote.create({
+          data: { tournamentId: tournament.id, votingCodeId: votingCode!.id, sexCategory: "MALE", playerId: maleVotePlayer.id },
+        }),
+        tx.fanVote.create({
+          data: { tournamentId: tournament.id, votingCodeId: votingCode!.id, sexCategory: "FEMALE", playerId: femaleVotePlayer.id },
+        }),
+      ]);
       await tx.voteAttempt.create({
         data: { tournamentId: tournament.id, ipHash, codeHint: votingCodeHint(code), success: true },
       });
@@ -86,8 +98,11 @@ export async function POST(request: Request) {
         tournamentId: tournament.id,
         action: "FAN_VOTE_ACCEPTED",
         entityType: "FanVote",
-        entityId: vote.id,
-        afterState: { playerId, votingCodeId: votingCode!.id },
+        entityId: votingCode!.id,
+        afterState: {
+          votingCodeId: votingCode!.id,
+          votes: votes.map((vote) => ({ id: vote.id, playerId: vote.playerId, sexCategory: vote.sexCategory })),
+        },
       });
       return { ok: true as const };
     },
@@ -108,6 +123,8 @@ export async function POST(request: Request) {
       REVOKED_CODE: "This voting code was revoked.",
       REPLACED_CODE: "This voting code was replaced.",
       INELIGIBLE_PLAYER: "The selected player is not eligible.",
+      INELIGIBLE_MALE_PLAYER: "Select an eligible male player.",
+      INELIGIBLE_FEMALE_PLAYER: "Select an eligible female player.",
       CODE_ALREADY_CONSUMED: "This voting code was already consumed.",
       RACE_REJECTED: "This voting code was already consumed.",
     };

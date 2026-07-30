@@ -1,9 +1,9 @@
 module.exports = {
   apps: [{
-    name: "rverse-pickleball",
+    name: "mpw-pickleball",
     script: "npm",
     args: "start",
-    cwd: "/var/www/rverse-pickleball/current",
+    cwd: "/var/www/mpw-pickleball/current",
     instances: 1,
     exec_mode: "fork",
     autorestart: true,

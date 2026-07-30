@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-body { @apply bg-paper text-ink antialiased; background-image: linear-gradient(rgba(15,111,93,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(15,111,93,.025) 1px, transparent 1px); background-size: 32px 32px; }
+body { @apply bg-paper text-ink antialiased; background-image: linear-gradient(rgba(31,111,178,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(31,111,178,.035) 1px, transparent 1px); background-size: 32px 32px; }
 a { @apply transition-colors; }
 .panel { @apply border border-line bg-white shadow-panel; }
 .label { @apply text-[11px] font-bold uppercase tracking-[.16em] text-gray-500; }
 .btn { @apply inline-flex items-center justify-center gap-2 border px-4 py-2 text-sm font-bold transition hover:-translate-y-0.5; }
-.btn-primary { @apply btn border-court bg-court text-white hover:bg-emerald-800; }
+.btn-primary { @apply btn border-court bg-court text-white hover:bg-ink; }
 .btn-ghost { @apply btn border-line bg-white hover:border-court hover:text-court; }
+.hero-banner-image { animation: hero-banner-pan 22s ease-in-out infinite alternate; transform-origin: center; }
 
 html, body { max-width: 100%; overflow-x: hidden; }
 .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
@@ -20,4 +21,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
   main { max-width: none !important; padding: 0 !important; }
   .print-sheet { margin: 0 !important; }
   .print-sheet article { box-shadow: none !important; }
+}
+
+@keyframes hero-banner-pan {
+  from { transform: scale(1.04) translate3d(-1.5%, 0, 0); }
+  to { transform: scale(1.1) translate3d(1.5%, -1%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-banner-image { animation: none; transform: none; }
 }

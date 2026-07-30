@@ -70,8 +70,8 @@ export async function factorySeed(db: Prisma.TransactionClient) {
 
   const tournament = await db.tournament.create({
     data: {
-      name: "RVerse Team Pickleball Championship",
-      slug: "rverse-team-championship",
+      name: "MPW Team Pickleball Championship",
+      slug: "mpw-pickleball-championship",
       season: "2026",
       simulationMode: true,
       destructiveToolsEnabled: process.env.NODE_ENV !== "production",
@@ -114,7 +114,7 @@ export async function factorySeed(db: Prisma.TransactionClient) {
       await db.user.create({
         data: {
           name: `${team.name} Leader`,
-          email: `leader${leaderIndex}@rverse.test`,
+          email: `leader${leaderIndex}@mpw.test`,
           passwordHash: await bcrypt.hash("leader123", 10),
           role: "TEAM_LEADER",
           teamId: team.id,
@@ -128,7 +128,7 @@ export async function factorySeed(db: Prisma.TransactionClient) {
   await db.user.create({
     data: {
       name: "Tournament Admin",
-      email: "admin@rverse.test",
+      email: "admin@mpw.test",
       passwordHash: await bcrypt.hash("admin123", 10),
       role: "ADMIN",
     },

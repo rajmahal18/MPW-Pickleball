@@ -5,14 +5,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#12221b",
-        court: "#0f6f5d",
-        lime: "#cbe856",
-        paper: "#f5f7f1",
-        line: "#d9e0d6"
+        ink: "#12386f",
+        court: "#1f6fb2",
+        lime: "#f4b11f",
+        gold: "#f4b11f",
+        flame: "#e85d2a",
+        paper: "#f6f8fb",
+        line: "#d8e0ea"
       },
       boxShadow: {
-        panel: "0 10px 30px rgba(18,34,27,.08)"
+        panel: "0 10px 30px rgba(18,56,111,.08)"
       }
     }
   },

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { jwtVerify, SignJWT } from "jose";
 import { prisma } from "@/lib/prisma";
 
-const COOKIE = "rverse_session";
+const COOKIE = "mpw_session";
 
 function sessionSecret() {
   const value = process.env.SESSION_SECRET;

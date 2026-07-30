@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${DATABASE_URL:?DATABASE_URL is required}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/rverse-pickleball}"
-AVATAR_STORAGE_DIR="${AVATAR_STORAGE_DIR:-/var/lib/rverse-pickleball/avatars}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/mpw-pickleball}"
+AVATAR_STORAGE_DIR="${AVATAR_STORAGE_DIR:-/var/lib/mpw-pickleball/avatars}"
 mkdir -p "$BACKUP_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 pg_dump --format=custom --no-owner --file="$BACKUP_DIR/database-$STAMP.dump" "$DATABASE_URL"

@@ -1,4 +1,4 @@
-# RVerse Team Pickleball Championship
+# MPW Team Pickleball Championship
 
 A public-facing, live-first pickleball tournament platform with Liquipedia-style information pages, live scoring, team-leader lineup submission, Fan Favorite voting, simulation/recovery tools, and transparent male/female MVP rankings.
 
@@ -45,8 +45,8 @@ Do not use `prisma db push` for an existing environment. See [docs/MIGRATIONS.md
 
 These are development-only credentials created by `npm run db:seed`:
 
-- Admin: `admin@rverse.test` / `admin123`
-- Team leaders: `leader1@rverse.test` through `leader12@rverse.test` / `leader123`
+- Admin: `admin@mpw.test` / `admin123`
+- Team leaders: `leader1@mpw.test` through `leader12@mpw.test` / `leader123`
 
 Change or remove all seeded accounts before a real event.
 

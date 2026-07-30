@@ -216,6 +216,7 @@ export async function restoreTournamentSnapshot(
         id: String(value.id),
         tournamentId,
         votingCodeId: String(value.votingCodeId),
+        sexCategory: enumValue(value.sexCategory ?? "MALE", ["MALE", "FEMALE"] as const, "Fan Favorite vote category"),
         playerId: String(value.playerId),
         createdAt: asDate(value.createdAt) ?? new Date(),
       },
