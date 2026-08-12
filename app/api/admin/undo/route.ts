@@ -7,27 +7,23 @@ import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tour
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
 
-
 const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
-const MATCHUP_STAGES = ["GROUP", "SEMIFINAL", "FINAL"] as const;
+const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
 
 function gameStatus(value: unknown) {
-  if (typeof value !== "string" || !GAME_STATUSES.includes(value as typeof GAME_STATUSES[number])) {
+  if (typeof value !== "string" || !GAME_STATUSES.includes(value as (typeof GAME_STATUSES)[number])) {
     throw new Error("The score event contains an invalid previous game status.");
   }
-  return value as typeof GAME_STATUSES[number];
+  return value as (typeof GAME_STATUSES)[number];
 }
 
 function matchupStage(value: string) {
-  if (!MATCHUP_STAGES.includes(value as typeof MATCHUP_STAGES[number])) throw new Error("Invalid tournament stage.");
-  return value as typeof MATCHUP_STAGES[number];
+  if (!MATCHUP_STAGES.includes(value as (typeof MATCHUP_STAGES)[number])) throw new Error("Invalid tournament stage.");
+  return value as (typeof MATCHUP_STAGES)[number];
 }
 
-async function resetMatchups(
-  tx: Prisma.TransactionClient,
-  tournamentId: string,
-  matchupIds: string[],
-) {
+async function resetMatchups(tx: Prisma.TransactionClient, tournamentId: string, matchupIds: string[]) {
   if (!matchupIds.length) throw new Error("No team matchups matched the selected rollback scope.");
   await tx.scoreEvent.deleteMany({ where: { game: { matchupId: { in: matchupIds } } } });
   await tx.game.updateMany({
@@ -49,7 +45,7 @@ async function resetMatchups(
   for (const matchup of targets) {
     const status = !matchup.homeTeamId || !matchup.awayTeamId
       ? "SCHEDULED"
-      : matchup.lineups.length === 2 && matchup.games.length === 7
+      : matchup.lineups.length === 2 && matchup.games.length === matchup.gamesPerMatchup
         ? "READY"
         : "LINEUP_PENDING";
     await tx.matchup.update({
@@ -83,14 +79,8 @@ export async function POST(request: Request) {
         await restoreTournamentSnapshot(tx, tournament.id, checkpoint.snapshot);
         await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: "Simulation undo" });
         await tx.simulationRun.update({ where: { id: run.id }, data: { status: "UNDONE", completedAt: new Date() } });
-        await writeAudit(tx, {
-          tournamentId: tournament.id,
-          actorId: user.id,
-          action: "SIMULATION_UNDONE",
-          entityType: "SimulationRun",
-          entityId: run.id,
-        });
-      }, { timeout: 60_000 });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "SIMULATION_UNDONE", entityType: "SimulationRun", entityId: run.id });
+      }, LONG_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/simulation", { success: "Simulation run undone from its automatic checkpoint." }), 303);
     }
 
@@ -123,32 +113,37 @@ export async function POST(request: Request) {
           beforeState: event.afterState,
           afterState: event.beforeState,
         });
-      });
+      }, LONG_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, `/admin/score/${gameId}`, { success: "Latest score change undone." }), 303);
     }
 
     if (["matchup", "round", "stage"].includes(action)) {
       const matchupId = String(data.matchupId || "");
       const roundKey = String(data.roundKey || "");
-      const stage = String(data.stage || "");
-      const confirmation = String(data.confirmation || "");
-      if (confirmation !== "UNDO") throw new Error('Type "UNDO" to confirm this rollback.');
+      const stageKey = String(data.stage || "");
+      if (String(data.confirmation || "") !== "UNDO") throw new Error('Type "UNDO" to confirm this rollback.');
 
       let where: Prisma.MatchupWhereInput;
+      let auditScope = "";
       if (action === "matchup") {
         if (!matchupId) throw new Error("Select a team matchup.");
         where = { tournamentId: tournament.id, id: matchupId };
+        auditScope = matchupId;
       } else if (action === "round") {
-        const [roundStage, roundNumberText] = roundKey.split(":");
+        const [divisionId, rawStage, roundNumberText] = roundKey.split("|");
         const roundNumber = Number(roundNumberText);
-        if (!Number.isInteger(roundNumber) || roundNumber < 1) throw new Error("Select a valid round.");
-        where = { tournamentId: tournament.id, stage: matchupStage(roundStage || ""), roundNumber };
+        if (!divisionId || !Number.isInteger(roundNumber) || roundNumber < 1) throw new Error("Select a valid division round.");
+        where = { tournamentId: tournament.id, divisionId, stage: matchupStage(rawStage || ""), roundNumber };
+        auditScope = roundKey;
       } else {
-        where = { tournamentId: tournament.id, stage: matchupStage(stage) };
+        const [divisionId, rawStage] = stageKey.split("|");
+        if (!divisionId) throw new Error("Select a valid division stage.");
+        where = { tournamentId: tournament.id, divisionId, stage: matchupStage(rawStage || "") };
+        auditScope = stageKey;
       }
+
       const targets = await prisma.matchup.findMany({ where, select: { id: true } });
       const targetIds = targets.map((entry) => entry.id);
-
       await prisma.$transaction(async (tx) => {
         const snapshot = await captureTournamentSnapshot(tx, tournament.id);
         const checkpoint = await tx.checkpoint.create({
@@ -168,10 +163,10 @@ export async function POST(request: Request) {
           action: `${action.toUpperCase()}_UNDONE`,
           entityType: action === "matchup" ? "Matchup" : action === "round" ? "Round" : "Stage",
           entityId: action === "matchup" ? matchupId : undefined,
-          reason: action === "round" ? roundKey : action === "stage" ? stage : undefined,
+          reason: auditScope,
           afterState: { affectedMatchupIds: targetIds, safetyCheckpointId: checkpoint.id },
         });
-      }, { timeout: 60_000 });
+      }, LONG_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/checkpoints", { success: `${action} rollback completed and dependencies recalculated.` }), 303);
     }
 

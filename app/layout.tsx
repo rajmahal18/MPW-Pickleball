@@ -14,5 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="en"><body><Header/>{children}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Team Pickleball Championship · Tournament operations</div></footer></body></html>;
+  return <html lang="en"><body><Header/>{children}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
 }

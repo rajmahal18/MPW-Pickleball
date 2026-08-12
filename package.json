@@ -12,6 +12,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "roster:check": "tsx scripts/import-official-player-pool.ts --dry-run",
+    "roster:import": "tsx scripts/import-official-player-pool.ts",
     "verify": "prisma format && prisma validate && prisma generate && npm run typecheck && npm test && npm run build",
     "postinstall": "prisma generate"
   },

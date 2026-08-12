@@ -1,15 +1,61 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import AutoRefresh from "@/components/AutoRefresh";
-import ScoreBadge from "@/components/ScoreBadge";
-import PlayerAvatar from "@/components/PlayerAvatar";
+import LiveMatchBoard from "@/components/LiveMatchBoard";
+import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
+
 export default async function MatchupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const matchup = await prisma.matchup.findUnique({ where: { id }, include: { homeTeam: true, awayTeam: true, winnerTeam: true, games: { include: { homePair: { include: { playerA: true, playerB: true } }, awayPair: { include: { playerA: true, playerB: true } }, homeTeam: true, awayTeam: true }, orderBy: { gameNumber: "asc" } } } });
+  const matchup = await prisma.matchup.findFirst({
+    where: { id, division: { isPublic: true }, tournament: { isPublished: true } },
+    include: {
+      division: true,
+      homeTeam: true,
+      awayTeam: true,
+      games: {
+        select: {
+          id: true, gameNumber: true, homeScore: true, awayScore: true, status: true, winnerTeamId: true,
+          homeTeam: { select: { id: true, shortName: true } },
+          awayTeam: { select: { id: true, shortName: true } },
+          homePair: { select: { id: true, playerA: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } }, playerB: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } } } },
+          awayPair: { select: { id: true, playerA: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } }, playerB: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } } } },
+        },
+        orderBy: { gameNumber: "asc" },
+      },
+    },
+  });
   if (!matchup) notFound();
-  return <main className="mx-auto max-w-6xl px-4 py-8"><AutoRefresh interval={3000}/><div className="label">{matchup.groupLabel || matchup.stage} · {matchup.roundLabel} · Court {matchup.courtLabel || "TBA"}</div><h1 className="text-4xl font-black uppercase">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1><div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto_1fr]"><TeamPanel team={matchup.homeTeam} wins={matchup.homeWins} winner={matchup.winnerTeamId === matchup.homeTeamId}/><div className="grid place-items-center text-sm font-black text-gray-400">TEAM MATCHUP</div><TeamPanel team={matchup.awayTeam} wins={matchup.awayWins} winner={matchup.winnerTeamId === matchup.awayTeamId}/></div><section className="mt-8"><div className="flex items-end justify-between"><div><div className="label">Seven pair games</div><h2 className="text-2xl font-black uppercase">Game board</h2></div><span className="text-xs font-bold">{matchup.status.replaceAll("_", " ")}</span></div>{matchup.games.length ? <div className="mt-4 space-y-3">{matchup.games.map((game) => <article key={game.id} className={`panel grid gap-4 p-4 md:grid-cols-[70px_1fr_auto_1fr] md:items-center ${game.status === "LIVE" ? "border-flame" : ""}`}><div><div className="label">Game</div><div className="text-2xl font-black">{game.gameNumber}</div></div><Pair players={[game.homePair.playerA, game.homePair.playerB]} team={game.homeTeam.shortName}/><div className="justify-self-center"><ScoreBadge home={game.homeScore} away={game.awayScore} status={game.status}/></div><Pair players={[game.awayPair.playerA, game.awayPair.playerB]} team={game.awayTeam.shortName} right/></article>)}</div> : <div className="panel mt-4 p-10 text-center text-gray-500">Games are created after both team leaders submit valid seven-pair lineups.</div>}</section></main>;
+
+  const initial = {
+    id: matchup.id,
+    status: matchup.status,
+    homeWins: matchup.homeWins,
+    awayWins: matchup.awayWins,
+    winnerTeamId: matchup.winnerTeamId,
+    gamesPerMatchup: matchup.gamesPerMatchup,
+    homeTeamId: matchup.homeTeamId,
+    awayTeamId: matchup.awayTeamId,
+    homeTeam: matchup.homeTeam ? { id: matchup.homeTeam.id, name: matchup.homeTeam.name, shortName: matchup.homeTeam.shortName } : null,
+    awayTeam: matchup.awayTeam ? { id: matchup.awayTeam.id, name: matchup.awayTeam.name, shortName: matchup.awayTeam.shortName } : null,
+    games: matchup.games.map((game) => ({
+      id: game.id,
+      gameNumber: game.gameNumber,
+      homeScore: game.homeScore,
+      awayScore: game.awayScore,
+      status: game.status,
+      winnerTeamId: game.winnerTeamId,
+      homeTeam: { id: game.homeTeam.id, shortName: game.homeTeam.shortName },
+      awayTeam: { id: game.awayTeam.id, shortName: game.awayTeam.shortName },
+      homePair: { id: game.homePair.id, playerA: game.homePair.playerA, playerB: game.homePair.playerB },
+      awayPair: { id: game.awayPair.id, playerA: game.awayPair.playerA, playerB: game.awayPair.playerB },
+    })),
+  };
+
+  return <main className="mx-auto max-w-6xl px-4 py-8">
+    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · {matchup.groupLabel || matchup.stage} · {matchup.roundLabel} · Court {matchup.courtLabel || "TBA"}</span></div>
+    <h1 className="mt-2 text-4xl font-black uppercase">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
+    <p className="mt-2 text-sm text-gray-500">Scores update in place while this page is open. No full-page refresh during live play.</p>
+    <LiveMatchBoard initial={initial}/>
+  </main>;
 }
-function TeamPanel({ team, wins, winner }: { team: any; wins: number; winner: boolean }) { return <div className={`panel p-5 text-center ${winner ? "border-gold bg-gold/15" : ""}`}><div className="label">{winner ? "Winner" : "Team"}</div><div className="mt-1 text-2xl font-black">{team?.name || "TBD"}</div><div className="mt-3 text-5xl font-black">{wins}</div></div>; }
-function Pair({ players, team, right }: { players: any[]; team: string; right?: boolean }) { return <div className={`flex items-center gap-3 ${right ? "md:flex-row-reverse md:text-right" : ""}`}><div className="flex -space-x-2">{players.map((player) => <PlayerAvatar key={player.id} {...player} size="sm"/>)}</div><div><div className="label">{team}</div><div className="font-black">{players.map((player) => player.displayName || player.firstName).join(" / ")}</div></div></div>; }

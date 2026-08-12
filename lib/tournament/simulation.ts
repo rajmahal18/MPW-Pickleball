@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { MatchupStage, Prisma } from "@prisma/client";
 import { generateVotingCode, hashVotingCode, votingCodeHint } from "@/lib/tournament/voting";
 import { createSeededRandom, pickOne, randomInteger } from "@/lib/tournament/rng";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
@@ -14,6 +14,9 @@ export type SimulationOptions = {
   count?: number;
   selectedPlayerId?: string;
   selectedWeight?: number;
+  divisionId?: string;
+  stage?: "GROUP" | "ROUND_ROBIN" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL" | "THIRD_PLACE" | "CUSTOM";
+  autoGeneratePairs?: boolean;
 };
 
 function simulationScore(
@@ -38,19 +41,93 @@ function simulationScore(
     : { homeScore: loserScore, awayScore: winnerScore };
 }
 
-async function ensureGames(db: Prisma.TransactionClient, matchupId: string) {
+type SimulationPair = {
+  id: string;
+  playerAId: string;
+  playerBId: string;
+};
+
+async function selectSimulationPairs(
+  db: Prisma.TransactionClient,
+  teamId: string,
+  divisionId: string,
+  required: number,
+  random: () => number,
+  autoGeneratePairs: boolean,
+) {
+  const activePairs = await db.pair.findMany({
+    where: {
+      teamId,
+      isActive: true,
+      playerA: { participationStatus: "CONFIRMED", isActive: true, divisionEntries: { some: { divisionId, status: "CONFIRMED" } } },
+      playerB: { participationStatus: "CONFIRMED", isActive: true, divisionEntries: { some: { divisionId, status: "CONFIRMED" } } },
+    },
+    select: { id: true, playerAId: true, playerBId: true },
+    orderBy: { label: "asc" },
+  });
+  const selected: SimulationPair[] = [];
+  const usedPlayerIds = new Set<string>();
+  for (const pair of activePairs) {
+    if (selected.length >= required) break;
+    if (usedPlayerIds.has(pair.playerAId) || usedPlayerIds.has(pair.playerBId)) continue;
+    selected.push(pair);
+    usedPlayerIds.add(pair.playerAId);
+    usedPlayerIds.add(pair.playerBId);
+  }
+  if (selected.length >= required) return selected;
+  if (!autoGeneratePairs) throw new Error(`Both teams need ${required} active pairs.`);
+
+  const players = await db.player.findMany({
+    where: {
+      teamId,
+      isActive: true,
+      participationStatus: "CONFIRMED",
+      divisionEntries: { some: { divisionId, status: "CONFIRMED" } },
+    },
+    select: { id: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
+  });
+  const available = players.filter((player) => !usedPlayerIds.has(player.id));
+  if (available.length < (required - selected.length) * 2) {
+    throw new Error(`Team needs ${required} pairs, but it does not have enough confirmed active players to generate missing pairs.`);
+  }
+  const shuffled = [...available].sort(() => random() - 0.5);
+  while (selected.length < required) {
+    const playerA = shuffled.shift();
+    const playerB = shuffled.shift();
+    if (!playerA || !playerB) break;
+    const sequence = selected.length + 1;
+    const created = await db.pair.create({
+      data: {
+        teamId,
+        label: `Simulation ${Date.now()}-${sequence}`,
+        playerAId: playerA.id,
+        playerBId: playerB.id,
+        isActive: true,
+      },
+      select: { id: true, playerAId: true, playerBId: true },
+    });
+    selected.push(created);
+    usedPlayerIds.add(playerA.id);
+    usedPlayerIds.add(playerB.id);
+  }
+  return selected;
+}
+
+async function ensureGames(db: Prisma.TransactionClient, matchupId: string, random: () => number, autoGeneratePairs: boolean) {
   const matchup = await db.matchup.findUnique({
     where: { id: matchupId },
     include: { games: true, lineups: { include: { slots: true } } },
   });
   if (!matchup?.homeTeamId || !matchup.awayTeamId) throw new Error("Team matchup does not have two assigned teams.");
-  if (matchup.games.length === 7) return matchup.games.sort((a, b) => a.gameNumber - b.gameNumber);
+  const required = Math.max(1, matchup.gamesPerMatchup);
+  if (matchup.games.length === required) return matchup.games.sort((a, b) => a.gameNumber - b.gameNumber);
 
   const [homePairs, awayPairs] = await Promise.all([
-    db.pair.findMany({ where: { teamId: matchup.homeTeamId, isActive: true }, orderBy: { label: "asc" }, take: 7 }),
-    db.pair.findMany({ where: { teamId: matchup.awayTeamId, isActive: true }, orderBy: { label: "asc" }, take: 7 }),
+    selectSimulationPairs(db, matchup.homeTeamId, matchup.divisionId, required, random, autoGeneratePairs),
+    selectSimulationPairs(db, matchup.awayTeamId, matchup.divisionId, required, random, autoGeneratePairs),
   ]);
-  if (homePairs.length !== 7 || awayPairs.length !== 7) throw new Error("Both teams need seven active pairs.");
+  if (homePairs.length !== required || awayPairs.length !== required) throw new Error(`Both teams need ${required} active pairs.`);
 
   await db.game.deleteMany({ where: { matchupId } });
   await db.lineup.deleteMany({ where: { matchupId } });
@@ -155,12 +232,22 @@ async function recordGameState(
   await db.game.update({ where: { id: gameId }, data: { ...after, version: { increment: 1 } } });
 }
 
-async function resetScenarioState(db: Prisma.TransactionClient, tournamentId: string) {
-  await db.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId } } } });
-  await db.game.deleteMany({ where: { matchup: { tournamentId } } });
-  await db.lineup.deleteMany({ where: { matchup: { tournamentId } } });
+async function legacyGroupDivisionId(db: Prisma.TransactionClient, tournamentId: string) {
+  const division = await db.division.findFirst({
+    where: { tournamentId, groups: { some: {} } },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true },
+  });
+  if (!division) throw new Error("Legacy group-stage quick scenarios require a division with configured groups.");
+  return division.id;
+}
+
+async function resetScenarioState(db: Prisma.TransactionClient, tournamentId: string, divisionId: string) {
+  await db.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId, divisionId } } } });
+  await db.game.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
+  await db.lineup.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
   await db.matchup.updateMany({
-    where: { tournamentId, stage: "GROUP" },
+    where: { tournamentId, divisionId, stage: "GROUP" },
     data: { status: "LINEUP_PENDING", homeWins: 0, awayWins: 0, winnerTeamId: null, version: { increment: 1 } },
   });
 }
@@ -184,13 +271,14 @@ async function simulateGroupPattern(
   actorId: string,
   simulationRunId: string,
 ) {
-  await resetScenarioState(db, tournamentId);
+  const divisionId = await legacyGroupDivisionId(db, tournamentId);
+  await resetScenarioState(db, tournamentId, divisionId);
   const groups = await db.group.findMany({
-    where: { tournamentId },
+    where: { tournamentId, divisionId },
     include: { teams: { orderBy: { shortName: "asc" } } },
     orderBy: { name: "asc" },
   });
-  const groupMatchups = await db.matchup.findMany({ where: { tournamentId, stage: "GROUP" }, orderBy: { order: "asc" } });
+  const groupMatchups = await db.matchup.findMany({ where: { tournamentId, divisionId, stage: "GROUP" }, orderBy: { order: "asc" } });
   const findMatchup = (first: string, second: string) => {
     const found = groupMatchups.find((matchup) =>
       (matchup.homeTeamId === first && matchup.awayTeamId === second) ||
@@ -241,7 +329,7 @@ async function simulateVotingAttemptScenario(
   kind: "REUSED" | "REVOKED",
   count: number,
 ) {
-  const player = await db.player.findFirstOrThrow({ where: { isActive: true, team: { group: { tournamentId } } } });
+  const player = await db.player.findFirstOrThrow({ where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } } });
   for (let index = 0; index < count; index += 1) {
     const plain = generateVotingCode();
     const code = await db.votingCode.create({
@@ -276,19 +364,21 @@ async function simulateOneMatchup(
   actorId: string,
   simulationRunId: string,
 ) {
-  const games = await ensureGames(db, matchupId);
+  const games = await ensureGames(db, matchupId, random, Boolean(options.autoGeneratePairs));
   const outcome = options.matchupOutcome ?? "RANDOM";
   let homeWinsTarget = 0;
-  if (outcome === "SWEEP_HOME") homeWinsTarget = 7;
+  const totalGames = games.length;
+  const majority = Math.floor(totalGames / 2) + 1;
+  if (outcome === "SWEEP_HOME") homeWinsTarget = totalGames;
   else if (outcome === "SWEEP_AWAY") homeWinsTarget = 0;
-  else if (outcome === "CLOSE_HOME") homeWinsTarget = 4;
-  else if (outcome === "CLOSE_AWAY") homeWinsTarget = 3;
-  else if (outcome === "HOME") homeWinsTarget = randomInteger(random, 4, 7);
-  else if (outcome === "AWAY") homeWinsTarget = randomInteger(random, 0, 3);
-  else homeWinsTarget = randomInteger(random, 0, 7);
+  else if (outcome === "CLOSE_HOME") homeWinsTarget = majority;
+  else if (outcome === "CLOSE_AWAY") homeWinsTarget = Math.max(0, totalGames - majority);
+  else if (outcome === "HOME") homeWinsTarget = randomInteger(random, majority, totalGames);
+  else if (outcome === "AWAY") homeWinsTarget = randomInteger(random, 0, Math.max(0, totalGames - majority));
+  else homeWinsTarget = randomInteger(random, 0, totalGames);
 
   const homeWinningSlots = new Set<number>();
-  while (homeWinningSlots.size < homeWinsTarget) homeWinningSlots.add(randomInteger(random, 0, 6));
+  while (homeWinningSlots.size < homeWinsTarget) homeWinningSlots.add(randomInteger(random, 0, Math.max(0, totalGames - 1)));
   for (const [index, game] of games.entries()) {
     const winner = homeWinningSlots.has(index) ? "HOME" : "AWAY";
     await completeGame(db, game.id, simulationScore(random, winner, options.scoreStyle), actorId, simulationRunId);
@@ -304,7 +394,7 @@ async function simulateVoting(
   simulationRunId: string,
 ) {
   const players = await db.player.findMany({
-    where: { isActive: true, team: { group: { tournamentId } } },
+    where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } },
     select: { id: true, sex: true },
   });
   if (!players.length) throw new Error("No eligible players found.");
@@ -366,29 +456,40 @@ export async function executeSimulation(
     if (!options.targetId) throw new Error("Select a team matchup.");
     await simulateOneMatchup(db, options.targetId, options, random, actorId, simulationRunId);
     result.matchupId = options.targetId;
-  } else if (["GROUP_STAGE", "SEMIFINAL", "FINAL", "ENTIRE_TOURNAMENT"].includes(options.kind)) {
-    const stages = options.kind === "ENTIRE_TOURNAMENT"
-      ? (["GROUP", "SEMIFINAL", "FINAL"] as const)
-      : options.kind === "GROUP_STAGE"
-        ? (["GROUP"] as const)
-        : options.kind === "SEMIFINAL"
-          ? (["SEMIFINAL"] as const)
-          : (["FINAL"] as const);
+  } else if (["STAGE", "GROUP_STAGE", "SEMIFINAL", "FINAL", "ENTIRE_TOURNAMENT"].includes(options.kind)) {
+    const allStages: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"];
+    const stages: MatchupStage[] = options.kind === "ENTIRE_TOURNAMENT"
+      ? allStages
+      : options.kind === "STAGE"
+        ? [options.stage || "CUSTOM"]
+        : options.kind === "GROUP_STAGE"
+          ? ["GROUP"]
+          : options.kind === "SEMIFINAL"
+            ? ["SEMIFINAL"]
+            : ["FINAL"];
     let simulated = 0;
-    for (const stage of stages) {
-      if (stage !== "GROUP") await recalculateTournament(db, tournamentId, { actorId, simulationRunId });
+    for (const currentStage of stages) {
+      await recalculateTournament(db, tournamentId, { actorId, simulationRunId });
       const matchups = await db.matchup.findMany({
-        where: { tournamentId, stage, homeTeamId: { not: null }, awayTeamId: { not: null } },
+        where: {
+          tournamentId,
+          ...(options.divisionId ? { divisionId: options.divisionId } : {}),
+          stage: currentStage,
+          homeTeamId: { not: null },
+          awayTeamId: { not: null },
+        },
         orderBy: { order: "asc" },
       });
       for (const matchup of matchups) {
-        if (matchup.status === "COMPLETED") continue;
+        if (matchup.status === "COMPLETED" || matchup.status === "FORFEITED") continue;
         await simulateOneMatchup(db, matchup.id, options, random, actorId, simulationRunId);
         await recalculateTournament(db, tournamentId, { actorId, simulationRunId });
         simulated += 1;
       }
     }
     result.matchupsSimulated = simulated;
+    result.divisionId = options.divisionId ?? null;
+    result.stage = options.kind === "STAGE" ? options.stage ?? "CUSTOM" : null;
   } else if (options.kind === "FAN_VOTING") {
     result.votesCreated = await simulateVoting(db, tournamentId, options, random, actorId, simulationRunId);
   } else if (options.kind === "RESET_VOTING") {
@@ -398,15 +499,18 @@ export async function executeSimulation(
   } else if (options.kind === "QUICK_SCENARIO") {
     const scenario = options.targetId || "MID_GROUP_STAGE";
     if (scenario === "FRESH_TOURNAMENT" || scenario === "LINEUPS_PENDING") {
-      await resetScenarioState(db, tournamentId);
+      const divisionId = await legacyGroupDivisionId(db, tournamentId);
+      await resetScenarioState(db, tournamentId, divisionId);
       result.scenario = scenario;
+      result.divisionId = divisionId;
     } else if (scenario === "THREE_WAY_STANDINGS_TIE") {
       await simulateGroupPattern(db, tournamentId, "THREE_WAY_TIE", options, random, actorId, simulationRunId);
       result.scenario = scenario;
     } else if (["WILDCARD_TIEBREAK", "SEMIFINALS_READY", "FINAL_READY", "TOURNAMENT_COMPLETED"].includes(scenario)) {
       await simulateGroupPattern(db, tournamentId, "WILDCARD", options, random, actorId, simulationRunId);
       if (["FINAL_READY", "TOURNAMENT_COMPLETED"].includes(scenario)) {
-        const semifinals = await db.matchup.findMany({ where: { tournamentId, stage: "SEMIFINAL" }, orderBy: { order: "asc" } });
+        const divisionId = await legacyGroupDivisionId(db, tournamentId);
+        const semifinals = await db.matchup.findMany({ where: { tournamentId, divisionId, stage: "SEMIFINAL" }, orderBy: { order: "asc" } });
         for (const matchup of semifinals) {
           if (matchup.homeTeamId && matchup.awayTeamId) {
             await simulateOneMatchup(db, matchup.id, { ...options, matchupOutcome: "CLOSE_HOME", scoreStyle: "CLOSE" }, random, actorId, simulationRunId);
@@ -415,25 +519,29 @@ export async function executeSimulation(
         }
       }
       if (scenario === "TOURNAMENT_COMPLETED") {
-        const final = await db.matchup.findFirst({ where: { tournamentId, stage: "FINAL" } });
+        const divisionId = await legacyGroupDivisionId(db, tournamentId);
+        const final = await db.matchup.findFirst({ where: { tournamentId, divisionId, stage: "FINAL" } });
         if (final?.homeTeamId && final.awayTeamId) {
           await simulateOneMatchup(db, final.id, { ...options, matchupOutcome: "CLOSE_HOME", scoreStyle: "DEUCE" }, random, actorId, simulationRunId);
         }
       }
       result.scenario = scenario;
     } else if (["MID_GROUP_STAGE", "GROUP_ALMOST_COMPLETE"].includes(scenario)) {
-      await resetScenarioState(db, tournamentId);
-      const groupMatchups = await db.matchup.findMany({ where: { tournamentId, stage: "GROUP" }, orderBy: { order: "asc" } });
+      const divisionId = await legacyGroupDivisionId(db, tournamentId);
+      await resetScenarioState(db, tournamentId, divisionId);
+      const groupMatchups = await db.matchup.findMany({ where: { tournamentId, divisionId, stage: "GROUP" }, orderBy: { order: "asc" } });
       const count = scenario === "MID_GROUP_STAGE" ? Math.ceil(groupMatchups.length / 2) : groupMatchups.length - 1;
       for (const matchup of groupMatchups.slice(0, count)) {
         await simulateOneMatchup(db, matchup.id, options, random, actorId, simulationRunId);
       }
       result.scenario = scenario;
       result.matchupsSimulated = count;
+      result.divisionId = divisionId;
     } else if (["PLAYER_NO_SHOW", "TEAM_FORFEIT", "INTERRUPTED_LIVE_GAME", "SCORE_CORRECTION"].includes(scenario)) {
-      await resetScenarioState(db, tournamentId);
-      const matchup = await db.matchup.findFirstOrThrow({ where: { tournamentId, stage: "GROUP" }, orderBy: { order: "asc" } });
-      const games = await ensureGames(db, matchup.id);
+      const divisionId = await legacyGroupDivisionId(db, tournamentId);
+      await resetScenarioState(db, tournamentId, divisionId);
+      const matchup = await db.matchup.findFirstOrThrow({ where: { tournamentId, divisionId, stage: "GROUP" }, orderBy: { order: "asc" } });
+      const games = await ensureGames(db, matchup.id, random, Boolean(options.autoGeneratePairs));
       const firstGame = games[0]!;
       if (scenario === "PLAYER_NO_SHOW") {
         await recordGameState(db, firstGame.id, { homeScore: 0, awayScore: 11, status: "FORFEITED", winnerTeamId: firstGame.awayTeamId, startedAt: new Date(), completedAt: new Date() }, actorId, simulationRunId, "PLAYER_NO_SHOW", "Home pair did not appear");
@@ -446,12 +554,13 @@ export async function executeSimulation(
         await completeGame(db, firstGame.id, { homeScore: 9, awayScore: 11 }, actorId, simulationRunId);
       }
       result.scenario = scenario;
+      result.divisionId = divisionId;
     } else if (["FAN_CLOSE_RACE", "FAN_TIED_RANKINGS"].includes(scenario)) {
       await db.fanVote.deleteMany({ where: { tournamentId } });
       await db.votingCode.deleteMany({ where: { tournamentId } });
       await db.voteAttempt.deleteMany({ where: { tournamentId } });
       await db.tournament.update({ where: { id: tournamentId }, data: { votingOpen: true } });
-      const eligible = await db.player.findMany({ where: { isActive: true, team: { group: { tournamentId } } }, take: 3, select: { id: true } });
+      const eligible = await db.player.findMany({ where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } }, take: 3, select: { id: true } });
       const base = Math.max(5, options.count ?? 10);
       for (const [index, player] of eligible.entries()) {
         const count = scenario === "FAN_TIED_RANKINGS" ? base : Math.max(1, base - index);
@@ -461,7 +570,7 @@ export async function executeSimulation(
     } else if (scenario === "INVALID_VOTING_ATTEMPTS") {
       for (let index = 0; index < Math.min(options.count ?? 25, 200); index += 1) {
         await db.voteAttempt.create({
-          data: { tournamentId, ipHash: `simulation-${index % 5}`, success: false, reason: "INVALID_CODE", codeHint: "SIM…BAD" },
+          data: { tournamentId, ipHash: `simulation-${index % 5}`, success: false, reason: "INVALID_CODE", codeHint: "SIM...BAD" },
         });
       }
       result.scenario = scenario;

@@ -1,29 +1,58 @@
-# MPW Team Pickleball Championship
+# MPW Pickleball Tournament Platform
 
-A public-facing, live-first pickleball tournament platform with Liquipedia-style information pages, live scoring, team-leader lineup submission, Fan Favorite voting, simulation/recovery tools, and transparent male/female MVP rankings.
+A public-facing, live-first tournament platform for MPW Pickleball. The application is intentionally **format-flexible**: divisions, player attendance, team/pair assignment, matchup game counts, group structures, and future schedules can be changed by organizers without a code deployment.
+
+The original 2026 Open setup (3 groups, 12 teams, 7 pair games per team matchup) remains available as **sample/default data only**. It is not an architectural constraint.
+
+## Product rule
+
+> The system adapts to the tournament. The tournament should not have to adapt to the system.
+
+Tournament-day changes are expected. Future/unplayed structure is editable; recorded play is protected.
 
 ## Tournament model
 
-- 3 groups, 4 teams per group, 12 teams total
-- 7 pairs / 14 players per team, 168 players total
-- 6 team matchups per group; every team matchup contains 7 pair games
-- Group winners plus the best second-place wildcard advance to the semifinals
-- Winners of the two semifinals advance to the final
-- Server-side lineup validation prevents pair or player reuse within one team matchup
+- One Tournament can contain multiple independent **Divisions** (Open, Executive Men, Executive Women, or future categories).
+- Each division controls its format, default games per matchup, groups, teams, qualification settings, visibility, and progression notes.
+- Players begin in a tournament-level **Player Pool** and can be tentative, confirmed, unavailable, or withdrawn.
+- Division eligibility/confirmation is tracked separately through `DivisionPlayer`.
+- `Player.teamId` is optional. Team/pair assignment is late-bound and should happen only when attendance is known.
+- Matchups own `gamesPerMatchup`; there is no global seven-game assumption.
+- Group round robins can be regenerated while unplayed. Custom future matchups can be created/edited/deleted directly by admins.
+- Started/completed matchups protect competitors, game structure, and history while still allowing safe metadata changes such as court/round/time.
+- Group-knockout automatic progression currently supports 2, 4, or 8 qualifiers. Other structures remain organizer-controlled rather than being guessed by code.
+- Public `/format` content is generated from current database configuration.
 
-## Major capabilities
+## Preserved capabilities
 
-- Public live hub, groups, standings, wildcard race, bracket, teams, players, and game pages
-- Admin live scoring with optimistic version checks, corrections, forfeits, interruption state, audit history, and score-event undo
-- Automatic recalculation of team matchup results, standings, wildcard selection, semifinal assignments, final assignments, and MVP numbers
-- Team-leader-only lineup submission for the leader's assigned team
-- Player avatar upload with JPEG/PNG/WebP signature checks, a 2 MB limit, and initials fallback
-- One-time Fan Favorite voting codes stored as secure hashes, atomic code consumption, rejected-attempt tracking, rate limiting, printable QR cards, and live rankings
-- Admin-only deterministic Simulation Center using the real tournament tables and calculation services
-- Automatic and manual checkpoints; restore, simulation undo, team matchup undo, round undo, and stage undo
-- Reset Data Center with multiple scopes and production restrictions
-- Separate Male MVP and Female MVP leaderboards derived from completed tournament games
-- Audit logs for scoring, lineups, bracket recalculation, simulation, resets, voting, checkpoints, and avatar changes
+The flexibility refactor does **not** remove unrelated tournament features:
+
+- Live scoring, score correction, forfeits, interruption state, audit history, and score-event undo
+- Team-leader lineup submission with server-side pair/player validation
+- Fan Favorite voting codes, rate limiting, printable cards, and live rankings
+- Male/Female MVP rankings based on completed games
+- Simulation Center
+- Checkpoints, restore, granular undo, and reset tooling
+- Player avatars
+- Public home, groups, standings, bracket, games, teams, players, Fan Favorite, and MVP pages
+
+## Admin workflow for short-notice changes
+
+1. Add possible participants to **Admin → Player Pool** without assigning teams.
+2. Mark attendance and division eligibility as information becomes reliable.
+3. For Executive doubles, use **Quick Pair Unit** to create a team + two player assignments + active pair in one action.
+4. Configure or change the division under **Admin → Tournament Setup**.
+5. Generate a round robin or create/edit future matchups manually.
+6. Once scoring starts, preserve that history; change only future/unplayed records.
+
+## Codex / future-agent handoff
+
+Read these before making structural tournament changes:
+
+- [`AGENTS.md`](AGENTS.md) — non-negotiable implementation rules
+- [`PROJECT_STATE.md`](PROJECT_STATE.md) — current state and remaining boundaries
+- [`docs/FLEXIBLE_TOURNAMENT_ARCHITECTURE.md`](docs/FLEXIBLE_TOURNAMENT_ARCHITECTURE.md) — model and invariants
+- [`docs/TOURNAMENT_DAY_PLAYBOOK.md`](docs/TOURNAMENT_DAY_PLAYBOOK.md) — intended organizer workflows
 
 ## Local setup
 
@@ -39,16 +68,16 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Do not use `prisma db push` for an existing environment. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md) for the baseline procedure for databases created by the earlier prototype.
+Do not use `prisma db push` for an existing environment. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ## Local seed credentials
 
-These are development-only credentials created by `npm run db:seed`:
+Development-only credentials created by `npm run db:seed`:
 
 - Admin: `admin@mpw.test` / `admin123`
-- Team leaders: `leader1@mpw.test` through `leader12@mpw.test` / `leader123`
+- Open Division team leaders: `leader1@mpw.test` through `leader12@mpw.test` / `leader123`
 
-Change or remove all seeded accounts before a real event.
+Change/remove seeded credentials before a real event.
 
 ## Verification
 
@@ -61,9 +90,9 @@ npm test
 npm run build
 ```
 
-`npm run verify` runs the same chain. The uploaded recovery environment could not download npm dependencies because its package registry/DNS was unavailable, so framework-level build and Prisma validation must be rerun after `npm ci` on a machine with package access. Source-level TypeScript/TSX syntax validation was completed across the repository.
+`npm run verify` runs the same chain. If dependencies cannot be installed in a recovery environment, at minimum run the repository syntax pass and then rerun the full chain on the deployment machine before production.
 
-## Operations and deployment
+## Existing operations docs
 
 - [Recovery report](docs/RECOVERY_REPORT.md)
 - [Migration procedure](docs/MIGRATIONS.md)

@@ -3,9 +3,9 @@
 ## Terminology
 
 - **Game:** one pair versus another pair.
-- **Team Matchup:** one team versus another team, normally seven games.
+- **Team Matchup:** one team/pair-unit versus another. The required number of pair games comes from `Matchup.gamesPerMatchup`.
 - **Round:** a scheduled collection of team matchups.
-- **Stage:** Group Stage, Semifinals, or Final.
+- **Stage:** configurable scope such as Group, Round Robin, Quarterfinal, Semifinal, Final, Third Place, or Custom.
 
 ## Admin control room
 
@@ -17,11 +17,11 @@ Each score update includes the current game version. A stale browser submission 
 
 1. Sign in with the assigned team-leader account.
 2. Open a team matchup involving that account's team.
-3. Assign each of the team's seven active pairs exactly once.
+3. Submit exactly the number of playing pairs required by that matchup from the current confirmed roster. A one-game Executive matchup needs one pair; a seven-game Open matchup needs seven.
 4. Submit the lineup.
 5. Games are created only when both teams have valid lineups.
 
-The server verifies ownership, active pairs, seven unique pair IDs, and fourteen unique player IDs.
+The server verifies ownership, division eligibility, confirmed attendance, the exact required pair count, unique pair IDs, and no duplicated players in the submitted lineup.
 
 ## Fan Favorite workflow
 
@@ -45,7 +45,7 @@ Supported controls:
 
 - quick states: fresh, lineups pending, mid/almost-complete group stage, three-way tie, wildcard tiebreak, semifinals ready, final ready, completed tournament, player/team forfeits, interruption, score correction, close/tied Fan Favorite races, and invalid/reused/revoked code attempts;
 - one game with forced/random winner and dominant/close/deuce/random score;
-- one seven-game team matchup with sweep, 4–3, forced, or random result;
+- one configured team matchup using its current game count, with sweep/closest-win/forced/random outcomes;
 - remaining group stage, semifinals, final, or entire tournament;
 - deterministic seed, such as `20260729`;
 - voting bursts toward random players or a selected player;
@@ -71,10 +71,14 @@ A matchup/round/stage rollback preserves lineups, clears game results in the sel
 ## Reset Data Center
 
 - **Scores only:** preserves lineups, master data, users, and voting data.
-- **Tournament progress:** resets group results and removes knockout progression.
-- **Event activity:** rebuilds the schedule and clears lineups, results, and voting activity.
+- **Tournament progress:** clears scores and future auto-progression while preserving the organizer's current divisions, groups, teams, and schedule records.
+- **Event activity:** clears lineups, results, and voting activity while preserving the organizer's current structural configuration and matchup records.
 - **Everything except users:** currently preserves existing master teams/players and accounts while rebuilding event activity.
 - **Fan Favorite only:** clears votes and attempts, resets used/issued codes to unused, and preserves revoked/replaced codes.
 - **Factory reset:** recreates local sample data and accounts; requires `ALLOW_FACTORY_RESET=true`. It cannot keep an in-database checkpoint because it deletes the owning tournament and accounts, so take a PostgreSQL backup first.
 
 Each destructive reset requires an exact confirmation phrase. Scoped resets create an automatic checkpoint first. Production resets are denied unless `destructiveToolsEnabled` is enabled for the tournament.
+
+## Official paper scorecards
+
+When both sides have submitted complete lineups, the admin dashboard and Tournament Setup expose a **Scorecards** action for that matchup. The print preview produces two cards per A4 landscape page and is based on the latest generated games, so Team names and both players in every pair are pre-filled automatically. Group/bracket, round, and court can be adjusted on the print preview without mutating tournament records. Individual cards can be reprinted if a sheet is lost or a lineup changes before scoring.

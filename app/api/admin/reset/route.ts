@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/permissions";
-import { requestData, redirectBack } from "@/lib/request";
+import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { rebuildActivityPreservingMasterData, factorySeed } from "@/lib/tournament/seed";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
@@ -11,12 +11,15 @@ const confirmationByScope: Record<string, string> = {
   SCORES: "RESET SCORES",
   PROGRESS: "RESET PROGRESS",
   EVENT: "RESET EVENT",
+  MASTER_DATA: "RESET MASTER DATA",
   EXCEPT_USERS: "RESET EXCEPT USERS",
   FACTORY: "FACTORY RESET",
   VOTING: "RESET VOTING",
 };
+const RESET_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 90_000 };
 
 export async function POST(request: Request) {
+  assertSameOrigin(request);
   const user = await requireAdmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const data = await requestData(request);
@@ -32,12 +35,12 @@ export async function POST(request: Request) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      if (scope !== "FACTORY") {
+      if (scope !== "FACTORY" && scope !== "MASTER_DATA") {
         const snapshot = await captureTournamentSnapshot(tx, tournament.id);
         await tx.checkpoint.create({
           data: {
             tournamentId: tournament.id,
-            name: `Before ${scope} reset · ${new Date().toISOString()}`,
+            name: `Before ${scope} reset - ${new Date().toISOString()}`,
             kind: "AUTOMATIC",
             snapshot,
             createdById: user.id,
@@ -65,34 +68,57 @@ export async function POST(request: Request) {
       } else if (scope === "PROGRESS") {
         await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
         await tx.game.updateMany({
-          where: { matchup: { tournamentId: tournament.id, stage: "GROUP" } },
+          where: { matchup: { tournamentId: tournament.id } },
           data: { homeScore: 0, awayScore: 0, status: "SCHEDULED", winnerTeamId: null, startedAt: null, completedAt: null, version: { increment: 1 } },
         });
-        await tx.matchup.updateMany({
-          where: { tournamentId: tournament.id, stage: "GROUP" },
-          data: { homeWins: 0, awayWins: 0, winnerTeamId: null, status: "READY", version: { increment: 1 } },
+        const matchups = await tx.matchup.findMany({
+          where: { tournamentId: tournament.id },
+          include: { lineups: true, games: true, division: true },
         });
-        const groupWithoutGames = await tx.matchup.findMany({
-          where: { tournamentId: tournament.id, stage: "GROUP", games: { none: {} } },
-          include: { lineups: true },
-        });
-        for (const matchup of groupWithoutGames) {
-          await tx.matchup.update({
-            where: { id: matchup.id },
-            data: {
-              status: matchup.homeTeamId && matchup.awayTeamId
-                ? matchup.lineups.length === 2 ? "READY" : "LINEUP_PENDING"
-                : "SCHEDULED",
-            },
-          });
+        for (const matchup of matchups) {
+          const autoKnockout = matchup.division.autoProgression
+            && matchup.division.formatType === "GROUP_KNOCKOUT"
+            && (["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] as string[]).includes(matchup.stage);
+          if (autoKnockout) {
+            await tx.game.deleteMany({ where: { matchupId: matchup.id } });
+            await tx.lineup.deleteMany({ where: { matchupId: matchup.id } });
+            await tx.matchup.update({
+              where: { id: matchup.id },
+              data: { homeTeamId: null, awayTeamId: null, homeWins: 0, awayWins: 0, winnerTeamId: null, status: "SCHEDULED", version: { increment: 1 } },
+            });
+          } else {
+            await tx.matchup.update({
+              where: { id: matchup.id },
+              data: {
+                homeWins: 0,
+                awayWins: 0,
+                winnerTeamId: null,
+                status: !matchup.homeTeamId || !matchup.awayTeamId
+                  ? "SCHEDULED"
+                  : matchup.lineups.length === 2 && matchup.games.length === matchup.gamesPerMatchup ? "READY" : "LINEUP_PENDING",
+                version: { increment: 1 },
+              },
+            });
+          }
         }
-        await tx.game.deleteMany({ where: { matchup: { tournamentId: tournament.id, stage: { in: ["SEMIFINAL", "FINAL"] } } } });
-        await tx.lineup.deleteMany({ where: { matchup: { tournamentId: tournament.id, stage: { in: ["SEMIFINAL", "FINAL"] } } } });
-        await tx.matchup.deleteMany({ where: { tournamentId: tournament.id, stage: { in: ["SEMIFINAL", "FINAL"] } } });
       } else if (scope === "EVENT") {
         await rebuildActivityPreservingMasterData(tx, tournament.id);
         await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.votingCode.deleteMany({ where: { tournamentId: tournament.id } });
+      } else if (scope === "MASTER_DATA") {
+        await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
+        await tx.game.deleteMany({ where: { matchup: { tournamentId: tournament.id } } });
+        await tx.lineup.deleteMany({ where: { matchup: { tournamentId: tournament.id } } });
+        await tx.matchup.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.votingCode.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.voteAttempt.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.simulationRun.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.checkpoint.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.tournament.update({
+          where: { id: tournament.id },
+          data: { votingOpen: false, votingDeadline: null, simulationMode: false },
+        });
       } else if (scope === "EXCEPT_USERS") {
         await rebuildActivityPreservingMasterData(tx, tournament.id);
       } else if (scope === "VOTING") {
@@ -120,9 +146,11 @@ export async function POST(request: Request) {
         reason: scope,
         afterState: { scope },
       });
-    }, { timeout: 60_000 });
+    }, RESET_TRANSACTION_OPTIONS);
     const success = scope === "FACTORY"
       ? "Factory reset completed. The previous database state cannot be restored from an in-database checkpoint."
+      : scope === "MASTER_DATA"
+        ? "Master-data-only reset completed. Players, teams, team assignments, divisions, groups, and accounts were preserved."
       : `${scope} reset completed. A safety checkpoint was created first.`;
     return NextResponse.redirect(redirectBack(request, "/admin/reset", { success }), 303);
   } catch (error) {

@@ -5,9 +5,12 @@ out/
 .env.local
 .env.*.local
 *.log
+*.err
 *.out
 *.tsbuildinfo
 coverage/
 .DS_Store
 *.dump
 *.tar.gz
+*.csv
+*.zip

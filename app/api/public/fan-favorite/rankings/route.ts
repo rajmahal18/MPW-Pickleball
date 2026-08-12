@@ -15,20 +15,21 @@ export async function GET() {
     orderBy: [{ sexCategory: "asc" }, { _count: { playerId: "desc" } }, { playerId: "asc" }],
   });
   const players = await prisma.player.findMany({
-    where: { id: { in: grouped.map((row) => row.playerId) } },
+    where: { id: { in: grouped.map((row) => row.playerId) }, isActive: true, participationStatus: "CONFIRMED", team: { division: { isPublic: true } } },
     include: { team: true },
   });
   const playerById = new Map(players.map((player) => [player.id, player]));
-  const totalVotes = grouped.reduce((sum, row) => sum + row._count._all, 0);
+  const publicGrouped = grouped.filter((row) => playerById.has(row.playerId));
+  const totalVotes = publicGrouped.reduce((sum, row) => sum + row._count._all, 0);
   const totalsBySex = {
-    male: grouped.filter((row) => row.sexCategory === "MALE").reduce((sum, row) => sum + row._count._all, 0),
-    female: grouped.filter((row) => row.sexCategory === "FEMALE").reduce((sum, row) => sum + row._count._all, 0),
+    male: publicGrouped.filter((row) => row.sexCategory === "MALE").reduce((sum, row) => sum + row._count._all, 0),
+    female: publicGrouped.filter((row) => row.sexCategory === "FEMALE").reduce((sum, row) => sum + row._count._all, 0),
   };
 
   function rankingsFor(sexCategory: SexCategory, total: number) {
     let previousVotes = -1;
     let currentRank = 0;
-    return grouped
+    return publicGrouped
       .filter((row) => row.sexCategory === sexCategory)
       .map((row, index) => {
         const votes = row._count._all;

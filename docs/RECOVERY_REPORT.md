@@ -29,11 +29,11 @@ The uploaded source already contained:
 
 - public tournament home, teams, players, groups, matchups, and bracket pages;
 - admin and team-leader authentication;
-- 3 groups × 4 teams seed data;
-- 7 pairs and 14 players per team;
+- 3 groups × 4 teams seed data in the original uploaded Open configuration (historical baseline, not a current engine constraint);
+- 7 pairs and 14 players per team in the original Open sample;
 - group schedule generation;
 - team-leader lineup submission;
-- seven pair games generated after both lineups exist;
+- seven pair games generated after both lineups existed in the original Open sample; the flexible engine now derives this count per matchup;
 - basic live scoring and public polling;
 - group standings and a basic knockout generator.
 
@@ -65,3 +65,8 @@ See `docs/MIGRATIONS.md` before applying this to an existing prototype database.
 8. Added server-side authorization checks for sensitive routes.
 9. Added operational documentation and a separate EC2 deployment plan.
 10. Added focused domain tests and verification scripts.
+
+
+## 2026-08-10 flexible-engine pass
+
+The recovery baseline above documents what existed at intake. It is intentionally historical. The current application now adds independent divisions, player-pool attendance states, optional team assignment, configurable matchup game counts, Executive-ready pair units, dynamic public format guidance, division-aware recovery, and safe future-structure mutation. See `PROJECT_STATE.md`, `AGENTS.md`, `docs/FLEXIBLE_TOURNAMENT_ARCHITECTURE.md`, and `docs/TOURNAMENT_DAY_PLAYBOOK.md` for the current source of truth.

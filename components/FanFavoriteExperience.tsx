@@ -2,15 +2,17 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { PUBLIC_POLL_INTERVAL_MS } from "@/lib/tournament/config";
+import { formatPlayerDisplayName } from "@/lib/player-name";
 
 type Player = {
   id: string;
   firstName: string;
+  middleInitial?: string | null;
   lastName: string;
   displayName: string | null;
   avatarUrl: string | null;
   sex: "MALE" | "FEMALE";
-  team: { name: string; shortName: string };
+  team: { name: string; shortName: string } | null;
 };
 
 type Ranking = { rank: number; votes: number; percentage: number; player?: Player };
@@ -52,15 +54,25 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), PUBLIC_POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
+    let stopped = false;
+    const guardedRefresh = () => {
+      if (!stopped && document.visibilityState === "visible") void refresh();
+    };
+    const timer = window.setInterval(guardedRefresh, PUBLIC_POLL_INTERVAL_MS);
+    const onFocus = () => guardedRefresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   function filterPlayers(list: Player[], search: string) {
     const query = search.trim().toLowerCase();
     if (!query) return list;
     return list.filter((player) =>
-      `${player.displayName || `${player.firstName} ${player.lastName}`} ${player.team.name} ${player.team.shortName}`
+      `${formatPlayerDisplayName(player)} ${player.team?.name ?? "Unassigned"} ${player.team?.shortName ?? ""}`
         .toLowerCase()
         .includes(query),
     );
@@ -147,7 +159,7 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
           {scanning && <video ref={videoRef} className="aspect-video w-full bg-black" muted playsInline />}
           {message && <div className="border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
           {error && <div className="border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
-          <button disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Recording votes..." : "Confirm votes"}</button>
+          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Recording votes..." : "Confirm votes"}</button>
         </form>
       </div>
     </section>
@@ -186,12 +198,12 @@ function PlayerPicker({
       <input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-3 w-full border border-line bg-white p-3" placeholder="Search player or team" />
     </div>
     <div className="max-h-[360px] space-y-2 overflow-y-auto p-3">{players.map((player) => {
-      const name = player.displayName || `${player.firstName} ${player.lastName}`;
+      const name = formatPlayerDisplayName(player);
       const selected = selectedPlayerId === player.id;
       return <label key={player.id} className={`flex cursor-pointer items-center gap-3 border bg-white p-3 ${selected ? "border-ink ring-2 ring-lime" : "border-line"}`}>
         <input type="radio" name={tone} value={player.id} checked={selected} onChange={() => setSelectedPlayerId(player.id)} />
         <PlayerAvatar {...player} size="sm" />
-        <span><strong className="block">{name}</strong><span className="text-xs text-gray-500">{player.team.name}</span></span>
+        <span><strong className="block">{name}</strong><span className="text-xs text-gray-500">{player.team?.name ?? "Unassigned"}</span></span>
       </label>;
     })}{!players.length && <div className="p-6 text-center text-sm text-gray-500">No eligible players found.</div>}</div>
   </div>;
@@ -206,7 +218,7 @@ function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; tot
     </div>
     <div className="divide-y divide-line bg-white">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <div key={ranking.player.id} className="grid grid-cols-[34px_1fr_auto] items-center gap-3 p-4">
       <div className={`grid h-8 w-8 place-items-center font-black ${ranking.rank === 1 ? "bg-lime text-ink" : "bg-gray-100 text-gray-700"}`}>{ranking.rank}</div>
-      <div className="flex min-w-0 items-center gap-3"><PlayerAvatar {...ranking.player} size="sm" /><div className="min-w-0"><div className="truncate font-black">{ranking.player.displayName || `${ranking.player.firstName} ${ranking.player.lastName}`}</div><div className="text-xs text-gray-500">{ranking.player.team.shortName}</div></div></div>
+      <div className="flex min-w-0 items-center gap-3"><PlayerAvatar {...ranking.player} size="sm" /><div className="min-w-0"><div className="truncate font-black">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div></div>
       <div className="text-right"><div className="font-black">{ranking.votes}</div><div className="text-xs text-gray-500">{ranking.percentage}%</div></div>
     </div>) : <div className="p-8 text-center text-gray-500">No valid votes yet.</div>}</div>
   </div>;

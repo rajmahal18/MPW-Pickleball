@@ -3,19 +3,107 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import FlashMessage from "@/components/FlashMessage";
-import PlayerAvatar from "@/components/PlayerAvatar";
+import AdminNav from "@/components/AdminNav";
+import SubmitButton from "@/components/SubmitButton";
+import AdminScoreConsole from "@/components/AdminScoreConsole";
+import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
+
+const scorePlayerSelect = {
+  id: true,
+  firstName: true,
+  middleInitial: true,
+  lastName: true,
+  displayName: true,
+  avatarUrl: true,
+} as const;
+
 export default async function Score({ params, searchParams }: { params: Promise<{ gameId: string }>; searchParams: Promise<{ success?: string; error?: string }> }) {
-  const user = await getCurrentUser(); if (!user || user.role !== "ADMIN") redirect("/login");
-  const { gameId } = await params; const query = await searchParams;
-  const game = await prisma.game.findUnique({ where: { id: gameId }, include: { homeTeam: true, awayTeam: true, homePair: { include: { playerA: true, playerB: true } }, awayPair: { include: { playerA: true, playerB: true } }, matchup: true, scoreEvents: { orderBy: { createdAt: "desc" }, take: 10, include: { actor: true } } } });
+  const user = await getCurrentUser();
+  if (!user || user.role !== "ADMIN") redirect("/login");
+  const { gameId } = await params;
+  const query = await searchParams;
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    include: {
+      homeTeam: { select: { id: true, name: true, shortName: true } },
+      awayTeam: { select: { id: true, name: true, shortName: true } },
+      homePair: { select: { id: true, label: true, playerA: { select: scorePlayerSelect }, playerB: { select: scorePlayerSelect } } },
+      awayPair: { select: { id: true, label: true, playerA: { select: scorePlayerSelect }, playerB: { select: scorePlayerSelect } } },
+      matchup: { include: {
+        division: { select: { suddenDeathAtTen: true } },
+        games: { select: { id: true, gameNumber: true, status: true, homeScore: true, awayScore: true }, orderBy: { gameNumber: "asc" } },
+      } },
+      scoreEvents: { orderBy: { createdAt: "desc" }, take: 10, include: { actor: true } },
+    },
+  });
   if (!game) notFound();
-  return <main className="mx-auto max-w-4xl px-4 py-8"><FlashMessage {...query}/><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="label">Live scoring · {game.matchup.roundLabel} · Court {game.matchup.courtLabel || "TBA"}</div><h1 className="text-3xl font-black uppercase">Game {game.gameNumber}</h1><p className="mt-1 text-sm text-gray-500">Version {game.version} · {game.status}</p></div><Link href="/admin" className="btn-ghost">Back to control room</Link></div><div className="mt-6 grid gap-5 md:grid-cols-2"><ScoreSide team={game.homeTeam} pair={game.homePair} score={game.homeScore} side="home" gameId={game.id} version={game.version}/><ScoreSide team={game.awayTeam} pair={game.awayPair} score={game.awayScore} side="away" gameId={game.id} version={game.version}/></div>
-  <div className="mt-5 flex flex-wrap gap-3"><Action gameId={game.id} version={game.version} action="start" label="Start / mark live" primary/><Action gameId={game.id} version={game.version} action="finalize" label="Finalize game" danger/>{game.status === "COMPLETED" && <Action gameId={game.id} version={game.version} action="reopen" label="Reopen for correction"/>}<Action gameId={game.id} version={game.version} action="interrupt" label="Mark interrupted"/></div>
-  <section className="panel mt-6 p-5"><h2 className="text-xl font-black uppercase">Exact score correction</h2><p className="mt-1 text-sm text-gray-500">Completed-game corrections immediately invalidate or recalculate dependent standings, wildcard selection, bracket progression, and MVP rankings.</p><form action={`/api/admin/score/${game.id}`} method="post" className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto]"><input type="hidden" name="action" value="set-score"/><input type="hidden" name="version" value={game.version}/><input type="number" min="0" name="homeScore" defaultValue={game.homeScore} className="border border-line p-3"/><input type="number" min="0" name="awayScore" defaultValue={game.awayScore} className="border border-line p-3"/><input name="reason" required placeholder="Reason for correction" className="border border-line p-3"/><button className="btn-primary">Save correction</button></form></section>
-  <section className="panel mt-6 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black uppercase">Recovery actions</h2><p className="text-sm text-gray-500">Undo restores the state before the latest non-undone score event.</p></div><form action="/api/admin/undo" method="post"><input type="hidden" name="action" value="score-event"/><input type="hidden" name="gameId" value={game.id}/><button className="btn border-red-600 bg-red-600 text-white">Undo latest score change</button></form></div><div className="mt-4 flex flex-wrap gap-2"><Action gameId={game.id} version={game.version} action="forfeit-home" label={`${game.homeTeam.shortName} forfeits`}/><Action gameId={game.id} version={game.version} action="forfeit-away" label={`${game.awayTeam.shortName} forfeits`}/></div></section>
-  <section className="panel mt-6 overflow-hidden"><div className="border-b border-line p-4"><h2 className="text-xl font-black uppercase">Recent score events</h2></div><div className="divide-y divide-line">{game.scoreEvents.map((event) => <details key={event.id} className="p-4"><summary className="cursor-pointer font-bold">{event.action} · {event.actor?.name || "System"} · {event.createdAt.toLocaleString()} {event.undoneAt && <span className="text-red-700">(undone)</span>}</summary><pre className="mt-2 overflow-auto bg-gray-50 p-3 text-xs">{JSON.stringify({ before: event.beforeState, after: event.afterState, reason: event.reason }, null, 2)}</pre></details>)}</div></section></main>;
+
+  const initial = {
+    id: game.id,
+    version: game.version,
+    gameNumber: game.gameNumber,
+    homeScore: game.homeScore,
+    awayScore: game.awayScore,
+    status: game.status,
+    winnerTeamId: game.winnerTeamId,
+    startedAt: game.startedAt?.toISOString() ?? null,
+    completedAt: game.completedAt?.toISOString() ?? null,
+    homeTeam: { id: game.homeTeam.id, name: game.homeTeam.name, shortName: game.homeTeam.shortName },
+    awayTeam: { id: game.awayTeam.id, name: game.awayTeam.name, shortName: game.awayTeam.shortName },
+    homePair: {
+      id: game.homePair.id,
+      label: game.homePair.label,
+      playerA: game.homePair.playerA,
+      playerB: game.homePair.playerB,
+    },
+    awayPair: {
+      id: game.awayPair.id,
+      label: game.awayPair.label,
+      playerA: game.awayPair.playerA,
+      playerB: game.awayPair.playerB,
+    },
+    matchup: {
+      id: game.matchup.id,
+      status: game.matchup.status,
+      homeWins: game.matchup.homeWins,
+      awayWins: game.matchup.awayWins,
+      roundLabel: game.matchup.roundLabel,
+      courtLabel: game.matchup.courtLabel,
+      suddenDeathAtTen: game.matchup.division.suddenDeathAtTen,
+    },
+  };
+
+  return <main className="admin-shell">
+    <AdminNav/>
+    <FlashMessage {...query}/>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div className="flex flex-wrap items-center gap-2"><StatusBadge status={game.status}/><span className="label">Live scoring · {game.matchup.roundLabel} · Court {game.matchup.courtLabel || "TBA"}</span></div>
+        <h1 className="mt-2 text-3xl font-black uppercase">Game {game.gameNumber}</h1>
+        <p className="mt-1 text-sm text-gray-500">Use the large +1 controls during play. Each point saves in place without navigating or refreshing the page.</p>
+      </div>
+      <div className="flex gap-2"><Link href="/admin#live-scoring" className="btn-ghost">Live scoring board</Link><Link href={`/matches/${game.matchupId}`} className="btn-ghost">Public matchup</Link></div>
+    </div>
+
+    <section className="panel mt-5 overflow-hidden">
+      <div className="border-b border-line bg-paper px-4 py-3"><div className="label">Games in this team matchup</div><p className="mt-1 text-xs text-gray-500">Jump directly between pair games without returning to the dashboard.</p></div>
+      <div className="flex flex-wrap gap-2 p-4">{game.matchup.games.map((item) => <Link key={item.id} href={`/admin/score/${item.id}`} aria-current={item.id === game.id ? "page" : undefined} className={`inline-flex items-center gap-2 border px-3 py-2 text-xs font-black ${item.id === game.id ? "border-court bg-court text-white" : item.status === "LIVE" ? "border-flame bg-flame/10 text-flame" : item.status === "COMPLETED" || item.status === "FORFEITED" ? "border-court/30 bg-court/10 text-court" : "border-line bg-white text-gray-600"}`}><span>G{item.gameNumber}</span><span className="tabular-nums">{item.homeScore}-{item.awayScore}</span><span className="text-[9px] uppercase opacity-70">{item.status === "LIVE" ? "Live" : item.status === "COMPLETED" ? "Done" : item.status === "FORFEITED" ? "Forfeit" : item.status === "INTERRUPTED" ? "Paused" : "Pending"}</span></Link>)}</div>
+    </section>
+
+    <AdminScoreConsole initial={initial}/>
+
+    <section className="panel mt-6 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-xl font-black uppercase">Recovery</h2><p className="text-sm text-gray-500">Undo restores the state before the latest non-undone score event. This is intentionally separate from normal point controls.</p></div>
+        <form action="/api/admin/undo" method="post"><input type="hidden" name="action" value="score-event"/><input type="hidden" name="gameId" value={game.id}/><SubmitButton className="btn border-red-600 bg-red-600 text-white" pendingLabel="Undoing…">Undo latest score change</SubmitButton></form>
+      </div>
+    </section>
+
+    <section className="panel mt-6 overflow-hidden">
+      <div className="border-b border-line p-4"><h2 className="text-xl font-black uppercase">Recent score events</h2><p className="mt-1 text-xs text-gray-500">This audit trail updates when the page is reopened; normal live scoring does not refresh the whole screen.</p></div>
+      <div className="divide-y divide-line">{game.scoreEvents.length ? game.scoreEvents.map((event) => <details key={event.id} className="p-4"><summary className="cursor-pointer font-bold">{event.action} · {event.actor?.name || "System"} · {event.createdAt.toLocaleString()} {event.undoneAt && <span className="text-red-700">(undone)</span>}</summary><pre className="mt-2 overflow-auto bg-gray-50 p-3 text-xs">{JSON.stringify({ before: event.beforeState, after: event.afterState, reason: event.reason }, null, 2)}</pre></details>) : <div className="p-4 text-sm text-gray-500">No score events yet.</div>}</div>
+    </section>
+  </main>;
 }
-function ScoreSide({ team, pair, score, side, gameId, version }: { team: { name: string }; pair: { playerA: any; playerB: any }; score: number; side: "home" | "away"; gameId: string; version: number }) { return <div className="panel p-6 text-center"><div className="label">{team.name}</div><div className="mt-3 flex justify-center -space-x-2"><PlayerAvatar {...pair.playerA} size="md"/><PlayerAvatar {...pair.playerB} size="md"/></div><div className="mt-2 font-black">{pair.playerA.displayName || pair.playerA.firstName} / {pair.playerB.displayName || pair.playerB.firstName}</div><div className="my-6 text-7xl font-black tabular-nums">{score}</div><div className="flex justify-center gap-2"><Action gameId={gameId} version={version} action={`decrement-${side}`} label="−"/><Action gameId={gameId} version={version} action={`increment-${side}`} label="+ Point" primary/></div></div>; }
-function Action({ gameId, version, action, label, primary, danger }: { gameId: string; version: number; action: string; label: string; primary?: boolean; danger?: boolean }) { return <form action={`/api/admin/score/${gameId}`} method="post"><input type="hidden" name="action" value={action}/><input type="hidden" name="version" value={version}/><button className={danger ? "btn border-red-600 bg-red-600 text-white" : primary ? "btn-primary" : "btn-ghost"}>{label}</button></form>; }

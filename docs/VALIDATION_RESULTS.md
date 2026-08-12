@@ -1,5 +1,7 @@
 # Validation Results
 
+> Historical validation from the recovery build. For the 2026-08-10 flexible-engine pass, see the section at the bottom of this file.
+
 Validation date: 2026-07-29
 
 ## Passed
@@ -26,7 +28,7 @@ Because the repository's `tsx` package could not be installed in this environmen
 Covered:
 
 - standings and tiebreak order;
-- best second-place wildcard;
+- original best second-place wildcard behavior;
 - cross-group wildcard ordering that deliberately ignores unrelated head-to-head data;
 - separate Male/Female MVP rankings and locked-pair disclosure;
 - deterministic simulation seed;
@@ -77,3 +79,36 @@ npm run build
 ```
 
 No claim of a successful Next.js production build or Prisma validation is made in this package.
+
+
+## Flexible-engine validation — 2026-08-10
+
+A dependency-independent TypeScript compiler-API syntax sweep was rerun after the flexible tournament refactor across `app`, `components`, `lib`, `prisma`, and `tests`, excluding declaration files. Result: **0 syntax diagnostics**.
+
+Additional domain coverage was added for configurable qualifier/wildcard counts and even-game tied matchups so a tied team matchup does not invent a winner. The legacy wildcard helper remains only for backward compatibility and old tests; production progression uses `selectDivisionQualifiers`.
+
+The environment still does not contain the project npm dependencies or a PostgreSQL/Prisma runtime, so the authoritative commands below must be run by Codex/deployment CI before production deployment:
+
+```bash
+npm ci
+npx prisma format
+npx prisma validate
+npx prisma generate
+npm run typecheck
+npm test
+npm run build
+```
+
+The new migration is additive and preserves existing Open data, but it must be applied to a staging/backup-restorable database before production.
+
+Latest final-pass checks after tournament-day hardening:
+
+```text
+74 TS/TSX files parsed: 0 syntax diagnostics
+74 TS/TSX files checked for internal @/ imports: 0 missing
+package.json + package-lock.json: parsed successfully
+Flexible standings/format-guide smoke assertions: PASS
+scripts/backup.sh bash syntax: PASS after normalizing the uploaded CRLF line endings
+```
+
+The final hardening also added safe unplayed group/team removal and scoped legacy group-stage simulation resets to one grouped division, preventing those presets from deleting activity in Executive/other divisions.

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { gamesForStage } from "@/lib/tournament/rules";
 
 function jsonSafe<T>(value: T) {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -18,7 +19,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
   ]);
 
   return jsonSafe({
-    version: 2,
+    version: 3,
     capturedAt: new Date().toISOString(),
     tournament: {
       id: tournament.id,
@@ -57,7 +58,7 @@ type Snapshot = {
   voteAttempts?: Array<Record<string, unknown>>;
 };
 
-const MATCHUP_STAGES = ["GROUP", "SEMIFINAL", "FINAL"] as const;
+const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const MATCHUP_STATUSES = ["SCHEDULED", "LINEUP_PENDING", "READY", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
 const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
 const VOTING_CODE_STATUSES = ["UNUSED", "ISSUED", "USED", "REVOKED", "REPLACED"] as const;
@@ -80,7 +81,7 @@ export async function restoreTournamentSnapshot(
   rawSnapshot: Prisma.JsonValue,
 ) {
   const snapshot = rawSnapshot as unknown as Snapshot;
-  if (!snapshot || ![1, 2].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
+  if (!snapshot || ![1, 2, 3].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
     throw new Error("Checkpoint is incompatible with this tournament.");
   }
 
@@ -102,17 +103,32 @@ export async function restoreTournamentSnapshot(
     },
   });
 
+  const fallbackDivision = await db.division.findFirst({ where: { tournamentId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
+  if (!fallbackDivision) throw new Error("Checkpoint restore requires at least one tournament division.");
+
   for (const raw of snapshot.matchups) {
     const value = raw as Record<string, unknown>;
+    const divisionId = typeof value.divisionId === "string" ? value.divisionId : fallbackDivision.id;
+    const division = await db.division.findUnique({ where: { id: divisionId } });
+    if (!division || division.tournamentId !== tournamentId) throw new Error("Checkpoint references an invalid division.");
+    const referencedTeamIds = Array.from(new Set([value.homeTeamId, value.awayTeamId, value.winnerTeamId].filter((id): id is string => typeof id === "string" && Boolean(id))));
+    if (referencedTeamIds.length) {
+      const compatibleTeams = await db.team.count({ where: { id: { in: referencedTeamIds }, divisionId } });
+      if (compatibleTeams !== referencedTeamIds.length) {
+        throw new Error("Checkpoint restore stopped safely because a referenced team has moved to another division. Restore structural master data first or use a newer checkpoint.");
+      }
+    }
     await db.matchup.create({
       data: {
         id: String(value.id),
         tournamentId,
+        divisionId,
         stage: enumValue(value.stage, MATCHUP_STAGES, "team matchup stage"),
         groupLabel: (value.groupLabel as string | null) ?? null,
         roundLabel: String(value.roundLabel),
         roundNumber: (value.roundNumber as number | null) ?? null,
         order: Number(value.order),
+        gamesPerMatchup: Number(value.gamesPerMatchup ?? gamesForStage(division, enumValue(value.stage, MATCHUP_STAGES, "team matchup stage"))),
         homeTeamId: (value.homeTeamId as string | null) ?? null,
         awayTeamId: (value.awayTeamId as string | null) ?? null,
         status: enumValue(value.status, MATCHUP_STATUSES, "team matchup status"),

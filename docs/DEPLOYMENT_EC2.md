@@ -95,4 +95,5 @@ Restore the matching avatar archive into `AVATAR_STORAGE_DIR`.
 6. Run `npm run build`.
 7. Run `pm2 reload mpw-pickleball --update-env`.
 8. Verify login, one public page, one scoring page, Fan Favorite ranking, and avatar delivery.
-9. Keep the prior release directory for quick application rollback; restore the database backup when schema/data rollback is required.
+9. Verify `GET /api/health` returns `{"ok":true,...}` through Nginx/HTTPS.
+10. Keep the prior release directory for quick application rollback; restore the database backup when schema/data rollback is required.

@@ -16,13 +16,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const form = await request.formData();
     const file = form.get("avatar");
     if (!(file instanceof File)) throw new Error("Choose an image file.");
-    const player = await prisma.player.findUnique({ where: { id }, include: { team: { include: { group: true } } } });
+    const player = await prisma.player.findUnique({ where: { id },  });
     if (!player) throw new Error("Player not found.");
     const saved = await saveAvatar(file);
     await prisma.$transaction(async (tx) => {
       await tx.player.update({ where: { id }, data: { avatarUrl: saved.url } });
       await writeAudit(tx, {
-        tournamentId: player.team.group.tournamentId,
+        tournamentId: player.tournamentId,
         actorId: user.id,
         action: "PLAYER_AVATAR_UPDATED",
         entityType: "Player",

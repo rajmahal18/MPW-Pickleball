@@ -1,13 +1,15 @@
 import { MVP_WEIGHTS } from "@/lib/tournament/config";
+import { formatPlayerFullName } from "@/lib/player-name";
 
 type MvpPlayer = {
   id: string;
   firstName: string;
+  middleInitial?: string | null;
   lastName: string;
   displayName: string | null;
   avatarUrl: string | null;
   sex: "MALE" | "FEMALE";
-  team: { id: string; name: string; shortName: string };
+  team: { id: string; name: string; shortName: string } | null;
 };
 
 type MvpPair = {
@@ -192,7 +194,7 @@ export function calculateMvpRankings(games: MvpGame[]) {
           b.mvpIndex - a.mvpIndex ||
           b.gamesPlayed - a.gamesPlayed ||
           b.pointDifferential - a.pointDifferential ||
-          `${a.player.firstName} ${a.player.lastName}`.localeCompare(`${b.player.firstName} ${b.player.lastName}`),
+          formatPlayerFullName(a.player).localeCompare(formatPlayerFullName(b.player)),
       )
       .map<MvpRow>((row, index) => ({ ...row, rank: index + 1 }));
 

@@ -6,6 +6,8 @@ import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tour
 import { writeAudit } from "@/lib/audit";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 
+const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
+
 export async function POST(request: Request) {
   const user = await requireAdmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
           entityId: checkpoint.id,
           afterState: { name },
         });
-      });
+      }, LONG_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/checkpoints", { success: "Checkpoint created." }), 303);
     }
 
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
           entityId: checkpoint.id,
           reason: checkpoint.name,
         });
-      }, { timeout: 60_000 });
+      }, LONG_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/checkpoints", { success: "Checkpoint restored and dependencies recalculated." }), 303);
     }
 

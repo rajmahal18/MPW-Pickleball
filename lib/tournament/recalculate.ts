@@ -1,20 +1,28 @@
-import type { Prisma } from "@prisma/client";
-import { computeStandings, selectQualifiers } from "@/lib/tournament/standings";
+import type { MatchupStage, Prisma } from "@prisma/client";
+import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers } from "@/lib/tournament/standings";
 import { writeAudit } from "@/lib/audit";
+import { gamesForStage } from "@/lib/tournament/rules";
 
-async function clearDependentMatchup(db: Prisma.TransactionClient, matchupId: string) {
+function matchupHasStarted(matchup: { games: Array<{ status: string; homeScore: number; awayScore: number }> }) {
+  return matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0);
+}
+
+async function clearFutureMatchup(db: Prisma.TransactionClient, matchupId: string) {
+  const current = await db.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
+  if (!current || matchupHasStarted(current)) return false;
   await db.game.deleteMany({ where: { matchupId } });
   await db.lineup.deleteMany({ where: { matchupId } });
   await db.matchup.update({
     where: { id: matchupId },
     data: {
-      status: "LINEUP_PENDING",
+      status: current.homeTeamId && current.awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
       homeWins: 0,
       awayWins: 0,
       winnerTeamId: null,
       version: { increment: 1 },
     },
   });
+  return true;
 }
 
 async function assignTeams(
@@ -23,11 +31,11 @@ async function assignTeams(
   homeTeamId: string | null,
   awayTeamId: string | null,
 ) {
-  const current = await db.matchup.findUnique({ where: { id: matchupId } });
+  const current = await db.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
   if (!current) return;
-  const changed = current.homeTeamId !== homeTeamId || current.awayTeamId !== awayTeamId;
-  if (!changed) return;
-  await clearDependentMatchup(db, matchupId);
+  if (current.homeTeamId === homeTeamId && current.awayTeamId === awayTeamId) return;
+  if (matchupHasStarted(current) || current.status === "COMPLETED" || current.status === "FORFEITED") return;
+  await clearFutureMatchup(db, matchupId);
   await db.matchup.update({
     where: { id: matchupId },
     data: {
@@ -37,31 +45,144 @@ async function assignTeams(
       homeWins: 0,
       awayWins: 0,
       winnerTeamId: null,
+      version: { increment: 1 },
     },
   });
 }
 
+type KnockoutDivisionRules = {
+  id: string;
+  tournamentId: string;
+  defaultGamesPerMatchup: number;
+  knockoutGamesPerMatchup: number | null;
+  thirdPlaceEnabled: boolean;
+};
 
-async function ensureKnockoutMatchup(
+async function ensureStageMatchups(
   db: Prisma.TransactionClient,
-  tournamentId: string,
-  stage: "SEMIFINAL" | "FINAL",
-  order: number,
-  roundLabel: string,
-  roundNumber: number,
+  division: KnockoutDivisionRules,
+  stage: MatchupStage,
+  count: number,
+  label: string,
 ) {
-  const existing = await db.matchup.findFirst({ where: { tournamentId, stage, order } });
-  if (existing) return existing;
-  return db.matchup.create({
-    data: {
-      tournamentId,
-      stage,
-      roundLabel,
-      roundNumber,
-      order,
-      status: "SCHEDULED",
-    },
+  const desiredGames = gamesForStage(division, stage);
+  const existing = await db.matchup.findMany({
+    where: { divisionId: division.id, stage },
+    include: { games: true },
+    orderBy: { order: "asc" },
   });
+  const rows = [...existing];
+  let nextOrder = existing.reduce((max, row) => Math.max(max, row.order), 0) + 1;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]!;
+    if (row.gamesPerMatchup === desiredGames || matchupHasStarted(row)) continue;
+    await clearFutureMatchup(db, row.id);
+    rows[index] = await db.matchup.update({
+      where: { id: row.id },
+      data: { gamesPerMatchup: desiredGames, version: { increment: 1 } },
+      include: { games: true },
+    });
+  }
+
+  while (rows.length < count) {
+    const sequence = rows.length + 1;
+    rows.push(await db.matchup.create({
+      data: {
+        tournamentId: division.tournamentId,
+        divisionId: division.id,
+        stage,
+        roundLabel: count === 1 ? label : `${label} ${sequence}`,
+        roundNumber: 1,
+        order: nextOrder++,
+        gamesPerMatchup: desiredGames,
+        status: "SCHEDULED",
+      },
+      include: { games: true },
+    }));
+  }
+  return rows.slice(0, count);
+}
+
+function loserTeamId(matchup: { homeTeamId: string | null; awayTeamId: string | null; winnerTeamId: string | null }) {
+  if (!matchup.winnerTeamId || !matchup.homeTeamId || !matchup.awayTeamId) return null;
+  if (matchup.winnerTeamId === matchup.homeTeamId) return matchup.awayTeamId;
+  if (matchup.winnerTeamId === matchup.awayTeamId) return matchup.homeTeamId;
+  return null;
+}
+
+async function removeFutureThirdPlace(db: Prisma.TransactionClient, divisionId: string) {
+  const rows = await db.matchup.findMany({ where: { divisionId, stage: "THIRD_PLACE" }, include: { games: true } });
+  for (const row of rows) {
+    if (matchupHasStarted(row) || row.status === "COMPLETED" || row.status === "FORFEITED") continue;
+    await db.matchup.delete({ where: { id: row.id } });
+  }
+}
+
+async function configureThirdPlace(
+  db: Prisma.TransactionClient,
+  division: KnockoutDivisionRules,
+  semifinals: Array<{ id: string; homeTeamId: string | null; awayTeamId: string | null; winnerTeamId: string | null }>,
+) {
+  if (!division.thirdPlaceEnabled) {
+    await removeFutureThirdPlace(db, division.id);
+    return;
+  }
+  if (semifinals.length < 2) return;
+  const [third] = await ensureStageMatchups(db, division, "THIRD_PLACE", 1, "Battle for 3rd");
+  await assignTeams(db, third.id, loserTeamId(semifinals[0]!), loserTeamId(semifinals[1]!));
+}
+
+async function configureAutoKnockout(
+  db: Prisma.TransactionClient,
+  division: KnockoutDivisionRules,
+  qualifierIds: string[],
+) {
+  const count = qualifierIds.length;
+  if (![2, 4, 8].includes(count)) return { supported: false, stage: null as MatchupStage | null };
+
+  if (count === 2) {
+    await removeFutureThirdPlace(db, division.id);
+    const [final] = await ensureStageMatchups(db, division, "FINAL", 1, "Grand Final");
+    await assignTeams(db, final.id, qualifierIds[0]!, qualifierIds[1]!);
+    return { supported: true, stage: "FINAL" as MatchupStage };
+  }
+
+  if (count === 4) {
+    const semifinals = await ensureStageMatchups(db, division, "SEMIFINAL", 2, "Semifinal");
+    const [final] = await ensureStageMatchups(db, division, "FINAL", 1, "Grand Final");
+    await assignTeams(db, semifinals[0]!.id, qualifierIds[0]!, qualifierIds[3]!);
+    await assignTeams(db, semifinals[1]!.id, qualifierIds[1]!, qualifierIds[2]!);
+    await assignTeams(db, final.id, semifinals[0]!.winnerTeamId, semifinals[1]!.winnerTeamId);
+    await configureThirdPlace(db, division, semifinals);
+    return { supported: true, stage: "SEMIFINAL" as MatchupStage };
+  }
+
+  const quarters = await ensureStageMatchups(db, division, "QUARTERFINAL", 4, "Quarterfinal");
+  const semifinals = await ensureStageMatchups(db, division, "SEMIFINAL", 2, "Semifinal");
+  const [final] = await ensureStageMatchups(db, division, "FINAL", 1, "Grand Final");
+  for (let index = 0; index < 4; index += 1) {
+    await assignTeams(db, quarters[index]!.id, qualifierIds[index]!, qualifierIds[7 - index]!);
+  }
+  // Official Team Event feed: SF1 = QF1 vs QF3, SF2 = QF2 vs QF4.
+  await assignTeams(db, semifinals[0]!.id, quarters[0]!.winnerTeamId, quarters[2]!.winnerTeamId);
+  await assignTeams(db, semifinals[1]!.id, quarters[1]!.winnerTeamId, quarters[3]!.winnerTeamId);
+  await assignTeams(db, final.id, semifinals[0]!.winnerTeamId, semifinals[1]!.winnerTeamId);
+  await configureThirdPlace(db, division, semifinals);
+  return { supported: true, stage: "QUARTERFINAL" as MatchupStage };
+}
+
+async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId: string) {
+  const futureStages: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"];
+  const future = await db.matchup.findMany({ where: { divisionId, stage: { in: futureStages } }, include: { games: true } });
+  let cleared = 0;
+  for (const matchup of future) {
+    if (!matchupHasStarted(matchup)) {
+      await assignTeams(db, matchup.id, null, null);
+      cleared += 1;
+    }
+  }
+  return cleared;
 }
 
 export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId: string) {
@@ -76,21 +197,20 @@ export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId
   );
   const homeWins = decidedGames.filter((game) => game.winnerTeamId === matchup.homeTeamId).length;
   const awayWins = decidedGames.filter((game) => game.winnerTeamId === matchup.awayTeamId).length;
-  const complete = matchup.games.length === 7 && decidedGames.length === 7;
+  const expectedGames = Math.max(1, matchup.gamesPerMatchup);
+  const complete = matchup.games.length === expectedGames && decidedGames.length === expectedGames;
   const hasLiveGame = matchup.games.some((game) => game.status === "LIVE" || game.status === "INTERRUPTED");
   const status = complete
     ? "COMPLETED"
     : hasLiveGame || decidedGames.length > 0
       ? "LIVE"
-      : matchup.lineups.length === 2 && matchup.games.length === 7
+      : matchup.lineups.length === 2 && matchup.games.length === expectedGames
         ? "READY"
         : matchup.homeTeamId && matchup.awayTeamId
           ? "LINEUP_PENDING"
           : "SCHEDULED";
-  const winnerTeamId = complete
-    ? homeWins > awayWins
-      ? matchup.homeTeamId
-      : matchup.awayTeamId
+  const winnerTeamId = complete && homeWins !== awayWins
+    ? homeWins > awayWins ? matchup.homeTeamId : matchup.awayTeamId
     : null;
 
   return db.matchup.update({
@@ -104,48 +224,46 @@ export async function recalculateTournament(
   tournamentId: string,
   audit?: { actorId?: string | null; simulationRunId?: string | null; reason?: string },
 ) {
-  const matchups = await db.matchup.findMany({ where: { tournamentId }, select: { id: true } });
-  for (const matchup of matchups) await recalculateMatchup(db, matchup.id);
+  const matchupIds = await db.matchup.findMany({ where: { tournamentId }, select: { id: true } });
+  for (const matchup of matchupIds) await recalculateMatchup(db, matchup.id);
 
-  const tournament = await db.tournament.findUnique({
-    where: { id: tournamentId },
+  const divisions = await db.division.findMany({
+    where: { tournamentId },
     include: {
-      groups: { include: { teams: { include: { group: true } } }, orderBy: { name: "asc" } },
-      matchups: { where: { stage: "GROUP" }, orderBy: { order: "asc" } },
+      groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
+      matchups: { include: { games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: [{ stage: "asc" }, { order: "asc" }] },
     },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
-  if (!tournament) throw new Error("Tournament not found.");
 
-  const groupTables = tournament.groups.map((group) =>
-    computeStandings(group.teams, tournament.matchups.filter((matchup) => matchup.groupLabel === group.name)),
-  );
-  const allGroupComplete =
-    tournament.matchups.length > 0 && tournament.matchups.every((matchup) => matchup.status === "COMPLETED");
-
-  const semifinalOne = await ensureKnockoutMatchup(db, tournamentId, "SEMIFINAL", 101, "Semifinal 1", 1);
-  const semifinalTwo = await ensureKnockoutMatchup(db, tournamentId, "SEMIFINAL", 102, "Semifinal 2", 1);
-  const final = await ensureKnockoutMatchup(db, tournamentId, "FINAL", 201, "Grand Final", 1);
-
-  if (allGroupComplete) {
-    const { wildcard, seededWinners } = selectQualifiers(groupTables);
-    await assignTeams(db, semifinalOne.id, seededWinners[0]?.team.id ?? null, wildcard?.team.id ?? null);
-    await assignTeams(
-      db,
-      semifinalTwo.id,
-      seededWinners[1]?.team.id ?? null,
-      seededWinners[2]?.team.id ?? null,
+  const results: Prisma.InputJsonObject[] = [];
+  for (const division of divisions) {
+    const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
+    const groupTables = division.groups.map((group) =>
+      computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides),
     );
-  } else {
-    await assignTeams(db, semifinalOne.id, null, null);
-    await assignTeams(db, semifinalTwo.id, null, null);
-  }
+    const allGroupComplete = areGroupMatchupsComplete(groupMatchups);
+    let qualifierIds: string[] = [];
+    let autoKnockoutSupported = true;
+    let unresolvedQualificationSlots = 0;
 
-  const semifinals = await db.matchup.findMany({
-    where: { tournamentId, stage: "SEMIFINAL" },
-    orderBy: { order: "asc" },
-  });
-  const finalists = semifinals.map((matchup) => matchup.winnerTeamId).filter((value): value is string => Boolean(value));
-  await assignTeams(db, final.id, finalists[0] ?? null, finalists[1] ?? null);
+    if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && allGroupComplete) {
+      const selected = selectDivisionQualifiers(groupTables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: allGroupComplete });
+      qualifierIds = selected.qualifiers.map((row) => row.team.id);
+      unresolvedQualificationSlots = selected.unresolved.length;
+      if (selected.unresolved.length) {
+        await clearFutureKnockoutSlots(db, division.id);
+        autoKnockoutSupported = false;
+      } else {
+        const configured = await configureAutoKnockout(db, division, qualifierIds);
+        autoKnockoutSupported = configured.supported;
+      }
+    } else if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && !allGroupComplete) {
+      await clearFutureKnockoutSlots(db, division.id);
+    }
+
+    results.push({ divisionId: division.id, allGroupComplete, qualifierIds, autoKnockoutSupported, unresolvedQualificationSlots });
+  }
 
   if (audit) {
     await writeAudit(db, {
@@ -157,14 +275,9 @@ export async function recalculateTournament(
       reason: audit.reason,
       simulation: Boolean(audit.simulationRunId),
       simulationRunId: audit.simulationRunId,
-      afterState: {
-        groupStageComplete: allGroupComplete,
-        qualifiers: allGroupComplete
-          ? selectQualifiers(groupTables).groupWinners.map((row) => row.team.id)
-          : [],
-      },
+      afterState: { divisions: results },
     });
   }
 
-  return { groupTables, allGroupComplete };
+  return { divisions: results };
 }

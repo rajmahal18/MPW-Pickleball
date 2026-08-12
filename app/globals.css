@@ -10,6 +10,7 @@ a { @apply transition-colors; }
 .btn { @apply inline-flex items-center justify-center gap-2 border px-4 py-2 text-sm font-bold transition hover:-translate-y-0.5; }
 .btn-primary { @apply btn border-court bg-court text-white hover:bg-ink; }
 .btn-ghost { @apply btn border-line bg-white hover:border-court hover:text-court; }
+.admin-shell { width: min(calc(100% - 2rem), 1720px); margin-inline: auto; padding-block: 1.5rem; }
 .hero-banner-image { animation: hero-banner-pan 22s ease-in-out infinite alternate; transform-origin: center; }
 
 html, body { max-width: 100%; overflow-x: hidden; }
@@ -30,4 +31,103 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-banner-image { animation: none; transform: none; }
+}
+
+.admin-nav a, .admin-nav button, .admin-nav summary { touch-action: manipulation; }
+.admin-nav { position: sticky; top: 66px; z-index: 30; }
+
+@media (min-width: 1024px) {
+  .admin-shell { width: min(calc(100% - 3rem), 1720px); padding-block: 1.75rem; }
+}
+
+/* Public knockout bracket board. Connectors derive from actual feeder winners instead of row-parity guesses. */
+.bracket-scroll { overflow-x: auto; padding: 1.25rem; }
+.bracket-progression-grid { display: grid; min-width: 920px; align-items: stretch; }
+.bracket-column { min-width: 0; display: grid; grid-template-rows: auto 640px; gap: 1rem; align-content: center; }
+.bracket-stage-title { border-radius: 4px; background: #e8e8e8; padding: .35rem .75rem; text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: #050505; }
+.bracket-stage-stack { position: relative; min-width: 0; height: 640px; }
+.bracket-positioned-card { position: absolute; left: 0; width: 100%; transform: translateY(-50%); }
+.bracket-match-card { position: relative; display: block; border-radius: 8px; background: #f2f2f2; padding: .5rem; color: #050505; box-shadow: 0 1px 0 rgba(0,0,0,.05); }
+.bracket-match-card:hover { outline: 2px solid rgba(31,111,178,.22); }
+.bracket-match-card-final { background: linear-gradient(135deg, #ff4b1f, #d9c56d); color: #fff; }
+.bracket-match-card-bronze { border: 1px solid #d5a342; background: linear-gradient(135deg, #fff7e6, #f2e0b8); }
+.bracket-connector { height: 640px; align-self: end; }
+.bracket-connector-svg { display: block; width: 100%; height: 640px; overflow: visible; }
+.bracket-connector-svg line, .bracket-connector-svg path { fill: none; stroke: #cfcfcf; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.bracket-card-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 0 .25rem .35rem; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-card-meta strong { border-radius: 4px; background: rgba(255,255,255,.9); padding: .15rem .35rem; color: #050505; font-size: 9px; }
+.bracket-team-row { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: stretch; gap: .25rem; margin-top: .25rem; }
+.bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .55rem; border-radius: 6px; background: #fff; padding: .5rem; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-team-row:not(.bracket-team-row-winner) .bracket-team-line { color: #888; }
+.bracket-team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bracket-score { display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,.7); font-size: 22px; font-weight: 900; color: #050505; }
+.bracket-team-row:not(.bracket-team-row-winner) .bracket-score { color: #888; }
+.bracket-team-logo { width: 34px; height: 34px; object-fit: contain; flex: 0 0 auto; }
+.bracket-team-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #ececec; color: #777; font-size: 11px; font-weight: 900; }
+.bracket-team-mark-winner { background: #050505; color: #fff; }
+.bracket-card-footer { display: flex; justify-content: space-between; gap: .75rem; padding: .5rem .25rem 0; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-winner-column { min-width: 0; }
+.bracket-winner-stack { height: 640px; display: grid; align-items: center; }
+.bracket-winner-card { border-radius: 8px; background: linear-gradient(135deg, #ff4b1f, #d9c56d); padding: .6rem; }
+.bracket-card-kicker { margin-bottom: .5rem; color: #fff; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+.bracket-third-place-section { margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+.bracket-third-place-heading { margin-bottom: .75rem; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem; }
+
+@media (max-width: 900px) {
+  .bracket-scroll { margin-inline: -1rem; padding: 1rem; }
+  .bracket-progression-grid { min-width: 900px; }
+}
+
+/* Official matchup scorecard preview + print layout. Two compact cards per A4 landscape sheet. */
+.scorecard-preview-shell { width: min(calc(100% - 2rem), 1500px); margin-inline: auto; padding-block: 1.5rem; }
+.scorecard-print-root { display: grid; gap: 1rem; }
+.scorecard-print-page { box-sizing: border-box; width: min(100%, 297mm); min-height: 145mm; margin-inline: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 5mm; background: #fff; }
+.scorecard-print-page-single .scorecard-card { grid-column: 1 / -1; width: calc(50% - 2.5mm); justify-self: center; }
+.scorecard-card { box-sizing: border-box; min-width: 0; height: 128mm; border: 1.25px solid #111; background: #fff; color: #111; display: flex; flex-direction: column; font-family: Arial, Helvetica, sans-serif; font-size: 9px; line-height: 1.15; overflow: hidden; }
+.scorecard-card-header { padding: 2.2mm 3mm 1.8mm; border-bottom: 1px solid #111; }
+.scorecard-tournament { text-align: center; font-size: 8px; font-weight: 700; }
+.scorecard-title { margin-top: .5mm; text-align: center; font-size: 13px; font-weight: 800; letter-spacing: .01em; }
+.scorecard-meta-grid { margin-top: 2mm; display: grid; grid-template-columns: .8fr 1.2fr .9fr; column-gap: 2.5mm; row-gap: 1.4mm; }
+.scorecard-meta { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: 1mm; white-space: nowrap; }
+.scorecard-meta strong { min-width: 0; min-height: 3.2mm; padding-inline: .7mm; border-bottom: 1px solid #222; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+.scorecard-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #111; }
+.scorecard-team-box { min-width: 0; padding: 2.3mm 3mm 2.8mm; }
+.scorecard-team-box + .scorecard-team-box { border-left: 1px solid #111; }
+.scorecard-team-name { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1mm; align-items: end; }
+.scorecard-team-name strong { min-width: 0; padding-bottom: .3mm; border-bottom: 1px solid #555; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.08; }
+.scorecard-pair-note { margin-top: .8mm; min-height: 2.5mm; color: #555; font-size: 7px; font-weight: 700; text-align: right; }
+.scorecard-line { margin-top: 1.7mm; min-width: 0; display: grid; grid-template-columns: 14mm minmax(0, 1fr); gap: 1mm; align-items: end; }
+.scorecard-line strong { min-width: 0; min-height: 3.6mm; padding: 0 .7mm .3mm; border-bottom: 1px solid #555; font-weight: 600; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.08; }
+.scorecard-forfeit { margin-top: 2.8mm; display: flex; align-items: center; gap: 1mm; font-size: 7.5px; }
+.scorecard-checkbox { width: 3mm; height: 3mm; border: 1px solid #111; display: inline-grid; place-items: center; font-size: 8px; font-weight: 800; }
+.scorecard-muted { color: #555; }
+.scorecard-final-score { margin-top: 2.7mm; display: flex; align-items: center; justify-content: center; gap: 3mm; font-size: 13px; }
+.scorecard-final-score span { width: 25mm; height: 9mm; border: 1.25px solid #111; display: grid; place-items: center; font-size: 18px; font-weight: 800; }
+.scorecard-signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #111; min-height: 20mm; }
+.scorecard-signatures .scorecard-signature + .scorecard-signature { border-left: 1px solid #111; }
+.scorecard-signature { min-width: 0; display: flex; flex-direction: column; justify-content: end; align-items: center; padding: 2mm 3mm; text-align: center; }
+.scorecard-signature-line { width: min(86%, 48mm); border-top: 1px solid #333; margin-bottom: .8mm; }
+.scorecard-signature em { margin-top: .3mm; font-size: 7px; }
+.scorecard-umpire { flex: 1; min-height: 16mm; display: flex; align-items: end; justify-content: center; }
+.scorecard-umpire .scorecard-signature { width: 70%; }
+.scorecard-reference { display: flex; justify-content: space-between; gap: 3mm; padding: 1.2mm 2.5mm; border-top: 1px solid #bbb; color: #555; font-size: 6.5px; }
+
+@media (max-width: 900px) {
+  .scorecard-print-page { min-height: auto; grid-template-columns: 1fr; }
+  .scorecard-print-page-single .scorecard-card { grid-column: auto; width: 100%; }
+  .scorecard-card { height: auto; min-height: 128mm; }
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 6mm; }
+  html, body { width: auto !important; max-width: none !important; overflow: visible !important; }
+  .scorecard-preview-shell { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .scorecard-print-root { display: block !important; }
+  .scorecard-print-page { width: 100% !important; height: 198mm !important; min-height: 198mm !important; margin: 0 !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; align-items: center !important; gap: 5mm !important; break-after: page; page-break-after: always; }
+  .scorecard-print-page:last-child { break-after: auto; page-break-after: auto; }
+  .scorecard-print-page-single .scorecard-card { grid-column: 1 / -1 !important; width: calc(50% - 2.5mm) !important; justify-self: center !important; }
+  .scorecard-card { height: 128mm !important; min-height: 128mm !important; break-inside: avoid; page-break-inside: avoid; }
+  /* The global print rule hides site <header>/<footer>; keep the scorecard's own semantic header/footer visible. */
+  .scorecard-card-header { display: block !important; }
+  .scorecard-reference { display: flex !important; }
 }

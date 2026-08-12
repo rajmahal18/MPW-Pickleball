@@ -34,10 +34,10 @@ export async function POST(request: Request) {
     result = await prisma.$transaction(
     async (tx) => {
       const player = await tx.player.findFirst({
-        where: { id: malePlayerId, sex: "MALE", isActive: true, team: { group: { tournamentId: tournament.id } } },
+        where: { id: malePlayerId, tournamentId: tournament.id, sex: "MALE", isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { isPublic: true } } },
       });
       const femalePlayer = await tx.player.findFirst({
-        where: { id: femalePlayerId, sex: "FEMALE", isActive: true, team: { group: { tournamentId: tournament.id } } },
+        where: { id: femalePlayerId, tournamentId: tournament.id, sex: "FEMALE", isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { isPublic: true } } },
       });
       const votingCode = await tx.votingCode.findFirst({
         where: { tournamentId: tournament.id, codeHash: hashVotingCode(code) },

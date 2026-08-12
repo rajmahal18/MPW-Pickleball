@@ -18,6 +18,8 @@ export async function POST(request: Request) {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return NextResponse.redirect(new URL("/login?error=Invalid+credentials", request.url), 303);
   }
-  await createSession(user.id);
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",").at(0)?.trim();
+  const secureCookie = (forwardedProto || new URL(request.url).protocol.replace(":", "")) === "https";
+  await createSession(user.id, secureCookie);
   return NextResponse.redirect(new URL(user.role === "ADMIN" ? "/admin" : "/leader", request.url), 303);
 }

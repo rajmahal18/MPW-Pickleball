@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+const publicPlayerSelect = {
+  id: true,
+  firstName: true,
+  middleInitial: true,
+  lastName: true,
+  displayName: true,
+  avatarUrl: true,
+} as const;
+
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const matchup = await prisma.matchup.findFirst({
+    where: { id, division: { isPublic: true }, tournament: { isPublished: true } },
+    select: {
+      id: true,
+      status: true,
+      homeWins: true,
+      awayWins: true,
+      winnerTeamId: true,
+      gamesPerMatchup: true,
+      homeTeamId: true,
+      awayTeamId: true,
+      homeTeam: { select: { id: true, name: true, shortName: true } },
+      awayTeam: { select: { id: true, name: true, shortName: true } },
+      games: {
+        orderBy: { gameNumber: "asc" },
+        select: {
+          id: true,
+          gameNumber: true,
+          homeScore: true,
+          awayScore: true,
+          status: true,
+          winnerTeamId: true,
+          homeTeam: { select: { id: true, shortName: true } },
+          awayTeam: { select: { id: true, shortName: true } },
+          homePair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
+          awayPair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
+        },
+      },
+    },
+  });
+  return matchup ? NextResponse.json(matchup) : new NextResponse("Not found", { status: 404 });
+}
