@@ -60,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return { playerAId: String(row.playerAId || ""), playerBId: String(row.playerBId || "") };
       });
       if (requestedSlots.length !== required || requestedSlots.some((slot) => !slot.playerAId || !slot.playerBId || slot.playerAId === slot.playerBId)) {
-        throw new Error(`Select two different players for each of the ${required} games.`);
+        throw new Error(`Select two different players for each of the ${required} matches.`);
       }
 
       const allPlayerIds = requestedSlots.flatMap((slot) => [slot.playerAId, slot.playerBId]);
@@ -82,7 +82,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         if (game && isRecorded(game)) {
           const recordedPairId = side === "home" ? game.homePairId : game.awayPairId;
           const recordedPair = await tx.pair.findUnique({ where: { id: recordedPairId }, select: { playerAId: true, playerBId: true } });
-          if (!recordedPair || !samePlayers(recordedPair, slot)) throw new Error(`Game ${slotNumber} already started. Its recorded players cannot be changed.`);
+          if (!recordedPair || !samePlayers(recordedPair, slot)) throw new Error(`Match ${slotNumber} already started. Its recorded players cannot be changed.`);
           continue;
         }
         for (const playerId of [slot.playerAId, slot.playerBId]) {
@@ -91,7 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             && player.isActive
             && player.participationStatus === "CONFIRMED"
             && player.divisionEntries.some((entry) => entry.status === "CONFIRMED");
-          if (!eligible) throw new Error(`A selected player in Game ${slotNumber} is no longer eligible for this team/division.`);
+          if (!eligible) throw new Error(`A selected player in Match ${slotNumber} is no longer eligible for this team/division.`);
         }
       }
 
@@ -120,7 +120,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const before = matchup.lineups.find((lineup) => lineup.teamId === teamId) as LineupWithSlots | undefined;
       let lineupId: string;
       if (!before) {
-        if (lockedSlots.size) throw new Error("Recorded games exist but this team's saved lineup is missing. Ask an admin to review the matchup before editing.");
+        if (lockedSlots.size) throw new Error("Recorded matches exist but this team's saved lineup is missing. Ask an admin to review the matchup before editing.");
         const created = await tx.lineup.create({
           data: { matchupId: id, teamId, slots: { create: resolvedPairIds.map((pairId, index) => ({ slot: index + 1, pairId })) } },
         });
@@ -147,7 +147,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         const homeBySlot = new Map(home.slots.map((slot) => [slot.slot, slot.pairId]));
         const awayBySlot = new Map(away.slots.map((slot) => [slot.slot, slot.pairId]));
         if (matchup.games.length && matchup.games.length !== required) {
-          if (recordedGames.length) throw new Error("The matchup game count changed after scoring began. Ask an admin to review it.");
+          if (recordedGames.length) throw new Error("The number of matches in this matchup changed after scoring began. Ask an admin to review it.");
           await tx.game.deleteMany({ where: { matchupId: id } });
         }
         const currentGames = matchup.games.length === required ? matchup.games : [];
@@ -195,9 +195,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
 
     const message = result.locked
-      ? `Lineup saved. ${result.locked} played game slot${result.locked === 1 ? " is" : "s are"} protected; ${result.editable} future slot${result.editable === 1 ? " remains" : "s remain"} editable.`
+      ? `Lineup saved. ${result.locked} played match slot${result.locked === 1 ? " is" : "s are"} protected; ${result.editable} future slot${result.editable === 1 ? " remains" : "s remain"} editable.`
       : result.bothComplete
-        ? "Lineup saved. Both teams are complete and the game cards are ready."
+        ? "Lineup saved. Both teams are complete and the match cards are ready."
         : "Lineup saved. Waiting for the opposing team.";
     if (asJson) return NextResponse.json({ ok: true, message });
     return NextResponse.redirect(redirectBack(request, "/leader", { success: message }), 303);

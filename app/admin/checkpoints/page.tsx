@@ -43,7 +43,7 @@ export default async function CheckpointsPage({ searchParams }: { searchParams: 
       <AdminNav />
       <FlashMessage {...query} />
       <div className="label">Recovery and controlled rollback</div>
-      <h1 className="text-4xl font-black uppercase">Checkpoints & Undo</h1>
+      <h1 className="text-3xl font-black uppercase md:text-4xl">Checkpoints & Undo</h1>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <section className="panel p-5">
@@ -88,7 +88,14 @@ export default async function CheckpointsPage({ searchParams }: { searchParams: 
         </div>
       </section>
 
-      <section className="panel mt-6 overflow-x-auto">
+      <section className="panel mt-6 overflow-hidden">
+        <div className="divide-y divide-line md:hidden">
+          {checkpoints.length ? checkpoints.map((checkpoint) => <article key={checkpoint.id} className="p-4">
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="font-black">{checkpoint.name}</div><div className="mt-1 text-xs text-gray-500">{checkpoint.createdAt.toLocaleString()} · {checkpoint.createdBy?.name || "System"}</div></div><span className="border border-line bg-paper px-2 py-1 text-[10px] font-black uppercase">{checkpoint.kind}</span></div>
+            <form action="/api/admin/checkpoints" method="post" className="mt-3 grid grid-cols-[1fr_auto] gap-2"><input type="hidden" name="action" value="restore" /><input type="hidden" name="checkpointId" value={checkpoint.id} /><input name="confirmation" required placeholder="Type RESTORE" className="min-w-0 border border-line p-2 text-sm" /><SubmitButton className="btn border-red-600 bg-red-600 px-3 py-2 text-white" pendingLabel="Restoring…">Restore</SubmitButton></form>
+          </article>) : <div className="p-8 text-center text-sm text-gray-500">No checkpoints yet.</div>}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead className="bg-ink text-left text-white"><tr><th className="p-3">Checkpoint</th><th className="p-3">Type</th><th className="p-3">Created by</th><th className="p-3">Created</th><th className="p-3">Restore</th></tr></thead>
           <tbody>{checkpoints.map((checkpoint) => (
@@ -101,6 +108,7 @@ export default async function CheckpointsPage({ searchParams }: { searchParams: 
             </tr>
           ))}</tbody>
         </table>
+        </div>
       </section>
     </main>
   );

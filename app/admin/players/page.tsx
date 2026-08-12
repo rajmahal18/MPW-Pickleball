@@ -145,8 +145,8 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <div className="label text-court">Attendance and assignment</div>
-        <h1 className="text-4xl font-black uppercase text-ink">Player Pool</h1>
-        <p className="mt-2 max-w-3xl text-sm text-gray-600">Fast tournament-day view. Search, select several players, and update assignment or attendance in one action. Open a player only when you need to edit identity details.</p>
+        <h1 className="text-3xl font-black uppercase text-ink md:text-4xl">Player Pool</h1>
+        <p className="mt-2 hidden max-w-3xl text-sm text-gray-600 md:block">Fast tournament-day view. Search, select several players, and update assignment or attendance in one action. Open a player only when you need to edit identity details.</p>
       </div>
       <Link href="/admin/tournament" className="btn-ghost"><Settings2 size={16}/> Teams & tournament setup</Link>
     </div>
@@ -159,7 +159,26 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     </div>
 
     <section className="mt-5 border border-line bg-white p-4">
-      <form action="/admin/players" className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_150px_170px_170px] 2xl:grid-cols-[1fr_150px_170px_170px_190px_160px_170px_auto] xl:items-end">
+      <form action="/admin/players" className="space-y-3 md:hidden">
+        <label className="block"><span className="label">Search players</span><input name="q" defaultValue={search} placeholder="Name, office, or team" className="mt-1 w-full border border-line p-3"/></label>
+        <div className="grid grid-cols-2 gap-3">
+          <label><span className="label">Attendance</span><select name="status" defaultValue={status} className="mt-1 w-full border border-line p-3 font-bold"><option value="ALL">All</option><option value="POOL">Pool</option><option value="CONFIRMED">Confirmed</option><option value="UNAVAILABLE">Unavailable</option><option value="WITHDRAWN">Withdrawn</option></select></label>
+          <label><span className="label">Assignment</span><select name="assignment" defaultValue={assignment} className="mt-1 w-full border border-line p-3 font-bold"><option value="ALL">All</option><option value="UNASSIGNED">Unassigned</option><option value="ASSIGNED">Assigned</option></select></label>
+        </div>
+        <details className="border border-line bg-paper">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-black uppercase text-gray-600">More filters</summary>
+          <div className="grid grid-cols-2 gap-3 border-t border-line p-3">
+            <label className="col-span-2"><span className="label">Division</span><select name="division" defaultValue={divisionId} className="mt-1 w-full border border-line p-3 font-bold"><option value="">All divisions</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label>
+            <label className="col-span-2"><span className="label">Office / DEO</span><select name="office" defaultValue={office} className="mt-1 w-full border border-line p-3 font-bold"><option value="">All offices</option>{offices.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label><span className="label">Sex</span><select name="sex" defaultValue={sex} className="mt-1 w-full border border-line p-3 font-bold"><option value="ALL">All</option><option value="MALE">Male</option><option value="FEMALE">Female</option></select></label>
+            <label><span className="label">Employment</span><select name="employment" defaultValue={employment} className="mt-1 w-full border border-line p-3 font-bold"><option value="ALL">All</option><option value="PERMANENT">Permanent</option><option value="JOB_ORDER">Job Order</option><option value="UNSET">Not set</option></select></label>
+            <label className="col-span-2"><span className="label">Sort</span><select name="sort" defaultValue={sort} className="mt-1 w-full border border-line p-3 font-bold"><option value="NAME_ASC">Name A-Z</option><option value="NAME_DESC">Name Z-A</option><option value="OFFICE_ASC">Office then name</option><option value="STATUS_ASC">Attendance then name</option><option value="TEAM_ASC">Team then name</option></select></label>
+          </div>
+        </details>
+        <div className="grid grid-cols-2 gap-2"><SubmitButton className="btn-primary w-full" pendingLabel="Filtering…">Apply</SubmitButton><Link href="/admin/players" className="btn-ghost justify-center">Clear</Link></div>
+      </form>
+
+      <form action="/admin/players" className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-[1fr_150px_170px_170px] 2xl:grid-cols-[1fr_150px_170px_170px_190px_160px_170px_auto] xl:items-end">
         <label><span className="label">Search</span><input name="q" defaultValue={search} placeholder="Name, office, or team" className="mt-1 w-full border border-line p-3"/></label>
         <label><span className="label">Attendance</span><select name="status" defaultValue={status} className="mt-1 w-full border border-line p-3 font-bold"><option value="ALL">All statuses</option><option value="POOL">Pool</option><option value="CONFIRMED">Confirmed</option><option value="UNAVAILABLE">Unavailable</option><option value="WITHDRAWN">Withdrawn</option></select></label>
         <label><span className="label">Division</span><select name="division" defaultValue={divisionId} className="mt-1 w-full border border-line p-3 font-bold"><option value="">All divisions</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label>
@@ -205,7 +224,22 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
         <div className="mt-3"><PlayerBulkToolbar teams={teams} divisions={divisions.map(({ id, name }) => ({ id, name }))}/></div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-line md:hidden">
+        {players.length ? players.map((player) => <div key={player.id} className="p-4">
+          <div className="flex items-start gap-3">
+            <input form="player-bulk-form" type="checkbox" name="playerIds" value={player.id} aria-label={`Select ${formatPlayerDisplayName(player)}`} className="mt-2 h-5 w-5 shrink-0"/>
+            <PlayerAvatar {...player} size="sm"/>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-black">{formatPlayerDisplayName(player)}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5"><StatusBadge status={player.participationStatus} assigned={Boolean(player.teamId)} active={player.isActive}/>{player.team ? <span className="border border-line bg-paper px-2 py-1 text-[10px] font-black">{player.team.shortName}</span> : <span className="text-xs font-bold text-gray-400">Unassigned</span>}</div>
+              <div className="mt-2 truncate text-xs text-gray-500">{player.office || "Office not set"}{player.team ? ` · ${player.team.division.name}${player.team.group ? ` / ${player.team.group.name}` : ""}` : ""}</div>
+            </div>
+            <Link href={`/admin/players/${player.id}`} className="btn-ghost shrink-0 px-3 py-2 text-xs">Edit</Link>
+          </div>
+        </div>) : <div className="p-8 text-center text-sm text-gray-500">No players match these filters.</div>}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[920px] text-sm">
           <thead className="bg-ink text-left text-white"><tr><th className="w-16 p-3"><SelectAllPlayers/></th><th className="p-3">Player</th><th className="p-3">Office</th><th className="p-3">Attendance</th><th className="p-3">Team</th><th className="p-3">Division status</th><th className="w-24 p-3"></th></tr></thead>
           <tbody>{players.length ? players.map((player) => <tr key={player.id} className="border-b border-line align-middle hover:bg-paper/70">

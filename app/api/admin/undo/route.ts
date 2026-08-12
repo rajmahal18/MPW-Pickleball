@@ -13,7 +13,7 @@ const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
 
 function gameStatus(value: unknown) {
   if (typeof value !== "string" || !GAME_STATUSES.includes(value as (typeof GAME_STATUSES)[number])) {
-    throw new Error("The score event contains an invalid previous game status.");
+    throw new Error("The score event contains an invalid previous match status.");
   }
   return value as (typeof GAME_STATUSES)[number];
 }

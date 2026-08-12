@@ -32,7 +32,22 @@ export default function BracketBoard({ matchups }: { matchups: BracketMatchup[] 
   const gridTemplate = stageRows.flatMap((_, index) => index < stageRows.length - 1 ? ["minmax(260px, 1fr)", "72px"] : ["minmax(260px, 1fr)"]);
   if (finalWinners.length) gridTemplate.push("72px", "minmax(240px, .9fr)");
 
-  return <div className="bracket-scroll">
+  return <>
+    <div className="space-y-5 p-3 md:hidden">
+      {stageRows.map((entry) => <section key={entry.stage}>
+        <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-black uppercase">{STAGE_LABELS[entry.stage]}</h3><span className="text-[10px] font-bold uppercase text-gray-400">{entry.rows.length} matchup{entry.rows.length === 1 ? "" : "s"}</span></div>
+        <div className="space-y-2">{entry.rows.map((matchup) => <BracketCard key={matchup.id} matchup={matchup} />)}</div>
+      </section>)}
+      {thirdPlaceRows.length > 0 && <section>
+        <div className="mb-2"><div className="label text-amber-800">Semifinal consolation</div><h3 className="text-sm font-black uppercase">Battle for 3rd</h3></div>
+        <div className="space-y-2">{thirdPlaceRows.map((matchup) => <BracketCard key={matchup.id} matchup={matchup} bronze />)}</div>
+      </section>}
+      {finalWinners.length > 0 && <section>
+        <div className="mb-2 label text-court">Champion</div>
+        {finalWinners.map((team) => <div key={team.id} className="bracket-winner-card"><div className="bracket-team-line"><TeamMark team={team} winner /><span className="bracket-team-name">{team.name}</span></div></div>)}
+      </section>}
+    </div>
+    <div className="bracket-scroll hidden md:block">
     <div className="bracket-progression-grid" style={{ gridTemplateColumns: gridTemplate.join(" ") }}>
       {stageRows.map((entry, stageIndex) => {
         const next = stageRows[stageIndex + 1];
@@ -74,7 +89,8 @@ export default function BracketBoard({ matchups }: { matchups: BracketMatchup[] 
         {thirdPlaceRows.map((matchup) => <BracketCard key={matchup.id} matchup={matchup} bronze />)}
       </div>
     </section>}
-  </div>;
+  </div>
+  </>;
 }
 
 function orderRowsForDownstream(source: BracketMatchup[], target: BracketMatchup[]) {
@@ -151,7 +167,7 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
     <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} />
     <div className="bracket-card-footer">
       <span>{matchup.stage === "THIRD_PLACE" ? "Battle for 3rd" : matchup.roundLabel}</span>
-      <span>{matchup.gamesPerMatchup} game{matchup.gamesPerMatchup === 1 ? "" : "s"}</span>
+      <span>{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</span>
     </div>
   </Link>;
 }

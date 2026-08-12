@@ -81,8 +81,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
     const fresh = await prisma.$transaction(
       async (tx) => {
         const game = await tx.game.findUnique({ where: { id: gameId }, include: { matchup: { include: { division: { select: { suddenDeathAtTen: true } }, lineups: { include: { slots: true } } } } } });
-        if (!game) throw new Error("Game not found.");
-        if (expectedVersion !== null && game.version !== expectedVersion) throw new Error("The score changed in another session. Reload this game before submitting again.");
+        if (!game) throw new Error("Match not found.");
+        if (expectedVersion !== null && game.version !== expectedVersion) throw new Error("The score changed in another session. Reload this match before submitting again.");
 
         const before = stateOf(game);
         const next: ScoreState = { ...before };
@@ -93,18 +93,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
           const homeSlot = homeLineup?.slots.find((slot) => slot.slot === game.gameNumber);
           const awaySlot = awayLineup?.slots.find((slot) => slot.slot === game.gameNumber);
           if (!homeSlot || !awaySlot || homeSlot.pairId !== game.homePairId || awaySlot.pairId !== game.awayPairId) {
-            throw new Error("This game is waiting for an updated lineup. Ask both sides to finish the affected lineup slot before scoring.");
+            throw new Error("This match is waiting for an updated lineup. Ask both sides to finish the affected lineup slot before scoring.");
           }
         }
 
         if (action === "start") {
-          if (terminalBefore) throw new Error("Reopen the decided game before changing it.");
+          if (terminalBefore) throw new Error("Reopen the decided match before changing it.");
           next.status = "LIVE";
           next.winnerTeamId = null;
           next.completedAt = null;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
         } else if (["increment-home", "increment-away", "decrement-home", "decrement-away"].includes(action)) {
-          if (terminalBefore) throw new Error("Reopen the decided game before changing its score.");
+          if (terminalBefore) throw new Error("Reopen the decided match before changing its score.");
           const homeDelta = action === "increment-home" ? 1 : action === "decrement-home" ? -1 : 0;
           const awayDelta = action === "increment-away" ? 1 : action === "decrement-away" ? -1 : 0;
           next.homeScore = Math.max(0, game.homeScore + homeDelta);
@@ -117,8 +117,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
           const homeScore = Number(data.homeScore);
           const awayScore = Number(data.awayScore);
           if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) throw new Error("Scores must be non-negative whole numbers.");
-          if (game.status === "FORFEITED") throw new Error("Reopen the forfeited game before entering a normal score.");
-          if (terminalBefore && !reason) throw new Error("Enter a reason for a completed-game correction.");
+          if (game.status === "FORFEITED") throw new Error("Reopen the forfeited match before entering a normal score.");
+          if (terminalBefore && !reason) throw new Error("Enter a reason for a completed-match correction.");
           next.homeScore = homeScore;
           next.awayScore = awayScore;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
@@ -139,19 +139,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
           next.completedAt = new Date().toISOString();
         } else if (action === "reopen") {
-          if (!terminalBefore) throw new Error("Only a completed or forfeited game needs to be reopened.");
+          if (!terminalBefore) throw new Error("Only a completed or forfeited match needs to be reopened.");
           next.status = "LIVE";
           next.winnerTeamId = null;
           next.completedAt = null;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
         } else if (action === "interrupt") {
-          if (terminalBefore) throw new Error("Reopen the decided game before marking it interrupted.");
+          if (terminalBefore) throw new Error("Reopen the decided match before marking it interrupted.");
           next.status = "INTERRUPTED";
           next.winnerTeamId = null;
           next.completedAt = null;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
         } else if (action === "forfeit-home" || action === "forfeit-away") {
-          if (terminalBefore) throw new Error("Reopen the decided game before applying a new forfeit result.");
+          if (terminalBefore) throw new Error("Reopen the decided match before applying a new forfeit result.");
           const homeForfeits = action === "forfeit-home";
           next.homeScore = homeForfeits ? 0 : Math.max(game.homeScore, 11);
           next.awayScore = homeForfeits ? Math.max(game.awayScore, 11) : 0;
@@ -175,7 +175,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
             version: { increment: 1 },
           },
         });
-        if (update.count !== 1) throw new Error("Concurrent score update detected. Reload this game and retry.");
+        if (update.count !== 1) throw new Error("Concurrent score update detected. Reload this match and retry.");
 
         await tx.scoreEvent.create({
           data: {
@@ -287,7 +287,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     const message = code === "P2034"
-      ? "The game changed concurrently. Reload this game and retry."
+      ? "The match changed concurrently. Reload this match and retry."
       : error instanceof Error
         ? error.message
         : "Score update failed.";

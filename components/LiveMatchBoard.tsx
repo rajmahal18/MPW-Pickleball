@@ -72,19 +72,26 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
   }, [initial.id]);
 
   return <>
-    <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto_1fr]">
+    <div className="panel mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-4 text-center md:hidden">
+      <div className="min-w-0"><div className="label">{matchup.homeTeam?.shortName || "TBD"}</div><div className="truncate text-sm font-black">{matchup.homeTeam?.name || "TBD"}</div></div>
+      <div><div className="text-4xl font-black tabular-nums">{matchup.homeWins}-{matchup.awayWins}</div><div className={`text-[9px] font-black uppercase tracking-widest ${connection === "live" ? "text-court" : "text-amber-700"}`}>{connection === "live" ? "Live updates" : "Reconnecting"}</div></div>
+      <div className="min-w-0"><div className="label">{matchup.awayTeam?.shortName || "TBD"}</div><div className="truncate text-sm font-black">{matchup.awayTeam?.name || "TBD"}</div></div>
+    </div>
+    <div className="mt-5 hidden gap-4 md:grid md:grid-cols-[1fr_auto_1fr]">
       <TeamPanel team={matchup.homeTeam} wins={matchup.homeWins} winner={matchup.winnerTeamId === matchup.homeTeamId}/>
       <div className="grid place-items-center gap-1 text-center text-sm font-black text-gray-400"><span>TEAM MATCHUP</span><span className={`text-[10px] uppercase tracking-widest ${connection === "live" ? "text-court" : "text-amber-700"}`}>{connection === "live" ? "Live updates" : "Reconnecting"}</span></div>
       <TeamPanel team={matchup.awayTeam} wins={matchup.awayWins} winner={matchup.winnerTeamId === matchup.awayTeamId}/>
     </div>
-    <section className="mt-8">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="label">{matchup.gamesPerMatchup} pair game{matchup.gamesPerMatchup === 1 ? "" : "s"}</div><h2 className="text-2xl font-black uppercase">Game board</h2></div><StatusBadge status={matchup.status}/></div>
-      {matchup.games.length ? <div className="mt-4 space-y-3">{matchup.games.map((game) => <article key={game.id} className={`panel grid gap-4 p-4 md:grid-cols-[92px_1fr_auto_1fr] md:items-center ${game.status === "LIVE" ? "border-flame bg-flame/5" : game.status === "COMPLETED" || game.status === "FORFEITED" ? "bg-gray-50/60" : ""}`}>
-        <div><div className="label">Game {game.gameNumber}</div><div className="mt-1"><StatusBadge status={game.status} compact/></div></div>
-        <PairView players={[game.homePair.playerA, game.homePair.playerB]} team={game.homeTeam.shortName}/>
-        <div className="justify-self-center"><ScoreBadge home={game.homeScore} away={game.awayScore} status={game.status}/></div>
-        <PairView players={[game.awayPair.playerA, game.awayPair.playerB]} team={game.awayTeam.shortName} right/>
-      </article>)}</div> : <div className="panel mt-4 p-10 text-center text-gray-500">Games appear after both sides submit complete lineups.</div>}
+    <section className="mt-6 md:mt-8">
+      <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="label">{matchup.gamesPerMatchup} pair match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div><h2 className="text-xl font-black uppercase md:text-2xl">Match board</h2></div><StatusBadge status={matchup.status}/></div>
+      {matchup.games.length ? <div className="mt-4 space-y-3">{matchup.games.map((game) => <article key={game.id} className={`panel p-3 md:grid md:grid-cols-[92px_1fr_auto_1fr] md:items-center md:gap-4 md:p-4 ${game.status === "LIVE" ? "border-flame bg-flame/5" : game.status === "COMPLETED" || game.status === "FORFEITED" ? "bg-gray-50/60" : ""}`}>
+        <div className="mb-3 flex items-center justify-between md:mb-0 md:block"><div className="label">Match {game.gameNumber}</div><div className="md:mt-1"><StatusBadge status={game.status} compact/></div></div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:contents">
+          <div className="min-w-0"><PairView players={[game.homePair.playerA, game.homePair.playerB]} team={game.homeTeam.shortName}/></div>
+          <div className="justify-self-center"><ScoreBadge home={game.homeScore} away={game.awayScore} status={game.status}/></div>
+          <div className="min-w-0"><PairView players={[game.awayPair.playerA, game.awayPair.playerB]} team={game.awayTeam.shortName} right/></div>
+        </div>
+      </article>)}</div> : <div className="panel mt-4 p-8 text-center text-sm text-gray-500">Matches appear after both sides submit complete lineups.</div>}
     </section>
   </>;
 }
@@ -93,5 +100,8 @@ function TeamPanel({ team, wins, winner }: { team: Matchup["homeTeam"]; wins: nu
   return <div className={`panel p-5 text-center ${winner ? "border-gold bg-gold/15" : ""}`}><div className="label">{winner ? "Winner" : "Team"}</div><div className="mt-1 text-2xl font-black">{team?.name || "TBD"}</div><div className="mt-3 text-5xl font-black tabular-nums">{wins}</div></div>;
 }
 function PairView({ players, team, right }: { players: Player[]; team: string; right?: boolean }) {
-  return <div className={`flex items-center gap-3 ${right ? "md:flex-row-reverse md:text-right" : ""}`}><div className="flex -space-x-2">{players.map((player) => <PlayerAvatar key={player.id} {...player} size="sm"/>)}</div><div><div className="label">{team}</div><div className="font-black">{players.map((player) => formatPlayerDisplayName(player)).join(" / ")}</div></div></div>;
+  return <div className={`flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-3 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
+    <div className="flex -space-x-3">{players.map((player) => <PlayerAvatar key={player.id} {...player} size="md"/>)}</div>
+    <div className="min-w-0"><div className="label">{team}</div><div className="line-clamp-2 text-xs font-black leading-snug md:text-base">{players.map((player) => formatPlayerDisplayName(player)).join(" / ")}</div></div>
+  </div>;
 }

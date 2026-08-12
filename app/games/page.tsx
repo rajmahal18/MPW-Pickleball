@@ -6,6 +6,7 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import StatusBadge from "@/components/StatusBadge";
+import PlayerAvatar from "@/components/PlayerAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -64,9 +65,9 @@ function ScoreCell({ home, away, status }: { home: number; away: number; status:
     winner ? "border-court bg-court text-white" : "border-line bg-paper text-ink";
 
   return <div className="flex items-center gap-2 font-black tabular-nums md:justify-center">
-    <span className={`grid h-9 min-w-10 place-items-center border px-2 ${scoreClass(homeWon)}`}>{home}</span>
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(homeWon)}`}>{home}</span>
     <span className="text-gray-400">:</span>
-    <span className={`grid h-9 min-w-10 place-items-center border px-2 ${scoreClass(awayWon)}`}>{away}</span>
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(awayWon)}`}>{away}</span>
   </div>;
 }
 
@@ -77,6 +78,23 @@ function TeamChip({ label, side }: { label: string; side: "home" | "away" }) {
   return <span className={`inline-flex min-w-10 items-center justify-center border px-2 py-1 text-[10px] font-black uppercase ${styles}`}>
     {label}
   </span>;
+}
+
+function PairIdentity({ pair, team, side }: {
+  pair: {
+    playerA: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
+    playerB: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
+  };
+  team: string;
+  side: "home" | "away";
+}) {
+  const right = side === "away";
+  return <div className={`flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-2 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
+    <div className="flex shrink-0 -space-x-2" aria-hidden="true"><PlayerAvatar {...pair.playerA} size="sm"/><PlayerAvatar {...pair.playerB} size="sm"/></div>
+    <div className="min-w-0">
+      <TeamChip label={team} side={side}/><div className="mt-1 line-clamp-2 text-xs font-bold leading-snug text-ink md:truncate md:font-black">{pairName(pair)}</div>
+    </div>
+  </div>;
 }
 
 export default async function GamesPage({
@@ -92,7 +110,7 @@ export default async function GamesPage({
   const currentPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
 
-  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-8">Run the seed script first.</main>;
+  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
 
   const where: Prisma.GameWhereInput = {
     matchup: {
@@ -144,11 +162,11 @@ export default async function GamesPage({
     return groups;
   }, new Map<string, typeof games>());
 
-  return <main className="mx-auto max-w-7xl px-4 py-8">
+  return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">
     <TournamentSync initialRevision={revision} />
-    <div className="label text-court">Tournament games</div>
+    <div className="label text-court">Tournament matches</div>
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <h1 className="text-4xl font-black uppercase text-ink">Games</h1>
+      <h1 className="text-3xl font-black uppercase text-ink md:text-4xl">Matches</h1>
       <span className="border border-court/30 bg-court/10 px-3 py-2 text-xs font-black text-court">{totalGames} total</span>
     </div>
 
@@ -192,7 +210,7 @@ export default async function GamesPage({
           </div>
 
           <div className="hidden grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] border-b border-line bg-ink px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white md:grid">
-            <div>Game</div>
+            <div>Match</div>
             <div>Blue side</div>
             <div className="text-center">Score</div>
             <div className="text-right">Gold side</div>
@@ -203,31 +221,25 @@ export default async function GamesPage({
             {rows.map((game) => <Link
               key={game.id}
               href={`/matches/${game.matchupId}`}
-              className={`grid gap-3 px-4 py-3 hover:bg-court/5 md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center ${game.status === "LIVE" ? "bg-flame/5" : ""}`}
+              className={`block hover:bg-court/5 ${game.status === "LIVE" ? "bg-flame/5" : ""}`}
             >
-              <div className="flex items-center justify-between md:block">
-                <div className="label md:hidden">Game</div>
+              <div className="p-3 md:hidden">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center border border-court/30 bg-court/10 text-sm font-black text-court">M{game.gameNumber}</span><StatusBadge status={game.status} compact/></div>
+                  <span className="text-[10px] font-bold uppercase text-gray-400">Tap for matchup</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                  <PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/>
+                  <ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/>
+                  <PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/>
+                </div>
+              </div>
+              <div className="hidden gap-3 px-4 py-3 md:grid md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center">
                 <div className="grid h-10 w-10 place-items-center border border-court/30 bg-court/10 text-xl font-black text-court">{game.gameNumber}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="mb-1 flex items-center gap-2">
-                  <TeamChip label={game.homeTeam.shortName} side="home"/>
-                  {(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}
-                </div>
-                <div className="truncate font-black text-ink">{pairName(game.homePair)}</div>
-              </div>
-              <div>
+                <div className="min-w-0"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}</div>
                 <ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/>
-              </div>
-              <div className="min-w-0 md:text-right">
-                <div className="mb-1 flex items-center gap-2 md:justify-end">
-                  {(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}
-                  <TeamChip label={game.awayTeam.shortName} side="away"/>
-                </div>
-                <div className="truncate font-black text-ink">{pairName(game.awayPair)}</div>
-              </div>
-              <div className="md:text-right">
-                <StatusBadge status={game.status}/>
+                <div className="min-w-0 text-right"><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}</div>
+                <div className="text-right"><StatusBadge status={game.status}/></div>
               </div>
             </Link>)}
           </div>
@@ -237,6 +249,6 @@ export default async function GamesPage({
       <Link href={pageHref(Math.max(1, safePage - 1))} className={`btn-ghost px-3 py-2 ${safePage === 1 ? "pointer-events-none opacity-45" : ""}`}>Previous</Link>
       <span className="text-gray-600">Page {safePage} of {totalPages}</span>
       <Link href={pageHref(Math.min(totalPages, safePage + 1))} className={`btn-ghost px-3 py-2 ${safePage === totalPages ? "pointer-events-none opacity-45" : ""}`}>Next</Link>
-    </nav>}</> : <div className="mt-6 border border-line bg-white p-8 text-center text-gray-500">No games match this filter. Games are created after both team leaders submit valid lineups.</div>}
+    </nav>}</> : <div className="mt-6 border border-line bg-white p-8 text-center text-gray-500">No matches fit this filter. Matches are created after both team leaders submit valid lineups.</div>}
   </main>;
 }

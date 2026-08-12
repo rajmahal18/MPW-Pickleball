@@ -137,8 +137,8 @@ export async function POST(request: Request) {
             slug: slug(data.slug || data.name),
             formatType: format(data.formatType || "CUSTOM"),
             entrantType: entrantType(data.entrantType || "TEAM"),
-            defaultGamesPerMatchup: number(data.defaultGamesPerMatchup || 1, "Group/default games per matchup", 1, 31),
-            knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout games per matchup", 1, 31),
+            defaultGamesPerMatchup: number(data.defaultGamesPerMatchup || 1, "Group/default matches per matchup", 1, 31),
+            knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31),
             qualifiersPerGroup: number(data.qualifiersPerGroup || 1, "Qualifiers per group", 0, 16),
             wildcardCount: number(data.wildcardCount || 0, "Wildcard count", 0, 16),
             autoProgression: data.autoProgression === "on",
@@ -164,8 +164,8 @@ export async function POST(request: Request) {
         slug: slug(data.slug),
         formatType: format(data.formatType),
         entrantType: entrantType(data.entrantType || before.entrantType),
-        defaultGamesPerMatchup: number(data.defaultGamesPerMatchup, "Group/default games per matchup", 1, 31),
-        knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout games per matchup", 1, 31),
+        defaultGamesPerMatchup: number(data.defaultGamesPerMatchup, "Group/default matches per matchup", 1, 31),
+        knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31),
         qualifiersPerGroup: number(data.qualifiersPerGroup, "Qualifiers per group", 0, 16),
         wildcardCount: number(data.wildcardCount, "Wildcard count", 0, 16),
         autoProgression: data.autoProgression === "on",
@@ -740,7 +740,7 @@ export async function POST(request: Request) {
           groupLabel: optionalText(data.groupLabel, 80),
           roundLabel: text(data.roundLabel, "Round label", 80),
           order: (orderAgg._max.order ?? 0) + 1,
-          gamesPerMatchup: number(data.gamesPerMatchup || defaultGames, "Games per matchup", 1, 31),
+          gamesPerMatchup: number(data.gamesPerMatchup || defaultGames, "Matches per matchup", 1, 31),
           homeTeamId,
           awayTeamId,
           status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
@@ -777,7 +777,7 @@ export async function POST(request: Request) {
               divisionId,
               stage: stage(data.stage),
               groupLabel: optionalText(data.groupLabel, 80),
-              gamesPerMatchup: number(data.gamesPerMatchup, "Games per matchup", 1, 31),
+              gamesPerMatchup: number(data.gamesPerMatchup, "Matches per matchup", 1, 31),
               homeTeamId,
               awayTeamId,
               status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
@@ -789,7 +789,7 @@ export async function POST(request: Request) {
           });
         });
       }
-      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: hasStarted ? "Live/completed matchup metadata updated; competitors and game structure were preserved." : "Future matchup updated." }), 303);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: hasStarted ? "Live/completed matchup metadata updated; competitors and match structure were preserved." : "Future matchup updated." }), 303);
     }
 
     if (action === "bulk-update-matchup-schedule") {
@@ -814,7 +814,7 @@ export async function POST(request: Request) {
             scheduledAt: date(data[`scheduledAt-${key}`]),
             courtLabel: optionalText(data[`courtLabel-${key}`], 40),
           };
-          const requestedGames = isStarted ? matchup.gamesPerMatchup : number(data[`gamesPerMatchup-${key}`] || matchup.gamesPerMatchup, "Games per matchup", 1, 31);
+          const requestedGames = isStarted ? matchup.gamesPerMatchup : number(data[`gamesPerMatchup-${key}`] || matchup.gamesPerMatchup, "Matches per matchup", 1, 31);
           if (!isStarted && requestedGames !== matchup.gamesPerMatchup) {
             await tx.game.deleteMany({ where: { matchupId: matchup.id } });
             await tx.lineup.deleteMany({ where: { matchupId: matchup.id } });

@@ -11,11 +11,16 @@ export type StandingRow = {
   played: number;
   won: number;
   lost: number;
+  /** Total pair-match wins. This is the first group-stage tiebreak after the team-matchup record. */
   gameWins: number;
   gameLosses: number;
+  /** Legacy pair-win differential kept for compatibility; it is no longer a ranking criterion. */
   differential: number;
-  /** Scoring point differential from decided pair games (points scored minus points conceded). */
+  /** Net point differential: total points scored minus total points conceded in decided pair matches. */
   points: number;
+  totalPointsScored: number;
+  totalPointsConceded: number;
+  /** Head-to-head wins among teams still tied after pair-match wins and net point differential. */
   headToHeadPoints: number;
   rank: number;
   rankLabel: string;
@@ -38,42 +43,46 @@ export function areGroupMatchupsComplete(matchups: Array<Pick<Matchup, "status">
 
 /**
  * Group ranking order:
- * 1) completed team-matchup record, 2) head-to-head among equal records,
- * 3) pair-game differential / wins, 4) scoring point differential.
+ * 1) completed team-matchup record, then the official tiebreak sequence:
+ *    A. total pair-match wins
+ *    B. net point differential (points scored - points conceded)
+ *    C. head-to-head result among teams still tied after A/B
+ *    D. total points scored
  *
- * `points` is intentionally a tiebreak metric, not a +3 standings award.
+ * The organizer can still resolve a mathematically exact tie after all four criteria.
  */
 export function compareStandingRows(a: StandingRow, b: StandingRow) {
   return (
     b.won - a.won ||
     a.lost - b.lost ||
-    b.headToHeadPoints - a.headToHeadPoints ||
-    b.differential - a.differential ||
     b.gameWins - a.gameWins ||
-    b.points - a.points
+    b.points - a.points ||
+    b.headToHeadPoints - a.headToHeadPoints ||
+    b.totalPointsScored - a.totalPointsScored
   );
 }
 
+/** Cross-group wildcard rows cannot have a meaningful head-to-head result. */
 export function compareCrossGroupRows(a: StandingRow, b: StandingRow) {
   return (
     b.won - a.won ||
     a.lost - b.lost ||
-    b.differential - a.differential ||
     b.gameWins - a.gameWins ||
-    b.points - a.points
+    b.points - a.points ||
+    b.totalPointsScored - a.totalPointsScored
   );
 }
 
 function standingTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}|${row.headToHeadPoints}|${row.differential}|${row.gameWins}|${row.points}`;
+  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}|${row.headToHeadPoints}|${row.totalPointsScored}`;
 }
 
 function crossGroupTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}|${row.differential}|${row.gameWins}|${row.points}`;
+  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}|${row.totalPointsScored}`;
 }
 
-function recordTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}`;
+function preHeadToHeadTieKey(row: StandingRow) {
+  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}`;
 }
 
 function stableTeamOrder(a: StandingRow, b: StandingRow) {
@@ -146,6 +155,8 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
     gameLosses: 0,
     differential: 0,
     points: 0,
+    totalPointsScored: 0,
+    totalPointsConceded: 0,
     headToHeadPoints: 0,
     rank: 0,
     rankLabel: "",
@@ -157,7 +168,7 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
   const assignedMatchups = matchups.filter((matchup) => matchup.homeTeamId && matchup.awayTeamId);
   const completed = assignedMatchups.filter((matchup) => isTerminalMatchupStatus(matchup.status));
 
-  // A finalized pair game immediately contributes to Games/Diff and scoring point differential.
+  // Decided pair matches immediately contribute to pair-match wins and scoring totals.
   // P/W/L remain team-matchup results and therefore change only once the full matchup is terminal.
   for (const matchup of assignedMatchups) {
     const home = rowByTeam.get(matchup.homeTeamId!);
@@ -174,6 +185,10 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
       const margin = game.homeScore - game.awayScore;
       home.points += margin;
       away.points -= margin;
+      home.totalPointsScored += game.homeScore;
+      home.totalPointsConceded += game.awayScore;
+      away.totalPointsScored += game.awayScore;
+      away.totalPointsConceded += game.homeScore;
     }
 
     if (!isTerminalMatchupStatus(matchup.status)) continue;
@@ -191,17 +206,17 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
 
   for (const row of rows) row.differential = row.gameWins - row.gameLosses;
 
-  // Head-to-head is only considered among teams sharing the same completed team-matchup record.
-  // Point differential remains a later tiebreak, never a replacement for series W/L.
-  const tiedByRecord = new Map<string, StandingRow[]>();
+  // Head-to-head is criterion C, so evaluate it only among teams still tied after
+  // team-matchup record, pair-match wins (A), and net point differential (B).
+  const tiedBeforeHeadToHead = new Map<string, StandingRow[]>();
   for (const row of rows) {
-    const key = recordTieKey(row);
-    const tied = tiedByRecord.get(key) ?? [];
+    const key = preHeadToHeadTieKey(row);
+    const tied = tiedBeforeHeadToHead.get(key) ?? [];
     tied.push(row);
-    tiedByRecord.set(key, tied);
+    tiedBeforeHeadToHead.set(key, tied);
   }
 
-  for (const tiedRows of tiedByRecord.values()) {
+  for (const tiedRows of tiedBeforeHeadToHead.values()) {
     if (tiedRows.length < 2) continue;
     const tiedIds = new Set(tiedRows.map((row) => row.team.id));
     for (const matchup of completed) {
@@ -210,13 +225,12 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
         ? null
         : matchup.homeWins > matchup.awayWins ? matchup.homeTeamId : matchup.awayTeamId;
       const winner = winnerId ? rowByTeam.get(winnerId) : undefined;
-      if (winner) winner.headToHeadPoints += 3;
+      if (winner) winner.headToHeadPoints += 1;
     }
   }
 
   const metricSorted = rows.sort((first, second) => compareStandingRows(first, second) || stableTeamOrder(first, second));
-  // A standings tie is only actionable after every group matchup is terminal. Before then, equal
-  // metrics are provisional and must not show T1/T2 or unlock organizer tiebreak controls.
+  // T# and organizer tiebreak controls appear only after every group matchup is terminal.
   return applyRanks(metricSorted, overrides, areGroupMatchupsComplete(matchups));
 }
 
@@ -242,6 +256,8 @@ export function selectDivisionQualifiers(
   for (const rawTable of groupTables) {
     const table = rawTable.map((row, index) => ({
       ...row,
+      totalPointsScored: row.totalPointsScored ?? 0,
+      totalPointsConceded: row.totalPointsConceded ?? 0,
       rank: Number.isInteger(row.rank) && row.rank > 0 ? row.rank : index + 1,
       rankLabel: row.rankLabel || String(index + 1),
       rankStatus: row.rankStatus || "RESOLVED",

@@ -155,7 +155,7 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
             <PlayerPicker title="Male Fan Favorite" tone="male" players={filteredMale} search={maleSearch} setSearch={setMaleSearch} selectedPlayerId={selectedMaleId} setSelectedPlayerId={setSelectedMaleId} />
             <PlayerPicker title="Female Fan Favorite" tone="female" players={filteredFemale} search={femaleSearch} setSearch={setFemaleSearch} selectedPlayerId={selectedFemaleId} setSelectedPlayerId={setSelectedFemaleId} />
           </div>
-          <label className="block"><span className="label">Voting code</span><div className="mt-2 flex gap-2"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="min-w-0 flex-1 border border-line p-3 font-mono font-black tracking-widest" placeholder="ABCDE-23456" autoComplete="off" /><button type="button" onClick={() => void scanCode()} className="btn-ghost">{scanning ? "Scanning..." : "Scan QR"}</button></div></label>
+          <label className="block"><span className="label">Voting code</span><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="min-w-0 flex-1 border border-line p-3 font-mono font-black tracking-widest" placeholder="ABCDE-23456" autoComplete="off" /><button type="button" onClick={() => void scanCode()} className="btn-ghost w-full sm:w-auto">{scanning ? "Scanning..." : "Scan QR"}</button></div></label>
           {scanning && <video ref={videoRef} className="aspect-video w-full bg-black" muted playsInline />}
           {message && <div className="border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
           {error && <div className="border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
@@ -197,13 +197,13 @@ function PlayerPicker({
       <h3 className="font-black uppercase">{title}</h3>
       <input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-3 w-full border border-line bg-white p-3" placeholder="Search player or team" />
     </div>
-    <div className="max-h-[360px] space-y-2 overflow-y-auto p-3">{players.map((player) => {
+    <div className="max-h-[440px] space-y-2 overflow-y-auto p-3">{players.map((player) => {
       const name = formatPlayerDisplayName(player);
       const selected = selectedPlayerId === player.id;
-      return <label key={player.id} className={`flex cursor-pointer items-center gap-3 border bg-white p-3 ${selected ? "border-ink ring-2 ring-lime" : "border-line"}`}>
-        <input type="radio" name={tone} value={player.id} checked={selected} onChange={() => setSelectedPlayerId(player.id)} />
-        <PlayerAvatar {...player} size="sm" />
-        <span><strong className="block">{name}</strong><span className="text-xs text-gray-500">{player.team?.name ?? "Unassigned"}</span></span>
+      return <label key={player.id} className={`grid cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 border bg-white p-3 transition ${selected ? "border-ink bg-lime/10 ring-2 ring-lime" : "border-line hover:border-court/50"}`}>
+        <input type="radio" name={tone} value={player.id} checked={selected} onChange={() => setSelectedPlayerId(player.id)} className="h-4 w-4 accent-current" />
+        <PlayerAvatar {...player} size="md" />
+        <span className="min-w-0"><strong className="block truncate text-sm leading-tight sm:text-base">{name}</strong><span className="mt-1 block truncate text-xs text-gray-500">{player.team?.name ?? "Unassigned"}</span></span>
       </label>;
     })}{!players.length && <div className="p-6 text-center text-sm text-gray-500">No eligible players found.</div>}</div>
   </div>;
@@ -216,10 +216,11 @@ function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; tot
     <div className={`${header} ${headerText} p-4`}>
       <div className="flex items-end justify-between gap-3"><div><div className="text-xs font-black uppercase opacity-70">Top 5</div><h3 className="text-xl font-black uppercase">{title} Fan Favorite</h3></div><div className="text-right"><div className="text-2xl font-black">{totalVotes}</div><div className="text-xs font-bold uppercase opacity-70">votes</div></div></div>
     </div>
-    <div className="divide-y divide-line bg-white">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <div key={ranking.player.id} className="grid grid-cols-[34px_1fr_auto] items-center gap-3 p-4">
+    <div className="divide-y divide-line bg-white">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <div key={ranking.player.id} className={`grid grid-cols-[34px_auto_minmax(0,1fr)_auto] items-center gap-3 p-4 ${ranking.rank === 1 ? "bg-lime/5" : ""}`}>
       <div className={`grid h-8 w-8 place-items-center font-black ${ranking.rank === 1 ? "bg-lime text-ink" : "bg-gray-100 text-gray-700"}`}>{ranking.rank}</div>
-      <div className="flex min-w-0 items-center gap-3"><PlayerAvatar {...ranking.player} size="sm" /><div className="min-w-0"><div className="truncate font-black">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div></div>
-      <div className="text-right"><div className="font-black">{ranking.votes}</div><div className="text-xs text-gray-500">{ranking.percentage}%</div></div>
+      <PlayerAvatar {...ranking.player} size={ranking.rank === 1 ? "lg" : "md"} />
+      <div className="min-w-0"><div className="truncate font-black">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div>
+      <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-xs text-gray-500">{ranking.percentage}%</div></div>
     </div>) : <div className="p-8 text-center text-gray-500">No valid votes yet.</div>}</div>
   </div>;
 }

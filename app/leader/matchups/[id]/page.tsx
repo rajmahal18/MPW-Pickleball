@@ -64,21 +64,21 @@ export default async function Lineup({ params, searchParams }: { params: Promise
   const eligibleForFuture = players.filter((player) => player.eligible && !lockedPlayerIds.has(player.id)).length;
   const futurePlayersNeeded = editableCount * 2;
 
-  return <main className="mx-auto max-w-5xl px-4 py-8">
+  return <main className="mx-auto max-w-5xl px-4 py-5 md:py-8">
     <FlashMessage {...query}/>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · lineup</span></div><h1 className="mt-2 text-3xl font-black uppercase">{matchup.homeTeam?.name} vs {matchup.awayTeam?.name}</h1><p className="mt-2 max-w-3xl text-sm text-gray-600">Choose the players who will play together in each of the {required} games. You may change any future game slot until that specific game starts.</p></div>
+      <div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · lineup</span></div><h1 className="mt-2 text-3xl font-black uppercase">{matchup.homeTeam?.name} vs {matchup.awayTeam?.name}</h1><p className="mt-2 max-w-3xl text-sm text-gray-600">Choose the players who will play together in each of the {required} matches. You may change any future match slot until that specific match starts.</p></div>
       <Link href="/leader" className="btn-ghost">Back to matchups</Link>
     </div>
 
-    <div className="mt-5 grid gap-3 sm:grid-cols-3">
-      <Info label="Games this matchup" value={String(required)}/>
+    <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+      <Info label="Matches this matchup" value={String(required)}/>
       <Info label="Players needed" value={String(playersNeeded)}/>
       <Info label="Future slots editable" value={String(editableCount)}/>
     </div>
 
     {eligibleForFuture < futurePlayersNeeded ? <div className="mt-6 border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-950">Only {eligibleForFuture} eligible unused team member{eligibleForFuture === 1 ? " is" : "s are"} available for {futurePlayersNeeded} open player slot{futurePlayersNeeded === 1 ? "" : "s"}. Ask the admin to confirm attendance/eligibility before saving.</div> : null}
-    {lockedGames.size > 0 && <div className="mt-6 border border-line bg-gray-50 p-4 text-sm text-gray-700"><strong>Only played game slots are protected.</strong> Their player pair stays fixed for historical integrity. Unplayed games remain editable even after another game in the same team matchup has started.</div>}
+    {lockedGames.size > 0 && <div className="mt-6 border border-line bg-gray-50 p-4 text-sm text-gray-700"><strong>Only played match slots are protected.</strong> Their player pair stays fixed for historical integrity. Unplayed matches remain editable even after another match in the same team matchup has started.</div>}
 
     <LineupEditor matchupId={matchup.id} required={required} players={players} slots={slots}/>
   </main>;

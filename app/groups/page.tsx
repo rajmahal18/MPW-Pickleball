@@ -26,16 +26,16 @@ export default async function GroupsIndexPage() {
     },
   });
 
-  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-8">No published tournament.</main>;
+  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">No published tournament.</main>;
   const divisions = tournament.divisions.filter((division) => division.groups.length > 0);
   const revision = await getPublicTournamentRevision(tournament.id);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <TournamentSync initialRevision={revision} />
       <div className="label text-court">Configured group stages</div>
-      <h1 className="text-4xl font-black uppercase text-ink">Groups</h1>
-      <p className="mt-2 max-w-3xl text-sm text-gray-600">Groups shown here come from the live tournament configuration. Divisions without groups are handled by their own round-robin, knockout, or custom format.</p>
+      <h1 className="text-3xl font-black uppercase text-ink md:text-4xl">Groups</h1>
+      <p className="mt-2 hidden max-w-3xl text-sm text-gray-600 md:block">Groups shown here come from the live tournament configuration. Divisions without groups are handled by their own round-robin, knockout, or custom format.</p>
 
       {divisions.length ? (
         <div className="mt-6 space-y-7">

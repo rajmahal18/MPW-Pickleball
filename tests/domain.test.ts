@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Matchup } from "@prisma/client";
-import { computeStandings, selectDivisionQualifiers, selectQualifiers } from "../lib/tournament/standings";
+import { compareStandingRows, computeStandings, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
 import { calculateMvpRankings } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
 import { qrMatrix } from "../lib/qr";
@@ -30,7 +30,7 @@ function matchup(
   };
 }
 
-test("standings rank by team-matchup record, head-to-head, game results, then scoring point differential", () => {
+test("standings apply team record then pair-match wins, NPD, head-to-head, and total points", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A")];
   const rows = computeStandings(teams, [
     matchup("1", "A", "B", 4, 3, [[11, 7], [11, 7], [11, 7], [11, 7], [7, 11], [7, 11], [7, 11]]),
@@ -41,6 +41,40 @@ test("standings rank by team-matchup record, head-to-head, game results, then sc
   assert.equal(rows[0]!.team.id, "B");
   assert.equal(rows[0]!.points, 38);
   assert.equal(rows[0]!.differential, 6);
+  assert.equal(rows[0]!.totalPointsScored, 138);
+});
+
+
+
+test("official group tiebreak criteria are compared in the required order", () => {
+  const base: StandingRow = {
+    team: team("A", "Alpha", "Group A"), played: 3, won: 2, lost: 1, gameWins: 10, gameLosses: 8, differential: 2,
+    points: 5, totalPointsScored: 210, totalPointsConceded: 205, headToHeadPoints: 1, rank: 0, rankLabel: "", rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false,
+  };
+
+  // A. Pair-match wins outrank every later criterion.
+  assert.ok(compareStandingRows({ ...base, gameWins: 11, points: -20, headToHeadPoints: 0, totalPointsScored: 100 } as never, { ...base, gameWins: 10, points: 50, headToHeadPoints: 3, totalPointsScored: 300 } as never) < 0);
+  // B. NPD is next once pair-match wins are tied.
+  assert.ok(compareStandingRows({ ...base, points: 6, headToHeadPoints: 0, totalPointsScored: 100 } as never, { ...base, points: 5, headToHeadPoints: 3, totalPointsScored: 300 } as never) < 0);
+  // C. Head-to-head precedes total points scored.
+  assert.ok(compareStandingRows({ ...base, headToHeadPoints: 2, totalPointsScored: 100 } as never, { ...base, headToHeadPoints: 1, totalPointsScored: 300 } as never) < 0);
+  // D. Total points scored is the final automatic criterion.
+  assert.ok(compareStandingRows({ ...base, totalPointsScored: 211 } as never, { ...base, totalPointsScored: 210 } as never) < 0);
+});
+
+test("head-to-head is applied only within teams still tied after pair wins and NPD", () => {
+  const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A"), team("D", "Delta", "Group A")];
+  const rows = computeStandings(teams, [
+    matchup("ab", "A", "B", 4, 3),
+    matchup("ac", "C", "A", 4, 3),
+    matchup("ad", "A", "D", 4, 3),
+    matchup("bc", "B", "C", 4, 3),
+    matchup("bd", "D", "B", 4, 3),
+    matchup("cd", "C", "D", 4, 3),
+  ]);
+  assert.deepEqual(rows.map((row) => row.team.id), ["C", "A", "D", "B"]);
+  assert.deepEqual(rows.map((row) => row.headToHeadPoints), [1, 0, 1, 0]);
+  assert.ok(rows.every((row) => row.rankStatus === "RESOLVED"));
 });
 
 test("wildcard comes from the best second-place row", () => {
@@ -69,7 +103,7 @@ test("cross-group wildcard comparison ignores unrelated head-to-head points", ()
 test("division qualifiers honor configurable direct and wildcard counts", () => {
   const tables = ["A", "B"].map((group) => [
     { team: team(`${group}1`, `${group} 1`, group), points: 9, headToHeadPoints: 0, differential: 10, gameWins: 15, gameLosses: 5, played: 3, won: 3, lost: 0 },
-    { team: team(`${group}2`, `${group} 2`, group), points: 6, headToHeadPoints: 0, differential: group === "B" ? 6 : 4, gameWins: 12, gameLosses: 8, played: 3, won: 2, lost: 1 },
+    { team: team(`${group}2`, `${group} 2`, group), points: group === "B" ? 6 : 4, headToHeadPoints: 0, differential: group === "B" ? 6 : 4, gameWins: 12, gameLosses: 8, played: 3, won: 2, lost: 1 },
     { team: team(`${group}3`, `${group} 3`, group), points: 3, headToHeadPoints: 0, differential: 0, gameWins: 9, gameLosses: 9, played: 3, won: 1, lost: 2 },
   ]);
   const selected = selectDivisionQualifiers(tables as never, 1, 2);
@@ -99,7 +133,7 @@ test("pending group matchups do not display actionable ties", () => {
   assert.ok(rows.every((row) => row.tieGroupKey === null));
 });
 
-test("a finalized pair game updates live Games/Diff/Pts before the team matchup is complete", () => {
+test("a finalized pair match updates live pair wins, NPD, and total points before the team matchup is complete", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A")];
   const live = { ...matchup("live", "A", "B", 1, 0, [[11, 7]]), status: "LIVE", winnerTeamId: null } as never;
   const rows = computeStandings(teams, [live]);
@@ -113,10 +147,12 @@ test("a finalized pair game updates live Games/Diff/Pts before the team matchup 
   assert.equal(alpha.played, 0);
   assert.equal(alpha.points, 4);
   assert.equal(bravo.points, -4);
+  assert.equal(alpha.totalPointsScored, 11);
+  assert.equal(alpha.totalPointsConceded, 7);
   assert.ok(rows.every((row) => row.rankStatus === "RESOLVED"));
 });
 
-test("Pts is the cumulative scoring differential from decided pair games and ignores an unfinished game", () => {
+test("NPD and total points use decided pair matches only and ignore an unfinished match", () => {
   const teams = [team("A", "CCDEO", "Group A"), team("B", "RO1", "Group A")];
   const live = {
     ...matchup("live-points", "A", "B", 2, 1, [[11, 7], [7, 11], [11, 6]]),
@@ -137,6 +173,9 @@ test("Pts is the cumulative scoring differential from decided pair games and ign
   assert.equal(ccdeo.differential, 1);
   assert.equal(ccdeo.points, 5);
   assert.equal(ro1.points, -5);
+  assert.equal(ccdeo.totalPointsScored, 29);
+  assert.equal(ccdeo.totalPointsConceded, 24);
+  assert.equal(ro1.totalPointsScored, 24);
   assert.ok(rows.every((row) => row.played === 0 && row.won === 0 && row.lost === 0));
 });
 

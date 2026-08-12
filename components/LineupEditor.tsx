@@ -13,7 +13,7 @@ function initialSelections(required: number, players: PlayerOption[], slots: Slo
     const current = slots.find((slot) => slot.slot === index + 1);
     return { playerAId: current?.playerAId || "", playerBId: current?.playerBId || "" };
   });
-  // Auto-fill only when every eligible player must participate (for example 14 players → 7 games).
+  // Auto-fill only when every eligible player must participate (for example 14 players → 7 matches).
   // In a 5-of-7-pairs knockout, guessing the first 10 players is dangerous: the manager should
   // intentionally choose who sits out. Existing saved/locked slots are always preserved.
   const eligiblePlayers = players.filter((player) => player.eligible);
@@ -103,13 +103,13 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
         <div>
           <div className="label text-court">Manager lineup</div>
           <h2 className="font-black uppercase">Match lineup</h2>
-          <p className="mt-1 max-w-3xl text-sm text-gray-600">Choose two players for each game. Future slots stay editable; a game becomes protected only after play starts.</p>
+          <p className="mt-1 hidden max-w-3xl text-sm text-gray-600 md:block">Choose two players for each match. Future slots stay editable; a match becomes protected only after play starts.</p>
         </div>
         <span className={`border px-3 py-2 text-xs font-black uppercase ${incomplete || duplicatePlayer ? "border-amber-300 bg-amber-50 text-amber-900" : dirty ? "border-court/30 bg-white text-court" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}>
           {duplicatePlayer ? "Duplicate player" : incomplete ? `${required - completedPairs} pair${required - completedPairs === 1 ? "" : "s"} still needed` : dirty ? "Ready to save" : "Lineup saved"}
         </span>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MiniStat label="Pairs ready" value={`${completedPairs}/${required}`} tone={completedPairs === required ? "good" : "warn"}/>
         <MiniStat label="Players selected" value={`${selectedPlayerCount}/${required * 2}`} tone={selectedPlayerCount === required * 2 ? "good" : "warn"}/>
         <MiniStat label="Eligible unpaired" value={String(availablePlayers.length)} tone="neutral"/>
@@ -120,9 +120,9 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
     <section className="border-b border-line bg-white p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><div className="label">Players at a glance</div><h3 className="font-black uppercase">Roster status</h3></div>
-        <div className="text-xs text-gray-500">Selected players show their game number. Unpaired players are immediately visible.</div>
+        <div className="hidden text-xs text-gray-500 md:block">Selected players show their match number. Unpaired players are immediately visible.</div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
         {players.map((player) => {
           const usage = playerUsage.get(player.id);
           const state = usage?.locked ? "locked" : usage ? player.eligible ? "selected" : "unavailable-selected" : player.eligible ? "available" : "unavailable";
@@ -135,8 +135,8 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
                 : state === "available"
                 ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                 : "border-line bg-gray-50 text-gray-400";
-          const status = state === "locked" ? `G${usage!.game} · played` : state === "selected" ? `G${usage!.game} · selected` : state === "available" ? "Unpaired" : "Unavailable";
-          return <div key={player.id} className={`flex items-center gap-2 border px-3 py-2 text-xs ${style}`}>
+          const status = state === "locked" ? `M${usage!.game} · played` : state === "selected" ? `M${usage!.game} · selected` : state === "available" ? "Unpaired" : "Unavailable";
+          return <div key={player.id} className={`flex shrink-0 items-center gap-2 border px-3 py-2 text-xs ${style}`}>
             <span className="font-bold">{player.name}</span>
             <span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
           </div>;
@@ -160,7 +160,7 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
         const rowTone = locked ? "bg-gray-50/80" : pairComplete ? "bg-emerald-50/25" : "bg-amber-50/35";
         return <div className={`grid gap-3 p-4 lg:grid-cols-[130px_1fr_40px_1fr_150px] lg:items-center ${rowTone}`} key={slotNumber}>
           <div>
-            <div className="font-black uppercase">Game {slotNumber}</div>
+            <div className="font-black uppercase">Match {slotNumber}</div>
             <div className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-500">{locked ? "Played slot" : pairComplete ? "Pair selected" : "Needs pair"}</div>
           </div>
           <PlayerSelect label="Player 1" value={value.playerAId} disabled={Boolean(locked)} players={players} blocked={blockedForPlayerA} usage={playerUsage} onChange={(next) => update(index, "playerAId", next)}/>
@@ -177,7 +177,7 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
       {message && <div className="mb-3 border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">✓ {message}</div>}
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 text-xs text-gray-500">{dirty ? "You have unsaved lineup changes." : "No unsaved changes."}</div>
-        <button type="button" onClick={() => void save()} disabled={busy || incomplete || duplicatePlayer || !dirty} className="btn-primary min-w-48 disabled:opacity-50">{busy ? "Saving lineup…" : dirty ? `Save ${required} game lineup` : "Lineup saved"}</button>
+        <button type="button" onClick={() => void save()} disabled={busy || incomplete || duplicatePlayer || !dirty} className="btn-primary w-full disabled:opacity-50 sm:w-auto sm:min-w-48">{busy ? "Saving lineup…" : dirty ? `Save ${required}-match lineup` : "Lineup saved"}</button>
       </div>
     </div>
   </div>;
@@ -200,7 +200,7 @@ function PlayerSelect({ label, value, disabled, players, blocked, usage, onChang
     <option value="">{label}…</option>
     {players.map((player) => {
       const assigned = usage.get(player.id);
-      const suffix = !player.eligible ? " (unavailable)" : assigned && player.id !== value ? ` (G${assigned.game})` : "";
+      const suffix = !player.eligible ? " (unavailable)" : assigned && player.id !== value ? ` (M${assigned.game})` : "";
       return <option key={player.id} value={player.id} disabled={(blocked.has(player.id) || !player.eligible) && player.id !== value}>{player.name}{suffix}</option>;
     })}
     {value && !selected && <option value={value}>Recorded player</option>}

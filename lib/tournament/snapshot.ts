@@ -177,7 +177,7 @@ export async function restoreTournamentSnapshot(
         awayPairId: String(value.awayPairId),
         homeScore: Number(value.homeScore ?? 0),
         awayScore: Number(value.awayScore ?? 0),
-        status: enumValue(value.status, GAME_STATUSES, "game status"),
+        status: enumValue(value.status, GAME_STATUSES, "match status"),
         winnerTeamId: (value.winnerTeamId as string | null) ?? null,
         version: Number(value.version ?? 0),
         startedAt: asDate(value.startedAt),

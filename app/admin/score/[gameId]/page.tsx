@@ -81,15 +81,15 @@ export default async function Score({ params, searchParams }: { params: Promise<
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="flex flex-wrap items-center gap-2"><StatusBadge status={game.status}/><span className="label">Live scoring · {game.matchup.roundLabel} · Court {game.matchup.courtLabel || "TBA"}</span></div>
-        <h1 className="mt-2 text-3xl font-black uppercase">Game {game.gameNumber}</h1>
-        <p className="mt-1 text-sm text-gray-500">Use the large +1 controls during play. Each point saves in place without navigating or refreshing the page.</p>
+        <h1 className="mt-2 text-3xl font-black uppercase">Match {game.gameNumber}</h1>
+        <p className="mt-1 hidden text-sm text-gray-500 md:block">Use the large +1 controls during play. Each point saves in place without navigating or refreshing the page.</p>
       </div>
-      <div className="flex gap-2"><Link href="/admin#live-scoring" className="btn-ghost">Live scoring board</Link><Link href={`/matches/${game.matchupId}`} className="btn-ghost">Public matchup</Link></div>
+      <div className="flex w-full gap-2 sm:w-auto"><Link href="/admin#live-scoring" className="btn-ghost flex-1 justify-center sm:flex-none">Live board</Link><Link href={`/matches/${game.matchupId}`} className="btn-ghost flex-1 justify-center sm:flex-none">Public view</Link></div>
     </div>
 
     <section className="panel mt-5 overflow-hidden">
-      <div className="border-b border-line bg-paper px-4 py-3"><div className="label">Games in this team matchup</div><p className="mt-1 text-xs text-gray-500">Jump directly between pair games without returning to the dashboard.</p></div>
-      <div className="flex flex-wrap gap-2 p-4">{game.matchup.games.map((item) => <Link key={item.id} href={`/admin/score/${item.id}`} aria-current={item.id === game.id ? "page" : undefined} className={`inline-flex items-center gap-2 border px-3 py-2 text-xs font-black ${item.id === game.id ? "border-court bg-court text-white" : item.status === "LIVE" ? "border-flame bg-flame/10 text-flame" : item.status === "COMPLETED" || item.status === "FORFEITED" ? "border-court/30 bg-court/10 text-court" : "border-line bg-white text-gray-600"}`}><span>G{item.gameNumber}</span><span className="tabular-nums">{item.homeScore}-{item.awayScore}</span><span className="text-[9px] uppercase opacity-70">{item.status === "LIVE" ? "Live" : item.status === "COMPLETED" ? "Done" : item.status === "FORFEITED" ? "Forfeit" : item.status === "INTERRUPTED" ? "Paused" : "Pending"}</span></Link>)}</div>
+      <div className="border-b border-line bg-paper px-4 py-3"><div className="label">Matches in this team matchup</div><p className="mt-1 hidden text-xs text-gray-500 md:block">Jump directly between pair matches without returning to the dashboard.</p></div>
+      <div className="flex gap-2 overflow-x-auto p-4">{game.matchup.games.map((item) => <Link key={item.id} href={`/admin/score/${item.id}`} aria-current={item.id === game.id ? "page" : undefined} className={`inline-flex items-center gap-2 border px-3 py-2 text-xs font-black ${item.id === game.id ? "border-court bg-court text-white" : item.status === "LIVE" ? "border-flame bg-flame/10 text-flame" : item.status === "COMPLETED" || item.status === "FORFEITED" ? "border-court/30 bg-court/10 text-court" : "border-line bg-white text-gray-600"}`}><span>M{item.gameNumber}</span><span className="tabular-nums">{item.homeScore}-{item.awayScore}</span><span className="text-[9px] uppercase opacity-70">{item.status === "LIVE" ? "Live" : item.status === "COMPLETED" ? "Done" : item.status === "FORFEITED" ? "Forfeit" : item.status === "INTERRUPTED" ? "Paused" : "Pending"}</span></Link>)}</div>
     </section>
 
     <AdminScoreConsole initial={initial}/>

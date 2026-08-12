@@ -19,18 +19,18 @@ export function gamesForStage(division: StageGameRuleSource, stage: MatchupStage
 export function assertValidCompletedScore(homeScore: number, awayScore: number, suddenDeathAtTen: boolean) {
   const winner = Math.max(homeScore, awayScore);
   const loser = Math.min(homeScore, awayScore);
-  if (homeScore === awayScore) throw new Error("A completed game cannot be tied.");
-  if (winner < 11) throw new Error("A completed game must reach 11 points.");
+  if (homeScore === awayScore) throw new Error("A completed match cannot be tied.");
+  if (winner < 11) throw new Error("A completed match must reach 11 points.");
 
   if (suddenDeathAtTen) {
     if (loser >= 10) {
       if (winner !== 11 || loser !== 10) {
-        throw new Error("With sudden death enabled, a game that reaches 10-10 must end on the next point (11-10).");
+        throw new Error("With sudden death enabled, a match that reaches 10-10 must end on the next point (11-10).");
       }
       return;
     }
     if (winner !== 11 || winner - loser < 2) {
-      throw new Error("Before 10-10, the game ends at 11 with at least a two-point lead; at 10-10, the next point wins.");
+      throw new Error("Before 10-10, the match ends at 11 with at least a two-point lead; at 10-10, the next point wins.");
     }
     return;
   }
@@ -41,6 +41,6 @@ export function assertValidCompletedScore(homeScore: number, awayScore: number, 
     ? winner === 11 && winner - loser >= 2
     : winner === loser + 2;
   if (!validNormalFinish) {
-    throw new Error("A normal game ends at 11 with a two-point lead, or after 10-10 at the first two-point lead.");
+    throw new Error("A normal match ends at 11 with a two-point lead, or after 10-10 at the first two-point lead.");
   }
 }

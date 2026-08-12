@@ -445,7 +445,7 @@ export async function executeSimulation(
   const result: Record<string, unknown> = { kind: options.kind, seed: options.seed };
 
   if (options.kind === "GAME") {
-    if (!options.targetId) throw new Error("Select a game.");
+    if (!options.targetId) throw new Error("Select a match.");
     const game = await db.game.findUniqueOrThrow({ where: { id: options.targetId } });
     const winner = options.winner === "RANDOM" || !options.winner
       ? (random() < 0.5 ? "HOME" : "AWAY")

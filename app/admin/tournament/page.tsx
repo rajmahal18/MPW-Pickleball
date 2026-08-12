@@ -143,7 +143,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
     <FlashMessage success={query.success} error={query.error} />
     <div className="label text-court">Tournament operations console</div>
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-4xl font-black uppercase text-ink">Tournament Setup</h1><p className="mt-2 max-w-4xl text-sm text-gray-600">Manage divisions, groups, teams, pair units, matchups, courts, and format settings. Started games remain protected; future structure stays editable for last-minute organizer decisions.</p></div>
+      <div><h1 className="text-3xl font-black uppercase text-ink md:text-4xl">Tournament Setup</h1><p className="mt-2 max-w-4xl text-sm text-gray-600">Manage divisions, groups, teams, pair units, matchups, courts, and format settings. Started matches remain protected; future structure stays editable for last-minute organizer decisions.</p></div>
       <details className="border border-line bg-white">
         <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase text-court">Add Division</summary>
         <form action="/api/admin/tournament-structure" method="post" className="grid w-full gap-3 border-t border-line p-4 sm:w-[420px]">
@@ -151,8 +151,8 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
           <Field label="Division name" name="name" required help="Example: Executive Men or Open Division." />
           <Select label="Format" name="formatType" defaultValue="CUSTOM">{formats.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select>
           <Select label="Entrant type" name="entrantType" defaultValue="TEAM">{entrantTypes.map((item) => <option key={item} value={item}>{entrantCopy[item]}</option>)}</Select>
-          <Field label="Group / default games per matchup" name="defaultGamesPerMatchup" type="number" min={1} max={31} defaultValue={1} required />
-          <Field label="Knockout games per matchup" name="knockoutGamesPerMatchup" type="number" min={1} max={31} defaultValue={1} help="Used for quarterfinals, semifinals, Battle for 3rd, and the Grand Final." />
+          <Field label="Group / default matches per matchup" name="defaultGamesPerMatchup" type="number" min={1} max={31} defaultValue={1} required />
+          <Field label="Knockout matches per matchup" name="knockoutGamesPerMatchup" type="number" min={1} max={31} defaultValue={1} help="Used for quarterfinals, semifinals, Battle for 3rd, and the Grand Final." />
           <details className="border border-line bg-paper p-3">
             <summary className="cursor-pointer text-xs font-black uppercase">Advanced fields</summary>
             <div className="mt-3 grid gap-3">
@@ -198,8 +198,8 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
               <Stat label="Teams / pair units" value={selected.teams.length} tone="court" />
               <Stat label="Groups" value={selected.groups.length} />
               <Stat label="Matchups" value={selected.matchups.length} tone="gold" />
-              <Stat label="Group games" value={selected.defaultGamesPerMatchup} />
-              <Stat label="Knockout games" value={selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup} />
+              <Stat label="Group matches" value={selected.defaultGamesPerMatchup} />
+              <Stat label="Knockout matches" value={selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup} />
               <Stat label="Confirmed players" value={confirmedEntries.length} tone={unassignedConfirmed ? "warn" : "default"} />
             </div>
           </div>
@@ -268,8 +268,8 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
               <Field label="Division name" name="name" defaultValue={selected.name} required />
               <Select label="Tournament format" name="formatType" defaultValue={selected.formatType} help={formatCopy[selected.formatType]}>{formats.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select>
               <Select label="Entrant type" name="entrantType" defaultValue={selected.entrantType}>{entrantTypes.map((item) => <option key={item} value={item}>{entrantCopy[item]}</option>)}</Select>
-              <Field label="Group / default games" name="defaultGamesPerMatchup" type="number" min={1} max={31} defaultValue={selected.defaultGamesPerMatchup} required help="Used for group/round-robin matchups and as the fallback for custom stages." />
-              <Field label="Knockout games" name="knockoutGamesPerMatchup" type="number" min={1} max={31} defaultValue={selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup} required help="Used by quarterfinals, semifinals, Battle for 3rd, and the Grand Final. For the Team Event, set this to 5 while group play remains 7." />
+              <Field label="Group / default matches" name="defaultGamesPerMatchup" type="number" min={1} max={31} defaultValue={selected.defaultGamesPerMatchup} required help="Used for group/round-robin matchups and as the fallback for custom stages." />
+              <Field label="Knockout matches" name="knockoutGamesPerMatchup" type="number" min={1} max={31} defaultValue={selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup} required help="Used by quarterfinals, semifinals, Battle for 3rd, and the Grand Final. For the Team Event, set this to 5 while group play remains 7." />
               <div className="space-y-2">
                 <label className="flex min-h-12 items-center gap-3 border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="isPublic" defaultChecked={selected.isPublic} /> Show this division publicly</label>
                 <label className="flex min-h-12 items-center gap-3 border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="autoProgression" defaultChecked={selected.autoProgression} /> Auto progression when supported</label>
@@ -279,7 +279,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
                 <label className="flex min-h-12 items-center gap-3 border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="suddenDeathAtTen" defaultChecked={selected.suddenDeathAtTen} /> Sudden death at 10-10</label>
               </div>
             </div>
-            <div className="border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Changing the game count of an unplayed matchup clears its submitted lineups/generated games so team managers can submit the correct number of playing pairs. Matchups with recorded play remain protected.</div>
+            <div className="border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Changing the match count of an unplayed matchup clears its submitted lineups/generated matches so team managers can submit the correct number of playing pairs. Matchups with recorded play remain protected.</div>
             {selected.formatType === "GROUP_KNOCKOUT" && <div className="grid gap-4 border border-court/20 bg-court/5 p-4 md:grid-cols-2">
               <Field label="Teams advancing from each group" name="qualifiersPerGroup" type="number" min={0} max={16} defaultValue={selected.qualifiersPerGroup} required help="Teams that automatically advance from each group." />
               <Field label="Wildcard slots" name="wildcardCount" type="number" min={0} max={16} defaultValue={selected.wildcardCount} required help="Additional best-performing teams that advance regardless of group." />
@@ -404,8 +404,8 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
         </section>
 
         <section id="schedule" className="scroll-mt-36 border border-line bg-white p-5">
-          <SectionHeader eyebrow="Schedule" title="Matchup Configuration" action={<div className="flex flex-wrap gap-2">{selected.teams.length >= 2 && !selected.groups.length && <form action="/api/admin/tournament-structure" method="post"><input type="hidden" name="action" value="generate-round-robin"/><input type="hidden" name="divisionId" value={selected.id}/><SubmitButton className="btn-ghost px-3 py-2 text-xs" pendingLabel="Generating...">Generate round robin</SubmitButton></form>}<details className="border border-line bg-white"><summary className="cursor-pointer px-3 py-2 text-xs font-black uppercase text-court">Add matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/><Field label="Games (blank = stage default)" name="gamesPerMatchup" type="number" min={1} max={31} help={`Group/default: ${selected.defaultGamesPerMatchup}; knockout: ${selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup}.`} /><Field label="Court" name="courtLabel"/><Field label="Schedule (Manila)" name="scheduledAt" type="datetime-local"/><SubmitButton className="btn-primary text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details></div>}>Future matchups are editable. Completed or started matchups clearly show protection.</SectionHeader>
-          {selected.matchups.length > 0 && <form action="/api/admin/tournament-structure" method="post" className="mb-4 border border-line bg-paper">
+          <SectionHeader eyebrow="Schedule" title="Matchup Configuration" action={<div className="flex flex-wrap gap-2">{selected.teams.length >= 2 && !selected.groups.length && <form action="/api/admin/tournament-structure" method="post"><input type="hidden" name="action" value="generate-round-robin"/><input type="hidden" name="divisionId" value={selected.id}/><SubmitButton className="btn-ghost px-3 py-2 text-xs" pendingLabel="Generating...">Generate round robin</SubmitButton></form>}<details className="border border-line bg-white"><summary className="cursor-pointer px-3 py-2 text-xs font-black uppercase text-court">Add matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/><Field label="Matches (blank = stage default)" name="gamesPerMatchup" type="number" min={1} max={31} help={`Group/default: ${selected.defaultGamesPerMatchup}; knockout: ${selected.knockoutGamesPerMatchup ?? selected.defaultGamesPerMatchup}.`} /><Field label="Court" name="courtLabel"/><Field label="Schedule (Manila)" name="scheduledAt" type="datetime-local"/><SubmitButton className="btn-primary text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details></div>}>Future matchups are editable. Completed or started matchups clearly show protection.</SectionHeader>
+          {selected.matchups.length > 0 && <form action="/api/admin/tournament-structure" method="post" className="mb-4 hidden border border-line bg-paper md:block">
             <input type="hidden" name="action" value="bulk-update-matchup-schedule" />
             <input type="hidden" name="divisionId" value={selected.id} />
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white p-4">
@@ -414,7 +414,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-ink text-left text-white"><tr><th className="p-3">Matchup</th><th className="p-3">Scope</th><th className="p-3">Round label</th><th className="w-28 p-3">Games</th><th className="w-32 p-3">Court</th><th className="w-56 p-3">Schedule (Manila)</th><th className="p-3">Status</th></tr></thead>
+                <thead className="bg-ink text-left text-white"><tr><th className="p-3">Matchup</th><th className="p-3">Scope</th><th className="p-3">Round label</th><th className="w-28 p-3">Matches</th><th className="w-32 p-3">Court</th><th className="w-56 p-3">Schedule (Manila)</th><th className="p-3">Status</th></tr></thead>
                 <tbody>{selected.matchups.map((matchup) => {
                   const locked = matchupLocked(matchup);
                   return <tr key={matchup.id} className="border-b border-line bg-white align-top">
@@ -424,7 +424,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
                     <td className="p-3"><input name={`gamesPerMatchup-${matchup.id}`} type="number" min={1} max={31} defaultValue={matchup.gamesPerMatchup} disabled={locked} className="w-full border border-line bg-white p-2 text-sm font-bold disabled:bg-gray-100 disabled:text-gray-500" /></td>
                     <td className="p-3"><input name={`courtLabel-${matchup.id}`} defaultValue={matchup.courtLabel ?? ""} className="w-full border border-line bg-white p-2 text-sm font-bold" /></td>
                     <td className="p-3"><input name={`scheduledAt-${matchup.id}`} type="datetime-local" defaultValue={manilaDateTimeValue(matchup.scheduledAt)} className="w-full border border-line bg-white p-2 text-sm font-bold" /></td>
-                    <td className="p-3"><StatusBadge tone={locked ? "locked" : matchup.status === "SCHEDULED" ? "warn" : "ready"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge>{locked && <div className="mt-1 text-[11px] text-gray-500">Games count locked</div>}</td>
+                    <td className="p-3"><StatusBadge tone={locked ? "locked" : matchup.status === "SCHEDULED" ? "warn" : "ready"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge>{locked && <div className="mt-1 text-[11px] text-gray-500">Match count locked</div>}</td>
                   </tr>;
                 })}</tbody>
               </table>
@@ -434,7 +434,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
             {selected.matchups.map((matchup) => {
               const locked = matchupLocked(matchup);
               return <article key={matchup.id} className={`border p-4 ${locked ? "border-amber-300 bg-amber-50" : "border-line bg-white"}`}>
-                <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"}</h3><StatusBadge tone={locked ? "locked" : matchup.status === "SCHEDULED" ? "warn" : "ready"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge></div><div className="mt-1 text-xs text-gray-500">{matchup.stage.replaceAll("_", " ")} - {matchup.groupLabel || "No scope"} - {matchup.roundLabel} - {matchup.gamesPerMatchup} game{matchup.gamesPerMatchup === 1 ? "" : "s"} - Court {matchup.courtLabel || "TBA"}</div></div><div className="flex flex-wrap items-center gap-2">{matchup.games.length === matchup.gamesPerMatchup && matchup.games.length > 0 && <Link href={`/admin/matches/${matchup.id}/scorecards`} className="btn-ghost px-3 py-2 text-xs">Print scorecards</Link>}{locked && <div className="max-w-md text-xs font-bold text-amber-950">Recorded play exists. Competitors, stage, and game count are protected; metadata can still be corrected.</div>}</div></div>
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"}</h3><StatusBadge tone={locked ? "locked" : matchup.status === "SCHEDULED" ? "warn" : "ready"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge></div><div className="mt-1 text-xs text-gray-500">{matchup.stage.replaceAll("_", " ")} - {matchup.groupLabel || "No scope"} - {matchup.roundLabel} - {matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"} - Court {matchup.courtLabel || "TBA"}</div></div><div className="flex flex-wrap items-center gap-2">{matchup.games.length === matchup.gamesPerMatchup && matchup.games.length > 0 && <Link href={`/admin/matches/${matchup.id}/scorecards`} className="btn-ghost px-3 py-2 text-xs">Print scorecards</Link>}{locked && <div className="max-w-md text-xs font-bold text-amber-950">Recorded play exists. Competitors, stage, and match count are protected; metadata can still be corrected.</div>}</div></div>
                 <details className="mt-3 border border-line bg-white p-3" open={!locked && (!matchup.homeTeamId || !matchup.awayTeamId || !matchup.courtLabel)}>
                   <summary className="cursor-pointer text-xs font-black uppercase">Edit matchup</summary>
                   <form action="/api/admin/tournament-structure" method="post" className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -445,7 +445,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
                     <Field label="Scope / group label" name="groupLabel" defaultValue={matchup.groupLabel} />
                     <Select label="Home team" name="homeTeamId" defaultValue={matchup.homeTeamId}><option value="">TBD</option>{selected.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} - {team.name}</option>)}</Select>
                     <Select label="Away team" name="awayTeamId" defaultValue={matchup.awayTeamId}><option value="">TBD</option>{selected.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} - {team.name}</option>)}</Select>
-                    <Field label="Games" name="gamesPerMatchup" type="number" min={1} max={31} defaultValue={matchup.gamesPerMatchup} />
+                    <Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31} defaultValue={matchup.gamesPerMatchup} />
                     <Field label="Court" name="courtLabel" defaultValue={matchup.courtLabel} />
                     <Field label="Round label" name="roundLabel" defaultValue={matchup.roundLabel} required />
                     <Field label="Schedule (Manila)" name="scheduledAt" type="datetime-local" defaultValue={manilaDateTimeValue(matchup.scheduledAt)} />

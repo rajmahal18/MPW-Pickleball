@@ -4,16 +4,35 @@
 
 For the current Team Event, set:
 
-- Group / default games per matchup: **7**
-- Knockout games per matchup: **5**
+- Group / default matches per team matchup: **7**
+- Knockout matches per team matchup: **5**
 - Battle for 3rd: **enabled** if the official format includes bronze
 - Sudden death at 10-10: toggle according to the organizer's official scoring rule
 
-The five-game knockout setting means team leaders submit five active pair slots for QF, SF, Battle for 3rd, and Grand Final. The seven master pairs remain available; only the required five are selected for that matchup.
+The five-match knockout setting means team leaders submit five active pair slots for QF, SF, Battle for 3rd, and Grand Final. The seven master pairs remain available; only the required five are selected for that matchup.
+
+## Group standings and official tiebreaks
+
+The visible group standings columns are:
+
+- `P` — team matchups played
+- `W` — team matchups won
+- `L` — team matchups lost
+- `NPD` — Net Point Differential, computed as total points scored minus total points conceded across decided pair matches
+- `TP` — Total Points Scored across decided pair matches
+
+Pair-match wins are still tracked even though they are not shown as a separate standings column. After the team-matchup W/L record, tied teams are ranked using the organizer's required sequence:
+
+A. **Total Pair Match Wins**
+B. **Net Point Differential** — Total Points Scored − Total Points Conceded across the pair matches
+C. **Head-to-head result** between the teams still tied after A and B
+D. **Total Points Scored**
+
+If teams remain mathematically tied after all of the automatic criteria and the group stage is complete, the existing organizer tiebreak override remains available. Cross-group wildcard comparison cannot use head-to-head, so it uses team-matchup record, pair-match wins, NPD, then total points scored.
 
 ## History protection
 
-Changing a game count on an unplayed matchup clears generated games and submitted lineups so the new count cannot conflict with stale pair slots. Any matchup with recorded play is protected and keeps its original game count/results.
+Changing a match count on an unplayed team matchup clears generated matches and submitted lineups so the new count cannot conflict with stale pair slots. Any team matchup with recorded play is protected and keeps its original match count/results.
 
 ## Battle for 3rd
 
@@ -25,7 +44,7 @@ Normal mode requires at least 11 points and a two-point winning margin. With sud
 
 ## Printing
 
-Official matchup scorecards use A4 landscape with two scorecards side-by-side per physical sheet. The compact scorecard is intentionally shorter than the full printable page so two cards remain readable without excessive vertical whitespace.
+Official scorecards use A4 landscape with two portrait scorecards side-by-side per physical sheet. Each card uses the available printable height, while the umpire band is deliberately kept compact so handwriting space is concentrated on player, score, and representative-signature fields. Group identity is derived from the configured round/matchup rather than entered as a separate scorecard field.
 
 ## Team Event semifinal feed
 

@@ -8,7 +8,6 @@ import PrintButton from "@/components/PrintButton";
 export const dynamic = "force-dynamic";
 
 type ScorecardSearch = {
-  group?: string;
   round?: string;
   court?: string;
   game?: string;
@@ -32,7 +31,6 @@ function formatGeneratedAt(value: Date) {
 
 function withQuery(id: string, query: ScorecardSearch, game?: number) {
   const params = new URLSearchParams();
-  if (query.group?.trim()) params.set("group", query.group.trim());
   if (query.round?.trim()) params.set("round", query.round.trim());
   if (query.court?.trim()) params.set("court", query.court.trim());
   if (game) params.set("game", String(game));
@@ -57,6 +55,7 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
     select: {
       id: true,
       groupLabel: true,
+      stage: true,
       roundLabel: true,
       courtLabel: true,
       gamesPerMatchup: true,
@@ -97,8 +96,10 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
   const gamesMatchLatestLineups = completeGames && matchup.games.every((game) => homeBySlot.get(game.gameNumber) === game.homePairId && awayBySlot.get(game.gameNumber) === game.awayPairId);
   const ready = Boolean(matchup.homeTeam && matchup.awayTeam && homeSubmitted && awaySubmitted && gamesMatchLatestLineups);
 
-  const groupLabel = clean(query.group, matchup.groupLabel || "", 60);
-  const roundLabel = clean(query.round, matchup.roundLabel, 80);
+  const baseRoundLabel = matchup.stage === "GROUP" && matchup.groupLabel && !matchup.roundLabel.toLowerCase().includes(matchup.groupLabel.toLowerCase())
+    ? `${matchup.groupLabel} ${matchup.roundLabel}`
+    : matchup.roundLabel;
+  const roundLabel = clean(query.round, baseRoundLabel, 80);
   const courtLabel = clean(query.court, matchup.courtLabel || "", 40);
   const requestedGame = Number.parseInt(String(query.game || ""), 10);
   const selectedGames = Number.isInteger(requestedGame) && requestedGame > 0
@@ -113,25 +114,24 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
         <div>
           <div className="label text-court">Official paper scorecards</div>
           <h1 className="text-2xl font-black uppercase md:text-3xl">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
-          <p className="mt-1 text-sm text-gray-600">{matchup.division.name} - {matchup.gamesPerMatchup} pair game{matchup.gamesPerMatchup === 1 ? "" : "s"}. Two scorecards print on each A4 landscape sheet.</p>
+          <p className="mt-1 text-sm text-gray-600">{matchup.division.name} - {matchup.gamesPerMatchup} pair match{matchup.gamesPerMatchup === 1 ? "" : "es"}. Two portrait scorecards print side by side on each A4 landscape sheet.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin" className="btn-ghost">Back to admin</Link>
           {query.game && <Link href={withQuery(id, query)} className="btn-ghost">Show all cards</Link>}
-          <PrintButton label={query.game ? `Print game ${query.game}` : "Print all scorecards"} className="btn-primary" />
+          <PrintButton label={query.game ? `Print match ${query.game}` : "Print all scorecards"} className="btn-primary" />
         </div>
       </div>
 
-      <form method="get" className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-[1fr_1.2fr_1fr_auto] md:items-end">
+      <form method="get" className="mt-4 grid gap-3 border-t border-line pt-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
         {query.game && <input type="hidden" name="game" value={query.game} />}
-        <label><span className="label">Group / Bracket</span><input name="group" defaultValue={groupLabel} placeholder="e.g. Group A" className="mt-1 w-full border border-line bg-white p-3 text-sm font-bold" /></label>
         <label><span className="label">Round</span><input name="round" defaultValue={roundLabel} className="mt-1 w-full border border-line bg-white p-3 text-sm font-bold" /></label>
         <label><span className="label">Court</span><input name="court" defaultValue={courtLabel} placeholder="Leave blank if handwritten" className="mt-1 w-full border border-line bg-white p-3 text-sm font-bold" /></label>
         <button className="btn-ghost" type="submit">Update preview</button>
       </form>
 
       {!ready && <div className="mt-4 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-        <strong>Scorecards are not ready yet.</strong> Home lineup: {homeSubmitted ? "complete" : "waiting/incomplete"}; away lineup: {awaySubmitted ? "complete" : "waiting/incomplete"}; generated games: {matchup.games.length}/{matchup.gamesPerMatchup}; lineup/game sync: {gamesMatchLatestLineups ? "current" : "waiting"}. Games and scorecards become ready after both valid lineups are saved.
+        <strong>Scorecards are not ready yet.</strong> Home lineup: {homeSubmitted ? "complete" : "waiting/incomplete"}; away lineup: {awaySubmitted ? "complete" : "waiting/incomplete"}; generated matches: {matchup.games.length}/{matchup.gamesPerMatchup}; lineup/match sync: {gamesMatchLatestLineups ? "current" : "waiting"}. Matches and scorecards become ready after both valid lineups are saved.
       </div>}
       {ready && <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
         <span className="border border-court/30 bg-court/10 px-2 py-1 font-black uppercase text-court">Ready to print</span>
@@ -141,7 +141,7 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
 
     {ready && selectedGames.length > 0 ? <>
       <div className="no-print mb-4 flex flex-wrap gap-2">
-        {matchup.games.map((game) => <Link key={game.id} href={withQuery(id, query, game.gameNumber)} className={`btn-ghost px-3 py-2 text-xs ${requestedGame === game.gameNumber ? "border-court text-court" : ""}`}>Game {game.gameNumber}</Link>)}
+        {matchup.games.map((game) => <Link key={game.id} href={withQuery(id, query, game.gameNumber)} className={`btn-ghost px-3 py-2 text-xs ${requestedGame === game.gameNumber ? "border-court text-court" : ""}`}>Match {game.gameNumber}</Link>)}
       </div>
       <section className="scorecard-print-root">
         {printablePages.map((pageGames, pageIndex) => <div key={pageIndex} className={`scorecard-print-page ${pageGames.length === 1 ? "scorecard-print-page-single" : ""}`}>
@@ -149,7 +149,6 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
             key={game.id}
             tournament={`${matchup.tournament.name}${matchup.tournament.season ? ` - ${matchup.tournament.season}` : ""}`}
             division={matchup.division.name}
-            group={groupLabel}
             round={roundLabel}
             court={courtLabel}
             generatedAt={generatedAt}
@@ -163,7 +162,7 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
           />)}
         </div>)}
       </section>
-    </> : ready ? <div className="no-print border border-amber-300 bg-amber-50 p-5 font-bold text-amber-950">The requested game number does not exist for this matchup. <Link className="underline" href={withQuery(id, query)}>Show all scorecards.</Link></div> : null}
+    </> : ready ? <div className="no-print border border-amber-300 bg-amber-50 p-5 font-bold text-amber-950">The requested match number does not exist for this matchup. <Link className="underline" href={withQuery(id, query)}>Show all scorecards.</Link></div> : null}
   </main>;
 }
 
@@ -177,10 +176,9 @@ type PrintableGame = {
   awayPair: { label: string; playerA: { firstName: string; middleInitial: string | null; lastName: string }; playerB: { firstName: string; middleInitial: string | null; lastName: string } };
 };
 
-function Scorecard({ tournament, division, group, round, court, generatedAt, homeTeamId, awayTeamId, homeTeam, awayTeam, homeShort, awayShort, game }: {
+function Scorecard({ tournament, division, round, court, generatedAt, homeTeamId, awayTeamId, homeTeam, awayTeam, homeShort, awayShort, game }: {
   tournament: string;
   division: string;
-  group: string;
   round: string;
   court: string;
   generatedAt: string;
@@ -195,15 +193,14 @@ function Scorecard({ tournament, division, group, round, court, generatedAt, hom
   const hasScore = game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0;
   const homeForfeitWin = game.status === "FORFEITED" && game.winnerTeamId === homeTeamId;
   const awayForfeitWin = game.status === "FORFEITED" && game.winnerTeamId === awayTeamId;
-  const reference = [division, group, round, `Game ${game.gameNumber}`].filter(Boolean).join(" - ");
+  const reference = [division, round, `Match ${game.gameNumber}`].filter(Boolean).join(" - ");
   return <article className="scorecard-card">
     <header className="scorecard-card-header">
       <div className="scorecard-tournament">{tournament}</div>
       <div className="scorecard-title">OFFICIAL MATCH SCORECARD</div>
       <div className="scorecard-meta-grid">
-        <Meta label="Group" value={group} />
         <Meta label="Round" value={round} />
-        <Meta label="Pair / Game" value={String(game.gameNumber)} />
+        <Meta label="Match No." value={String(game.gameNumber)} />
         <Meta label="Court" value={court} />
         <Meta label="Starting time" value="" />
         <Meta label="Ending time" value="" />

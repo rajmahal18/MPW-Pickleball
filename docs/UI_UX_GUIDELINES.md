@@ -14,6 +14,8 @@ Tournament-day screens should answer:
 - What can I safely change?
 - What is protected because play has started?
 
+Use **match / matches** in user-facing tournament language. Internal Prisma/domain identifiers may remain `Game`/`games` where changing them would require an unnecessary schema or route migration.
+
 ## Admin Information Architecture
 
 Admin navigation is grouped by operational purpose:
@@ -78,15 +80,30 @@ Destructive actions must be visually and semantically separated:
 - the server remains the source of truth for historical protection;
 - UI copy should explain when recorded play prevents deletion or movement.
 
-## Responsive Behavior
+## Mobile-first tournament operations
 
-Admin pages must work on phones and tablets:
+Mobile screens are purpose-focused, not compressed desktop screens. Ease of access is the priority during tournament operations.
 
-- horizontal scrolling is allowed only for explicit navigation strips or wide data tables;
-- primary action rows must wrap;
-- division selectors should become horizontal on narrow screens and sidebar-like on desktop;
-- forms should collapse to one column when needed;
-- buttons must remain tappable and visible.
+- Keep the primary action and current status visible before explanatory copy.
+- Hide or collapse secondary guidance, legends, technical metadata, and advanced filters when they are not required to act.
+- Use horizontally scrollable navigation/tab/chip strips for short operational choices instead of forcing them into multiple cramped rows.
+- Convert wide admin tables into compact mobile cards when the user needs to act on individual records; retain the richer table on desktop.
+- Keep live scoring controls for both sides visible at the same time. Do not force the scorer to scroll between teams for routine +1/−1 actions.
+- Render the bracket as a vertical stage-by-stage list on phones instead of forcing the desktop connector canvas into a horizontal scroll area.
+- Keep standings compact and readable with the official `P / W / L / NPD / TP` columns.
+- On Player Pool mobile views, expose search, attendance, and assignment first; put lower-frequency filters under **More filters**.
+- Keep destructive/recovery operations explicit and confirmed even when their mobile presentation is simplified.
+- Avoid horizontal page overflow. Horizontal scrolling is acceptable only inside deliberate controls such as nav strips, match chips, or data regions that cannot be represented more clearly as cards.
+
+## Player recognition
+
+Player photos are operational identity cues, not decoration. On MVP, Fan Favorite, team rosters, and match/live-match views:
+
+- prioritize photo → player name → team/context → stats/actions;
+- use the uploaded player photo whenever available and initials only as a fallback;
+- keep portraits large enough to recognize on a phone;
+- show pair headshots in match views when lineups are known instead of hiding them to save a few pixels;
+- reduce dead whitespace before shrinking player identity elements.
 
 ## Loading and Error States
 
@@ -113,19 +130,19 @@ Before changing admin setup or player-pool UX:
 - preserve advanced disclosure for technical fields;
 - preserve backend historical protections;
 - do not hardcode Open/Executive counts, names, or formats.
+
 ## Tournament-day status language
 
 Use consistent labels across manager, admin, and public operational views:
 
 - Ongoing — play is active.
-- Ready to play — both valid lineups are complete and games are ready.
+- Ready to play — both valid lineups are complete and matches are ready.
 - Pending lineup — one or both sides still need lineup work.
 - Scheduled — teams are assigned but play is not lineup-ready yet.
 - Completed — normal result is final.
 - Forfeited — result was decided by official forfeit/default.
-- Interrupted — game started but is temporarily stopped.
+- Interrupted — a match started but is temporarily stopped.
 
 For Team Leaders, prefer manager-specific action copy when it is more useful than the raw matchup state: “Needs your lineup,” “Complete your lineup,” or “Waiting for opponent.”
 
-Lineup screens should make player usage visible without opening dropdowns. A manager should be able to identify selected players, their game number, unpaired eligible players, unavailable players, and protected/played assignments at a glance.
-
+Lineup screens should make player usage visible without opening dropdowns. A manager should be able to identify selected players, their match number, unpaired eligible players, unavailable players, and protected/played assignments at a glance.

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 
 export default function PlayerAvatar({
@@ -13,10 +16,20 @@ export default function PlayerAvatar({
   lastName: string;
   displayName?: string | null;
   avatarUrl?: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const name = formatPlayerDisplayName({ firstName, middleInitial, lastName, displayName });
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
-  const classes = size === "lg" ? "h-20 w-20 text-xl" : size === "sm" ? "h-9 w-9 text-xs" : "h-12 w-12 text-sm";
-  return avatarUrl ? <img className={`${classes} rounded-full border border-line object-cover`} src={avatarUrl} alt={name} loading="lazy" /> : <span className={`${classes} grid shrink-0 place-items-center rounded-full border border-court/25 bg-court/10 font-black text-court`} aria-label={`${name} initials avatar`}>{initials || "?"}</span>;
+  const classes = size === "xl"
+    ? "h-28 w-28 text-2xl"
+    : size === "lg"
+      ? "h-20 w-20 text-xl"
+      : size === "sm"
+        ? "h-10 w-10 text-xs"
+        : "h-14 w-14 text-base";
+  const shared = `${classes} shrink-0 rounded-full border-2 border-white ring-1 ring-court/20 shadow-panel`;
+  return avatarUrl && !imageFailed
+    ? <img className={`${shared} object-cover`} src={avatarUrl} alt={name} loading="lazy" onError={() => setImageFailed(true)} />
+    : <span className={`${shared} grid place-items-center bg-court/10 font-black text-court`} aria-label={`${name} initials avatar`}>{initials || "?"}</span>;
 }
