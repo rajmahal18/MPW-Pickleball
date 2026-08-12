@@ -6,13 +6,23 @@ export function requestIp(request: Request) {
   );
 }
 
-export function assertSameOrigin(request: Request) {
+export function publicOrigin(request: Request) {
   const requestUrl = new URL(request.url);
-  const requestOrigin = requestUrl.origin;
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",").at(0)?.trim();
   const host = forwardedHost || request.headers.get("host")?.trim();
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",").at(0)?.trim();
-  const hostOrigin = host ? `${forwardedProto || requestUrl.protocol.replace(":", "")}://${host}` : requestOrigin;
+  const proto = forwardedProto || requestUrl.protocol.replace(":", "");
+  return host ? `${proto}://${host}` : requestUrl.origin;
+}
+
+export function publicUrl(request: Request, path: string) {
+  return new URL(path, publicOrigin(request));
+}
+
+export function assertSameOrigin(request: Request) {
+  const requestUrl = new URL(request.url);
+  const requestOrigin = requestUrl.origin;
+  const hostOrigin = publicOrigin(request);
   const supplied = request.headers.get("origin") || request.headers.get("referer");
   if (!supplied) return;
   let suppliedOrigin = "";
@@ -36,13 +46,14 @@ export async function requestData(request: Request) {
 }
 
 export function redirectBack(request: Request, fallback: string, params?: Record<string, string>) {
-  const requestUrl = new URL(request.url);
-  let url = new URL(fallback, requestUrl);
+  const requestOrigin = new URL(request.url).origin;
+  const hostOrigin = publicOrigin(request);
+  let url = publicUrl(request, fallback);
   const referer = request.headers.get("referer");
   if (referer) {
     try {
       const candidate = new URL(referer);
-      if (candidate.origin === requestUrl.origin) url = candidate;
+      if (candidate.origin === hostOrigin || candidate.origin === requestOrigin) url = candidate;
     } catch {
       // Ignore malformed or cross-origin referrers and use the safe fallback.
     }

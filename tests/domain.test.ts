@@ -9,6 +9,7 @@ import { qrMatrix } from "../lib/qr";
 import { normalizeVotingCode } from "../lib/tournament/voting";
 import { formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
 import { assertValidCompletedScore, gamesForStage } from "../lib/tournament/rules";
+import { publicUrl, redirectBack } from "../lib/request";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -228,6 +229,18 @@ test("player names render official full names without nulls or double spaces", (
   assert.equal(formatPlayerFullName({ firstName: "Ryan Ibrahim", middleInitial: "L", lastName: "Elias" }), "Ryan Ibrahim L. Elias");
   assert.equal(formatPlayerFullName({ firstName: "Jihan", middleInitial: null, lastName: "Arimao" }), "Jihan Arimao");
   assert.equal(formatPlayerDisplayName({ firstName: "Ryan", middleInitial: "L.", lastName: "Elias", displayName: "Coach Ryan" }), "Coach Ryan");
+});
+
+test("public redirects prefer reverse-proxy host over internal localhost origin", () => {
+  const request = new Request("http://localhost:3001/api/auth/login", {
+    headers: {
+      host: "mpwdinkanddash.cotabatopickleball.com",
+      "x-forwarded-proto": "https",
+      referer: "https://mpwdinkanddash.cotabatopickleball.com/login",
+    },
+  });
+  assert.equal(publicUrl(request, "/admin").toString(), "https://mpwdinkanddash.cotabatopickleball.com/admin");
+  assert.equal(redirectBack(request, "/admin", { success: "ok" }).toString(), "https://mpwdinkanddash.cotabatopickleball.com/login?success=ok");
 });
 
 
