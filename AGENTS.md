@@ -53,7 +53,11 @@ Short-notice organizer changes are a normal operating condition, especially for 
     - Use additive/backfill migrations for production data.
     - Do not replace migrations with `db push`.
 
-11. **Admin UX must stay operational, not database-like.**
+11. **Public discovery should be low-friction and context-aware.**
+    - Public search/filter controls auto-apply; text search uses a short debounce instead of requiring an Apply button.
+    - Dependent choices should narrow to valid context where practical (for example, selected Team → only that team's players and matchups). Never silently fabricate a selection.
+
+12. **Admin UX must stay operational, not database-like.**
     - Tournament Setup follows the visible workflow **Division → Teams & Groups → Lineup Rules → Courts → Matchups**. Do not reintroduce a separate duplicate team-placement section or always-visible bulk/dev-helper panel.
     - Court queue controls are tournament-day controls and must update in place without full-page navigation.
     - Player Pool should stay attendance-first with filters and scannable statuses.

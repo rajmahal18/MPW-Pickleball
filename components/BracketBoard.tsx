@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { MatchupStage, Prisma } from "@prisma/client";
 import { displayStatus } from "@/components/StatusBadge";
 import { winsNeededForMatchup } from "@/lib/tournament/rules";
+import { Crown } from "lucide-react";
 
 const PROGRESSION_STAGES = ["QUARTERFINAL", "SEMIFINAL", "FINAL"] as const;
 export const KNOCKOUT_STAGES = [...PROGRESSION_STAGES, "THIRD_PLACE"] as const;
@@ -25,13 +26,7 @@ export default function BracketBoard({ matchups }: { matchups: BracketMatchup[] 
     rows: orderRowsForDownstream(entry.rows, rawStageRows[index + 1]?.rows ?? []),
   }));
   const thirdPlaceRows = matchups.filter((matchup) => matchup.stage === "THIRD_PLACE").sort((a, b) => a.order - b.order);
-  const finalWinners = matchups
-    .filter((matchup) => matchup.stage === "FINAL" && matchup.winnerTeam)
-    .map((matchup) => matchup.winnerTeam!)
-    .filter((team, index, teams) => teams.findIndex((item) => item.id === team.id) === index);
-
   const gridTemplate = stageRows.flatMap((_, index) => index < stageRows.length - 1 ? ["minmax(260px, 1fr)", "72px"] : ["minmax(260px, 1fr)"]);
-  if (finalWinners.length) gridTemplate.push("72px", "minmax(240px, .9fr)");
 
   return <>
     <div className="space-y-5 p-3 md:hidden">
@@ -42,10 +37,6 @@ export default function BracketBoard({ matchups }: { matchups: BracketMatchup[] 
       {thirdPlaceRows.length > 0 && <section>
         <div className="mb-2"><div className="label text-amber-800">Semifinal consolation</div><h3 className="text-sm font-black uppercase">Battle for 3rd</h3></div>
         <div className="space-y-2">{thirdPlaceRows.map((matchup) => <BracketCard key={matchup.id} matchup={matchup} bronze />)}</div>
-      </section>}
-      {finalWinners.length > 0 && <section>
-        <div className="mb-2 label text-court">Champion</div>
-        {finalWinners.map((team) => <div key={team.id} className="bracket-winner-card"><div className="bracket-team-line"><TeamMark team={team} winner /><span className="bracket-team-name">{team.name}</span></div></div>)}
       </section>}
     </div>
     <div className="bracket-scroll hidden md:block">
@@ -64,21 +55,6 @@ export default function BracketBoard({ matchups }: { matchups: BracketMatchup[] 
           {next && <BracketConnector source={entry.rows} target={next.rows} />}
         </div>;
       })}
-      {finalWinners.length > 0 && <>
-        <WinnerConnector />
-        <section className="bracket-column bracket-winner-column">
-          <div className="bracket-stage-title">Champion</div>
-          <div className="bracket-winner-stack">
-            {finalWinners.map((team) => <div key={team.id} className="bracket-winner-card">
-              <div className="bracket-card-kicker">Champion</div>
-              <div className="bracket-team-line">
-                <TeamMark team={team} winner />
-                <span className="bracket-team-name">{team.name}</span>
-              </div>
-            </div>)}
-          </div>
-        </section>
-      </>}
     </div>
 
     {thirdPlaceRows.length > 0 && <section className="bracket-third-place-section">
@@ -149,11 +125,6 @@ function connectorMapping(source: BracketMatchup[], target: BracketMatchup[]) {
   return result;
 }
 
-function WinnerConnector() {
-  return <div className="bracket-connector" aria-hidden="true">
-    <svg className="bracket-connector-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="0" y1="50" x2="100" y2="50" /></svg>
-  </div>;
-}
 
 function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bronze?: boolean }) {
   const isFinal = matchup.stage === "FINAL";
@@ -164,8 +135,8 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
       <span>{scheduleLabel(matchup)}</span>
       <strong>{displayStatus(matchup.status)}</strong>
     </div>
-    <TeamRow team={matchup.homeTeam} wins={matchup.homeWins} winner={homeWon} />
-    <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} />
+    <TeamRow team={matchup.homeTeam} wins={matchup.homeWins} winner={homeWon} champion={isFinal && homeWon} />
+    <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} champion={isFinal && awayWon} />
     <div className="bracket-card-footer">
       <span>{matchup.stage === "THIRD_PLACE" ? "Battle for 3rd" : matchup.roundLabel}</span>
       <span>Best of {matchup.gamesPerMatchup} · first to {winsNeededForMatchup(matchup.stage, matchup.gamesPerMatchup)}</span>
@@ -173,11 +144,12 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
   </Link>;
 }
 
-function TeamRow({ team, wins, winner }: { team: BracketMatchup["homeTeam"]; wins: number; winner: boolean }) {
-  return <div className={`bracket-team-row ${winner ? "bracket-team-row-winner" : ""}`}>
+function TeamRow({ team, wins, winner, champion = false }: { team: BracketMatchup["homeTeam"]; wins: number; winner: boolean; champion?: boolean }) {
+  return <div className={`bracket-team-row ${winner ? "bracket-team-row-winner" : ""} ${champion ? "bracket-team-row-champion" : ""}`}>
     <div className="bracket-team-line">
       <TeamMark team={team} winner={winner} />
       <span className="bracket-team-name">{team?.name || "TBD"}</span>
+      {champion && <span className="bracket-champion-crown" title="Tournament champion"><Crown className="h-4 w-4" fill="currentColor"/><span>Champion</span></span>}
     </div>
     <span className="bracket-score">{wins}</span>
   </div>;

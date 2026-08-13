@@ -7,6 +7,7 @@ import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import StatusBadge from "@/components/StatusBadge";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
 
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
 
-  const [teams, filterPlayers, matchups] = await Promise.all([
+  const [teams, allFilterPlayers, allMatchups] = await Promise.all([
     prisma.team.findMany({
       where: { division: { tournamentId: tournament.id, isPublic: true } },
       select: { id: true, name: true, shortName: true, division: { select: { name: true, sortOrder: true } } },
@@ -124,22 +125,38 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         participationStatus: "CONFIRMED",
         team: { division: { isPublic: true } },
       },
-      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, team: { select: { shortName: true } } },
+      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, team: { select: { id: true, shortName: true } } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.matchup.findMany({
       where: { tournamentId: tournament.id, division: { isPublic: true }, homeTeamId: { not: null }, awayTeamId: { not: null } },
-      select: { id: true, stage: true, groupLabel: true, roundLabel: true, order: true, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, division: { select: { name: true, sortOrder: true } } },
+      select: { id: true, stage: true, groupLabel: true, roundLabel: true, order: true, homeTeamId: true, awayTeamId: true, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, division: { select: { name: true, sortOrder: true } } },
       orderBy: [{ division: { sortOrder: "asc" } }, { order: "asc" }],
     }),
   ]);
 
   const teamIds = new Set(teams.map((team) => team.id));
-  const playerIds = new Set(filterPlayers.map((player) => player.id));
-  const matchupIds = new Set(matchups.map((matchup) => matchup.id));
+  const allPlayerIds = new Set(allFilterPlayers.map((player) => player.id));
+  const allMatchupIds = new Set(allMatchups.map((matchup) => matchup.id));
   const teamId = query.team && teamIds.has(query.team) ? query.team : "";
-  const playerId = query.player && playerIds.has(query.player) ? query.player : "";
-  const matchupId = query.matchup && matchupIds.has(query.matchup) ? query.matchup : "";
+  const requestedPlayer = query.player && allPlayerIds.has(query.player) ? allFilterPlayers.find((player) => player.id === query.player) : undefined;
+  const requestedMatchup = query.matchup && allMatchupIds.has(query.matchup) ? allMatchups.find((matchup) => matchup.id === query.matchup) : undefined;
+
+  const matchupTeamIds = requestedMatchup ? new Set([requestedMatchup.homeTeamId, requestedMatchup.awayTeamId]) : null;
+  const filterPlayers = teamId
+    ? allFilterPlayers.filter((player) => player.team?.id === teamId)
+    : matchupTeamIds
+      ? allFilterPlayers.filter((player) => player.team?.id && matchupTeamIds.has(player.team.id))
+      : allFilterPlayers;
+  const visiblePlayerIds = new Set(filterPlayers.map((player) => player.id));
+  const playerId = requestedPlayer && visiblePlayerIds.has(requestedPlayer.id) ? requestedPlayer.id : "";
+  const playerTeamId = playerId ? filterPlayers.find((player) => player.id === playerId)?.team?.id || "" : "";
+  const matchupContextTeamId = teamId || playerTeamId;
+  const matchups = matchupContextTeamId
+    ? allMatchups.filter((matchup) => matchup.homeTeamId === matchupContextTeamId || matchup.awayTeamId === matchupContextTeamId)
+    : allMatchups;
+  const visibleMatchupIds = new Set(matchups.map((matchup) => matchup.id));
+  const matchupId = requestedMatchup && visibleMatchupIds.has(requestedMatchup.id) ? requestedMatchup.id : "";
 
   const where: Prisma.GameWhereInput = {
     NOT: { status: "SCHEDULED", matchup: { status: "COMPLETED", winnerTeamId: { not: null } } },
@@ -200,6 +217,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
     return suffix ? `/games?${suffix}` : "/games";
   };
 
+  const staleFilters =
+    (query.team && query.team !== teamId) ||
+    (query.player && query.player !== playerId) ||
+    (query.matchup && query.matchup !== matchupId) ||
+    (query.status && query.status !== activeTab);
+  if (staleFilters) redirect(buildHref({}, currentPage));
   if (totalGames > 0 && currentPage > totalPages) redirect(buildHref({}, totalPages));
 
   const grouped = games.reduce((groups, game) => {
@@ -218,13 +241,13 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
       <div className="public-count"><strong>{totalGames}</strong><span>matches</span></div>
     </section>
 
-    <form action="/games" className="public-filter mt-6 grid gap-3 lg:grid-cols-[1fr_1.15fr_1.25fr_auto]">
+    <PublicAutoSubmitForm className="public-filter relative mt-6 grid gap-3 lg:grid-cols-[1fr_1.15fr_1.25fr_auto]">
       {activeTab !== "ALL" && <input type="hidden" name="status" value={activeTab}/>} 
       <label><span className="filter-label">District / Team</span><select name="team" defaultValue={teamId} className="filter-control"><option value="">All districts / teams</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
       <label><span className="filter-label">Player</span><select name="player" defaultValue={playerId} className="filter-control"><option value="">All players</option>{filterPlayers.map((player) => <option key={player.id} value={player.id}>{formatPlayerDisplayName(player)} · {player.team?.shortName || "Unassigned"}</option>)}</select></label>
       <label><span className="filter-label">Matchup</span><select name="matchup" defaultValue={matchupId} className="filter-control"><option value="">All matchups</option>{matchups.map((matchup) => <option key={matchup.id} value={matchup.id}>{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"} · {matchContext(matchup)}</option>)}</select></label>
-      <div className="flex items-end gap-2"><button type="submit" className="btn-primary min-h-11 flex-1 lg:flex-none">Apply</button>{hasPrimaryFilters && <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-11 px-3">Clear</Link>}</div>
-    </form>
+      <div className="flex items-end">{hasPrimaryFilters ? <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link> : <div className="hidden min-h-11 items-center text-xs font-semibold text-gray-400 lg:flex">Auto-applies</div>}</div>
+    </PublicAutoSubmitForm>
 
     <div className="mt-4 flex items-center gap-3"><span className="hidden text-[10px] font-extrabold uppercase tracking-widest text-gray-400 sm:block">Status</span><nav className="flex min-w-0 flex-1 gap-2 overflow-x-auto border-b border-court/20 pb-2 text-sm font-bold">
       {STATUS_TABS.map((tab) => {

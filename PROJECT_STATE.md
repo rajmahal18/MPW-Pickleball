@@ -212,3 +212,11 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Public `/games` now treats District / Team, Player, and exact Team-vs-Team Matchup as the primary discovery filters. Status remains available as a secondary filter and preserves the selected primary filters. No new District schema was introduced; existing Team identity is the canonical district/team filter for labels such as CCDEO vs BDEO.
 - Public player cards link to `/players/[id]`. The player profile shows decided-match record, NPD, total points, partner/opponents, scores, tournament context, and linked match history while preserving public-division/confirmed-player visibility rules.
 - Fan Favorite now has a deliberately playful crowd-choice visual treatment distinct from MVP. The homepage surfaces the leading male and female separately, and the full voting page emphasizes the crowd race while preserving the existing one-code/two-vote rules and live ranking API.
+
+## Smart public discovery + live poster treatment — 2026-08-13
+
+- Public Matches and Players filters now auto-apply. Select controls navigate immediately and text search uses a short debounce; Apply buttons are no longer required.
+- Public filter choices are context-aware. On Matches, selecting a district/team restricts the Player list to that team and the Matchup list to matchups involving that team; selecting a player also narrows matchup choices to that player's team. Incompatible stale selections are ignored safely. On Players, Division continues to constrain the available Team choices.
+- MVP surfaces now present the current male/female leaders as a live **Mythical Pair** poster whenever completed-match data exists. The treatment is explicitly marked live/not final so it does not imply the official award has already been decided.
+- Fan Favorite's “Who owns the crowd today?” hero now displays the current male and female crowd leaders as poster-style cards with live vote totals/shares.
+- The public bracket no longer generates a separate Champion column. The winner of the Grand Final is crowned directly inside the Grand Final matchup card.

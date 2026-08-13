@@ -7,7 +7,7 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import { PUBLIC_POLL_INTERVAL_MS } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 
-type Player = {
+export type FanFavoritePlayer = {
   id: string;
   firstName: string;
   middleInitial?: string | null;
@@ -18,8 +18,10 @@ type Player = {
   team: { name: string; shortName: string } | null;
 };
 
-type Ranking = { rank: number; votes: number; percentage: number; player?: Player };
-type Snapshot = {
+type Player = FanFavoritePlayer;
+export type FanFavoriteRanking = { rank: number; votes: number; percentage: number; player?: Player };
+type Ranking = FanFavoriteRanking;
+export type FanFavoriteSnapshot = {
   votingOpen: boolean;
   votingDeadline: string | null;
   totalVotes: number;
@@ -28,10 +30,10 @@ type Snapshot = {
   updatedAt: string;
 };
 
-export default function FanFavoriteExperience({ players, initialCode = "" }: { players: Player[]; initialCode?: string }) {
+export default function FanFavoriteExperience({ players, initialCode = "", initialSnapshot }: { players: Player[]; initialCode?: string; initialSnapshot?: FanFavoriteSnapshot }) {
   const malePlayers = useMemo(() => players.filter((player) => player.sex === "MALE"), [players]);
   const femalePlayers = useMemo(() => players.filter((player) => player.sex === "FEMALE"), [players]);
-  const [snapshot, setSnapshot] = useState<Snapshot>({ votingOpen: false, votingDeadline: null, totalVotes: 0, totalsBySex: { male: 0, female: 0 }, rankingsBySex: { male: [], female: [] }, updatedAt: new Date().toISOString() });
+  const [snapshot, setSnapshot] = useState<FanFavoriteSnapshot>(initialSnapshot ?? { votingOpen: false, votingDeadline: null, totalVotes: 0, totalsBySex: { male: 0, female: 0 }, rankingsBySex: { male: [], female: [] }, updatedAt: new Date().toISOString() });
   const [selectedMaleId, setSelectedMaleId] = useState(malePlayers[0]?.id || "");
   const [selectedFemaleId, setSelectedFemaleId] = useState(femalePlayers[0]?.id || "");
   const [code, setCode] = useState(initialCode);
@@ -65,6 +67,8 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
 
   const filteredMale = useMemo(() => filterPlayers(malePlayers, maleSearch), [malePlayers, maleSearch]);
   const filteredFemale = useMemo(() => filterPlayers(femalePlayers, femaleSearch), [femalePlayers, femaleSearch]);
+  const maleLeader = snapshot.rankingsBySex.male[0];
+  const femaleLeader = snapshot.rankingsBySex.female[0];
 
   async function submitVote(event: FormEvent) {
     event.preventDefault();
@@ -132,6 +136,10 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
           <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur"><div className="text-3xl font-black">{snapshot.totalVotes}</div><div className="text-[10px] font-black uppercase tracking-widest text-white/65">votes cast</div></div>
           <div className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider ${snapshot.votingOpen ? "bg-gold text-ink" : "bg-white/15 text-white/70"}`}>{snapshot.votingOpen ? "Voting open" : "Voting closed"}</div>
         </div>
+        <div className="relative z-10 grid gap-3 sm:grid-cols-2 lg:col-span-2">
+          <CrowdLeaderPoster ranking={maleLeader} label="Male crowd leader" tone="male"/>
+          <CrowdLeaderPoster ranking={femaleLeader} label="Female crowd leader" tone="female"/>
+        </div>
         <Heart className="absolute -right-6 -top-8 h-36 w-36 rotate-12 text-white/5" fill="currentColor"/>
         <Trophy className="absolute -bottom-8 left-1/2 h-32 w-32 -rotate-12 text-gold/10"/>
       </div>
@@ -168,6 +176,15 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
       </section>
     </div>
   </div>;
+}
+
+function CrowdLeaderPoster({ ranking, label, tone }: { ranking?: Ranking; label: string; tone: "male" | "female" }) {
+  if (!ranking?.player) return <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-4"><div className="text-[9px] font-black uppercase tracking-[.18em] text-white/55">{label}</div><div className="mt-2 text-lg font-black">Crown is up for grabs.</div><div className="mt-1 text-xs font-semibold text-white/55">No valid votes yet.</div></div>;
+  const player = ranking.player;
+  return <Link href={`/players/${player.id}`} className="group relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15">
+    <div className={`absolute inset-y-0 ${tone === "male" ? "left-0 bg-court/25" : "right-0 bg-gold/20"} w-1/2 blur-3xl`}/>
+    <div className="relative flex items-center gap-4"><div className="relative"><div className="absolute inset-0 scale-110 rounded-full bg-gold/25 blur-xl"/><div className="relative"><PlayerAvatar {...player} size="lg"/></div><span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-gold text-ink shadow"><Crown className="h-3.5 w-3.5" fill="currentColor"/></span></div><div className="min-w-0 flex-1"><div className="text-[9px] font-black uppercase tracking-[.18em] text-gold">{label}</div><div className="mt-1 truncate text-xl font-black tracking-tight group-hover:text-gold">{formatPlayerDisplayName(player)}</div><div className="mt-1 truncate text-xs font-bold text-white/60">{player.team?.shortName ?? "Player pool"}</div><div className="mt-3 flex items-end gap-2"><strong className="text-2xl font-black">{ranking.votes}</strong><span className="pb-1 text-[9px] font-black uppercase tracking-widest text-white/45">votes · {ranking.percentage}%</span></div></div></div>
+  </Link>;
 }
 
 function PlayerPicker({ title, tone, players, search, setSearch, selectedPlayerId, setSelectedPlayerId }: {

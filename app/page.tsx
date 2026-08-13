@@ -10,6 +10,7 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
 import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
+import MythicalPairPoster from "@/components/MythicalPairPoster";
 import { Crown, Heart, Sparkles } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -103,7 +104,7 @@ export default async function Home() {
     </section>}
     {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm"><span className="label">{division} wildcard</span><strong className="ml-2">{row.team.name}</strong></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings }) => <div className="panel min-w-0" key={group.id}><div className="flex items-center justify-between border-b border-line p-4"><div><div className="label">{division.name}</div><h3 className="font-black uppercase">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings}/></div>)}</div></section>}
     <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Crowd's choice</div><h2 className="text-2xl font-black">Fan Favorite</h2></div><Sparkles className="h-5 w-5 text-gold"/></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
-    <section><div className="mb-4"><div className="label">Numbers supporting the judges</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div><div className="grid gap-4 md:grid-cols-2"><MvpLeader title="Male MVP" row={mvp.male[0]}/><MvpLeader title="Female MVP" row={mvp.female[0]}/></div></section>
+    <section><div className="mb-4"><div className="label">Numbers supporting the judges</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(mvp.male[0] || mvp.female[0]) ? <MythicalPairPoster male={mvp.male[0]} female={mvp.female[0]} compact/> : <div className="panel p-6 text-sm text-gray-500">Complete matches to populate the live Mythical Pair.</div>}</section>
   </div></main>;
 }
 function HeroActions({ desktop = false }: { desktop?: boolean }) {
@@ -130,12 +131,4 @@ function FanFavoriteHomeCard({ male, female, totalVotes }: {
     </Link> : <div key={label} className="rounded-xl border border-white/15 bg-white/10 p-4"><div className="text-[9px] font-black uppercase tracking-widest text-white/60">{label}</div><div className="mt-1 text-sm font-bold">No votes yet</div></div>)}</div>
     <Link href="/fan-favorite" className="relative z-10 mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gold px-4 text-sm font-black text-ink transition hover:-translate-y-0.5 hover:bg-white"><Heart className="h-4 w-4" fill="currentColor"/> Vote & see the live race</Link>
   </div>;
-}
-
-function MvpLeader({ title, row }: { title: string; row?: ReturnType<typeof calculateMvpRankings>["male"][number] }) {
-  return <Link href="/mvp" className="panel flex items-center gap-4 p-4 hover:border-court md:p-5">
-    {row && <PlayerAvatar {...row.player} size="lg"/>}
-    <div className="min-w-0 flex-1"><div className="label">{title}</div>{row ? <><div className="mt-1 truncate text-lg font-black md:text-xl">{formatPlayerDisplayName(row.player)}</div><div className="text-xs text-gray-500 md:text-sm">{row.player.team?.shortName || "Historical pair"} · {row.wins}-{row.losses} · {row.confidence}% confidence</div></> : <div className="mt-2 text-gray-500">Complete matches to populate.</div>}</div>
-    {row && <div className="shrink-0 text-right"><div className="text-2xl font-black text-court md:text-3xl">{row.mvpIndex}</div><div className="label hidden sm:block">MVP index</div></div>}
-  </Link>;
 }

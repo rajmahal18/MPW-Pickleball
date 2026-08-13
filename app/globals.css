@@ -32,6 +32,11 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .public-card { @apply rounded-xl border border-line bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-court/40 hover:shadow-md; }
 .public-empty { @apply rounded-xl border border-dashed border-line bg-white/70 p-10 text-center text-sm font-semibold text-gray-500; }
 .fan-arena { background: radial-gradient(circle at 82% 18%, rgba(244,177,31,.32), transparent 24%), radial-gradient(circle at 16% 82%, rgba(232,93,42,.24), transparent 28%), linear-gradient(135deg, #12386f 0%, #1f6fb2 54%, #12386f 100%); }
+.mythical-pair-poster { background: radial-gradient(circle at 14% 30%, rgba(31,111,178,.38), transparent 28%), radial-gradient(circle at 86% 70%, rgba(244,177,31,.28), transparent 30%), linear-gradient(125deg, #07172f 0%, #12386f 48%, #241b24 100%); }
+.mythical-pair-glow { position: absolute; width: 18rem; height: 18rem; border-radius: 9999px; filter: blur(54px); opacity: .16; pointer-events: none; }
+.mythical-pair-glow-left { left: -7rem; bottom: -8rem; background: #49a4e8; }
+.mythical-pair-glow-right { right: -7rem; top: -8rem; background: #f4b11f; }
+.mythical-player-card { box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
 .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
 
 @media print {
@@ -72,17 +77,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .bracket-team-row { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: stretch; gap: .25rem; margin-top: .25rem; }
 .bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .55rem; border-radius: 6px; background: #fff; padding: .5rem; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
 .bracket-team-row:not(.bracket-team-row-winner) .bracket-team-line { color: #888; }
-.bracket-team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bracket-team-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bracket-champion-crown { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .25rem; border-radius: 999px; background: #f4b11f; padding: .25rem .45rem; color: #050505; font-size: 8px; font-weight: 900; letter-spacing: .05em; }
+.bracket-team-row-champion .bracket-team-line { box-shadow: 0 0 0 2px rgba(244,177,31,.85), 0 8px 24px rgba(0,0,0,.12); }
 .bracket-score { display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,.7); font-size: 22px; font-weight: 900; color: #050505; }
 .bracket-team-row:not(.bracket-team-row-winner) .bracket-score { color: #888; }
 .bracket-team-logo { width: 34px; height: 34px; object-fit: contain; flex: 0 0 auto; }
 .bracket-team-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #ececec; color: #777; font-size: 11px; font-weight: 900; }
 .bracket-team-mark-winner { background: #050505; color: #fff; }
 .bracket-card-footer { display: flex; justify-content: space-between; gap: .75rem; padding: .5rem .25rem 0; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
-.bracket-winner-column { min-width: 0; }
-.bracket-winner-stack { height: 640px; display: grid; align-items: center; }
-.bracket-winner-card { border-radius: 8px; background: linear-gradient(135deg, #ff4b1f, #d9c56d); padding: .6rem; }
-.bracket-card-kicker { margin-bottom: .5rem; color: #fff; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
 .bracket-third-place-section { margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
 .bracket-third-place-heading { margin-bottom: .75rem; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem; }
 
