@@ -1,5 +1,8 @@
 "use client";
+
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Crown, Heart, ScanLine, Sparkles, Trophy, Vote } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { PUBLIC_POLL_INTERVAL_MS } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
@@ -28,14 +31,7 @@ type Snapshot = {
 export default function FanFavoriteExperience({ players, initialCode = "" }: { players: Player[]; initialCode?: string }) {
   const malePlayers = useMemo(() => players.filter((player) => player.sex === "MALE"), [players]);
   const femalePlayers = useMemo(() => players.filter((player) => player.sex === "FEMALE"), [players]);
-  const [snapshot, setSnapshot] = useState<Snapshot>({
-    votingOpen: false,
-    votingDeadline: null,
-    totalVotes: 0,
-    totalsBySex: { male: 0, female: 0 },
-    rankingsBySex: { male: [], female: [] },
-    updatedAt: new Date().toISOString(),
-  });
+  const [snapshot, setSnapshot] = useState<Snapshot>({ votingOpen: false, votingDeadline: null, totalVotes: 0, totalsBySex: { male: 0, female: 0 }, rankingsBySex: { male: [], female: [] }, updatedAt: new Date().toISOString() });
   const [selectedMaleId, setSelectedMaleId] = useState(malePlayers[0]?.id || "");
   const [selectedFemaleId, setSelectedFemaleId] = useState(femalePlayers[0]?.id || "");
   const [code, setCode] = useState(initialCode);
@@ -55,27 +51,16 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
   useEffect(() => {
     void refresh();
     let stopped = false;
-    const guardedRefresh = () => {
-      if (!stopped && document.visibilityState === "visible") void refresh();
-    };
+    const guardedRefresh = () => { if (!stopped && document.visibilityState === "visible") void refresh(); };
     const timer = window.setInterval(guardedRefresh, PUBLIC_POLL_INTERVAL_MS);
-    const onFocus = () => guardedRefresh();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-    };
+    window.addEventListener("focus", guardedRefresh);
+    return () => { stopped = true; window.clearInterval(timer); window.removeEventListener("focus", guardedRefresh); };
   }, []);
 
   function filterPlayers(list: Player[], search: string) {
     const query = search.trim().toLowerCase();
     if (!query) return list;
-    return list.filter((player) =>
-      `${formatPlayerDisplayName(player)} ${player.team?.name ?? "Unassigned"} ${player.team?.shortName ?? ""}`
-        .toLowerCase()
-        .includes(query),
-    );
+    return list.filter((player) => `${formatPlayerDisplayName(player)} ${player.team?.name ?? "Unassigned"} ${player.team?.shortName ?? ""}`.toLowerCase().includes(query));
   }
 
   const filteredMale = useMemo(() => filterPlayers(malePlayers, maleSearch), [malePlayers, maleSearch]);
@@ -94,7 +79,7 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Vote failed.");
-      setMessage(payload.message || "Fan Favorite votes recorded.");
+      setMessage(payload.message || "Your Fan Favorite picks are in!");
       setCode("");
       await refresh();
     } catch (caught) {
@@ -111,7 +96,6 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
       setError("QR scanning is not supported by this browser. Enter the backup code instead.");
       return;
     }
-
     let stream: MediaStream | null = null;
     setScanning(true);
     try {
@@ -119,15 +103,11 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
       if (!videoRef.current) throw new Error("Camera preview is not available.");
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
-
       const detector = new BarcodeDetectorClass({ formats: ["qr_code"] });
       const started = Date.now();
       while (Date.now() - started < 20_000 && videoRef.current) {
         const results = await detector.detect(videoRef.current);
-        if (results[0]?.rawValue) {
-          setCode(results[0].rawValue);
-          return;
-        }
+        if (results[0]?.rawValue) { setCode(results[0].rawValue); return; }
         await new Promise((resolve) => window.setTimeout(resolve, 250));
       }
       setError("No QR code was detected. Enter the backup code instead.");
@@ -140,49 +120,57 @@ export default function FanFavoriteExperience({ players, initialCode = "" }: { p
     }
   }
 
-  return <div className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
-    <section className="panel overflow-hidden">
-      <div className="border-b border-line bg-ink p-5 text-white">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="label text-lime">One code - two winners</div><h2 className="text-2xl font-black uppercase">Cast your votes</h2></div>
-          <span className={`px-3 py-1 text-xs font-black uppercase ${snapshot.votingOpen ? "bg-lime text-ink" : "bg-white/15 text-white/70"}`}>{snapshot.votingOpen ? "Voting open" : "Voting closed"}</span>
+  return <div className="space-y-6">
+    <section className="fan-arena overflow-hidden rounded-2xl border border-ink/10 shadow-panel">
+      <div className="relative grid gap-5 p-5 text-white md:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative z-10 max-w-2xl">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em]"><Sparkles className="h-3.5 w-3.5"/> Crowd's choice</div>
+          <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">Who owns the crowd today?</h2>
+          <p className="mt-2 max-w-xl text-sm font-medium text-white/80 md:text-base">One valid code gives you two picks: one male and one female Fan Favorite. Make them count.</p>
         </div>
+        <div className="relative z-10 flex items-center gap-3 lg:justify-end">
+          <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur"><div className="text-3xl font-black">{snapshot.totalVotes}</div><div className="text-[10px] font-black uppercase tracking-widest text-white/65">votes cast</div></div>
+          <div className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider ${snapshot.votingOpen ? "bg-gold text-ink" : "bg-white/15 text-white/70"}`}>{snapshot.votingOpen ? "Voting open" : "Voting closed"}</div>
+        </div>
+        <Heart className="absolute -right-6 -top-8 h-36 w-36 rotate-12 text-white/5" fill="currentColor"/>
+        <Trophy className="absolute -bottom-8 left-1/2 h-32 w-32 -rotate-12 text-gold/10"/>
       </div>
-      <div className="p-5">
-        {snapshot.votingDeadline && <p className="text-sm text-gray-500">Deadline: {new Date(snapshot.votingDeadline).toLocaleString()}</p>}
-        <form onSubmit={submitVote} className="mt-5 space-y-5">
+    </section>
+
+    <div className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
+      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-4">
+          <div><div className="public-kicker">Make your picks</div><h2 className="text-2xl font-black tracking-tight">Cast your votes</h2></div>
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-gold/15 text-flame"><Vote className="h-5 w-5"/></div>
+        </div>
+        <form onSubmit={submitVote} className="space-y-5 p-4 md:p-5">
+          {snapshot.votingDeadline && <div className="rounded-xl bg-paper px-3 py-2 text-xs font-semibold text-gray-500">Voting closes {new Date(snapshot.votingDeadline).toLocaleString()}</div>}
           <div className="grid gap-4 lg:grid-cols-2">
-            <PlayerPicker title="Male Fan Favorite" tone="male" players={filteredMale} search={maleSearch} setSearch={setMaleSearch} selectedPlayerId={selectedMaleId} setSelectedPlayerId={setSelectedMaleId} />
-            <PlayerPicker title="Female Fan Favorite" tone="female" players={filteredFemale} search={femaleSearch} setSearch={setFemaleSearch} selectedPlayerId={selectedFemaleId} setSelectedPlayerId={setSelectedFemaleId} />
+            <PlayerPicker title="Male Fan Favorite" tone="male" players={filteredMale} search={maleSearch} setSearch={setMaleSearch} selectedPlayerId={selectedMaleId} setSelectedPlayerId={setSelectedMaleId}/>
+            <PlayerPicker title="Female Fan Favorite" tone="female" players={filteredFemale} search={femaleSearch} setSearch={setFemaleSearch} selectedPlayerId={selectedFemaleId} setSelectedPlayerId={setSelectedFemaleId}/>
           </div>
-          <label className="block"><span className="label">Voting code</span><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="min-w-0 flex-1 border border-line p-3 font-mono font-black tracking-widest" placeholder="ABCDE-23456" autoComplete="off" /><button type="button" onClick={() => void scanCode()} className="btn-ghost w-full sm:w-auto">{scanning ? "Scanning..." : "Scan QR"}</button></div></label>
-          {scanning && <video ref={videoRef} className="aspect-video w-full bg-black" muted playsInline />}
-          {message && <div className="border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
-          {error && <div className="border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
-          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "Recording votes..." : "Confirm votes"}</button>
+          <div className="rounded-xl border border-dashed border-court/30 bg-court/5 p-4">
+            <label className="block"><span className="filter-label">Your voting code</span><div className="flex flex-col gap-2 sm:flex-row"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="filter-control min-w-0 flex-1 bg-white font-mono font-black tracking-[.16em]" placeholder="ABCDE-23456" autoComplete="off"/><button type="button" onClick={() => void scanCode()} className="btn-ghost min-h-11 w-full rounded-lg sm:w-auto"><ScanLine className="h-4 w-4"/>{scanning ? "Scanning..." : "Scan QR"}</button></div></label>
+            {scanning && <video ref={videoRef} className="mt-3 aspect-video w-full rounded-xl bg-black" muted playsInline/>}
+          </div>
+          {message && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
+          {error && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
+          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Recording your picks..." : "Lock in my Fan Favorites"}</button>
         </form>
-      </div>
-    </section>
-    <section className="space-y-4">
-      <div className="panel overflow-hidden border-ink"><div className="flex items-end justify-between bg-ink p-5 text-white"><div><div className="label text-lime">Current standings</div><h2 className="text-2xl font-black uppercase">Fan Favorite Race</h2></div><div className="text-right"><div className="text-2xl font-black">{snapshot.totalVotes}</div><div className="label text-white/70">valid votes</div></div></div></div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-        <Leaderboard title="Male" totalVotes={snapshot.totalsBySex.male} rankings={snapshot.rankingsBySex.male} tone="male" />
-        <Leaderboard title="Female" totalVotes={snapshot.totalsBySex.female} rankings={snapshot.rankingsBySex.female} tone="female" />
-      </div>
-      <div className="border border-line bg-white px-5 py-3 text-xs text-gray-500">Last updated {new Date(snapshot.updatedAt).toLocaleTimeString()}</div>
-    </section>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-end justify-between gap-3 px-1"><div><div className="public-kicker">Live crowd race</div><h2 className="text-2xl font-black tracking-tight">Who’s leading?</h2></div><div className="text-right text-xs font-semibold text-gray-400">Updated<br/>{new Date(snapshot.updatedAt).toLocaleTimeString()}</div></div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <Leaderboard title="Male" totalVotes={snapshot.totalsBySex.male} rankings={snapshot.rankingsBySex.male} tone="male"/>
+          <Leaderboard title="Female" totalVotes={snapshot.totalsBySex.female} rankings={snapshot.rankingsBySex.female} tone="female"/>
+        </div>
+      </section>
+    </div>
   </div>;
 }
 
-function PlayerPicker({
-  title,
-  tone,
-  players,
-  search,
-  setSearch,
-  selectedPlayerId,
-  setSelectedPlayerId,
-}: {
+function PlayerPicker({ title, tone, players, search, setSearch, selectedPlayerId, setSelectedPlayerId }: {
   title: string;
   tone: "male" | "female";
   players: Player[];
@@ -191,36 +179,32 @@ function PlayerPicker({
   selectedPlayerId: string;
   setSelectedPlayerId: (value: string) => void;
 }) {
-  const accent = tone === "male" ? "border-court/30 bg-court/10" : "border-gold/60 bg-gold/10";
-  return <div className={`border ${accent}`}>
-    <div className="border-b border-white/70 p-4">
-      <h3 className="font-black uppercase">{title}</h3>
-      <input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-3 w-full border border-line bg-white p-3" placeholder="Search player or team" />
-    </div>
-    <div className="max-h-[440px] space-y-2 overflow-y-auto p-3">{players.map((player) => {
-      const name = formatPlayerDisplayName(player);
+  const accent = tone === "male" ? "border-court/20 bg-court/5" : "border-gold/50 bg-gold/10";
+  return <div className={`overflow-hidden rounded-xl border ${accent}`}>
+    <div className="border-b border-white/80 p-3.5"><div className="flex items-center justify-between gap-2"><h3 className="font-black">{title}</h3><Heart className={`h-4 w-4 ${tone === "male" ? "text-court" : "text-flame"}`} fill="currentColor"/></div><input value={search} onChange={(event) => setSearch(event.target.value)} className="filter-control mt-3 bg-white" placeholder="Search player or team"/></div>
+    <div className="max-h-[390px] space-y-2 overflow-y-auto p-2.5">{players.map((player) => {
       const selected = selectedPlayerId === player.id;
-      return <label key={player.id} className={`grid cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 border bg-white p-3 transition ${selected ? "border-ink bg-lime/10 ring-2 ring-lime" : "border-line hover:border-court/50"}`}>
-        <input type="radio" name={tone} value={player.id} checked={selected} onChange={() => setSelectedPlayerId(player.id)} className="h-4 w-4 accent-current" />
-        <PlayerAvatar {...player} size="md" />
-        <span className="min-w-0"><strong className="block truncate text-sm leading-tight sm:text-base">{name}</strong><span className="mt-1 block truncate text-xs text-gray-500">{player.team?.name ?? "Unassigned"}</span></span>
+      return <label key={player.id} className={`grid cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 rounded-xl border bg-white p-3 transition ${selected ? "border-flame bg-gold/10 ring-2 ring-gold/40" : "border-line hover:-translate-y-0.5 hover:border-court/40 hover:shadow-sm"}`}>
+        <input type="radio" name={tone} value={player.id} checked={selected} onChange={() => setSelectedPlayerId(player.id)} className="h-4 w-4 accent-current"/>
+        <PlayerAvatar {...player} size="md"/>
+        <span className="min-w-0"><strong className="block truncate text-sm leading-tight sm:text-base">{formatPlayerDisplayName(player)}</strong><span className="mt-1 block truncate text-xs font-semibold text-gray-500">{player.team?.shortName ?? "Unassigned"}</span></span>
       </label>;
     })}{!players.length && <div className="p-6 text-center text-sm text-gray-500">No eligible players found.</div>}</div>
   </div>;
 }
 
 function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; totalVotes: number; rankings: Ranking[]; tone: "male" | "female" }) {
-  const header = tone === "male" ? "bg-court" : "bg-gold";
-  const headerText = tone === "male" ? "text-white" : "text-ink";
-  return <div className="panel overflow-hidden">
-    <div className={`${header} ${headerText} p-4`}>
-      <div className="flex items-end justify-between gap-3"><div><div className="text-xs font-black uppercase opacity-70">Top 5</div><h3 className="text-xl font-black uppercase">{title} Fan Favorite</h3></div><div className="text-right"><div className="text-2xl font-black">{totalVotes}</div><div className="text-xs font-bold uppercase opacity-70">votes</div></div></div>
-    </div>
-    <div className="divide-y divide-line bg-white">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <div key={ranking.player.id} className={`grid grid-cols-[34px_auto_minmax(0,1fr)_auto] items-center gap-3 p-4 ${ranking.rank === 1 ? "bg-lime/5" : ""}`}>
-      <div className={`grid h-8 w-8 place-items-center font-black ${ranking.rank === 1 ? "bg-lime text-ink" : "bg-gray-100 text-gray-700"}`}>{ranking.rank}</div>
-      <PlayerAvatar {...ranking.player} size={ranking.rank === 1 ? "lg" : "md"} />
-      <div className="min-w-0"><div className="truncate font-black">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div>
-      <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-xs text-gray-500">{ranking.percentage}%</div></div>
-    </div>) : <div className="p-8 text-center text-gray-500">No valid votes yet.</div>}</div>
+  const accent = tone === "male" ? "from-court to-ink" : "from-flame to-gold";
+  return <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+    <div className={`bg-gradient-to-br ${accent} p-4 text-white`}><div className="flex items-end justify-between gap-3"><div><div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/70"><Trophy className="h-3.5 w-3.5"/> Top 5</div><h3 className="mt-1 text-xl font-black tracking-tight">{title} Fan Favorite</h3></div><div className="text-right"><div className="text-2xl font-black">{totalVotes}</div><div className="text-[10px] font-black uppercase tracking-widest text-white/70">votes</div></div></div></div>
+    <div className="divide-y divide-line">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <Link href={`/players/${ranking.player.id}`} key={ranking.player.id} className={`group block p-3.5 transition hover:bg-paper ${ranking.rank === 1 ? "bg-gold/5" : ""}`}>
+      <div className="grid grid-cols-[36px_auto_minmax(0,1fr)_auto] items-center gap-3">
+        <div className={`grid h-9 w-9 place-items-center rounded-full font-black ${ranking.rank === 1 ? "bg-gold text-ink shadow-sm" : "bg-gray-100 text-gray-600"}`}>{ranking.rank === 1 ? <Crown className="h-4 w-4" fill="currentColor"/> : ranking.rank}</div>
+        <PlayerAvatar {...ranking.player} size={ranking.rank === 1 ? "lg" : "md"}/>
+        <div className="min-w-0"><div className="truncate font-black group-hover:text-court">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs font-semibold text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div>
+        <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-[10px] font-bold text-gray-400">{ranking.percentage}%</div></div>
+      </div>
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className={`h-full rounded-full bg-gradient-to-r ${accent}`} style={{ width: `${Math.max(4, ranking.percentage)}%` }}/></div>
+    </Link>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet. Be the first crowd voice.</div>}</div>
   </div>;
 }

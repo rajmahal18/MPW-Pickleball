@@ -206,3 +206,9 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Tournament Setup is now a true five-tab workspace instead of anchor scrolling. The chosen tab is remembered for the browser session so ordinary form saves return the organizer to the same setup area.
 - Upcoming-matchup and match-directory context labels suppress duplicated group/round wording.
 - Public pages share a quieter typography/spacing/card treatment. The public Players page was rebuilt with search plus Division, Team, Category filters and First name / Last name / Team sorting.
+
+### 2026-08-13 public discovery + Fan Favorite pass
+
+- Public `/games` now treats District / Team, Player, and exact Team-vs-Team Matchup as the primary discovery filters. Status remains available as a secondary filter and preserves the selected primary filters. No new District schema was introduced; existing Team identity is the canonical district/team filter for labels such as CCDEO vs BDEO.
+- Public player cards link to `/players/[id]`. The player profile shows decided-match record, NPD, total points, partner/opponents, scores, tournament context, and linked match history while preserving public-division/confirmed-player visibility rules.
+- Fan Favorite now has a deliberately playful crowd-choice visual treatment distinct from MVP. The homepage surfaces the leading male and female separately, and the full voting page emphasizes the crowd race while preserving the existing one-code/two-vote rules and live ranking API.

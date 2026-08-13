@@ -10,6 +10,7 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
 import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
+import { Crown, Heart, Sparkles } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export default async function Home() {
       orderBy: { startedAt: "asc" },
     }),
     prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: true, awayTeam: true }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
-    prisma.fanVote.groupBy({ by: ["playerId"], where: { tournamentId: tournament.id, player: { isActive: true, participationStatus: "CONFIRMED", team: { division: { isPublic: true } } } }, _count: { _all: true }, orderBy: { _count: { playerId: "desc" } }, take: 5 }),
+    prisma.fanVote.groupBy({ by: ["playerId"], where: { tournamentId: tournament.id, player: { isActive: true, participationStatus: "CONFIRMED", team: { division: { isPublic: true } } } }, _count: { _all: true }, orderBy: { _count: { playerId: "desc" } } }),
     prisma.game.findMany({
       where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } }, status: { in: ["COMPLETED", "FORFEITED"] } },
       include: {
@@ -57,6 +58,10 @@ export default async function Home() {
   ]);
   const fanPlayers = await prisma.player.findMany({ where: { id: { in: voteGroups.map((row) => row.playerId) } }, include: { team: true } });
   const fanById = new Map(fanPlayers.map((player) => [player.id, player]));
+  const fanLeaderboard = voteGroups.flatMap((row) => { const player = fanById.get(row.playerId); return player ? [{ row, player }] : []; });
+  const maleFanLeader = fanLeaderboard.find((entry) => entry.player.sex === "MALE");
+  const femaleFanLeader = fanLeaderboard.find((entry) => entry.player.sex === "FEMALE");
+  const totalFanVotes = voteGroups.reduce((sum, row) => sum + row._count._all, 0);
   const groupCards = tournament.divisions.flatMap((division) => division.groups.map((group) => {
     const matchups = division.matchups.filter((matchup) => matchup.stage === "GROUP" && matchup.groupLabel === group.name);
     return { division, group, standings: computeStandings(group.teams, matchups, group.standingOverrides) };
@@ -97,7 +102,7 @@ export default async function Home() {
       </section>)}</div>
     </section>}
     {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm"><span className="label">{division} wildcard</span><strong className="ml-2">{row.team.name}</strong></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings }) => <div className="panel min-w-0" key={group.id}><div className="flex items-center justify-between border-b border-line p-4"><div><div className="label">{division.name}</div><h3 className="font-black uppercase">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings}/></div>)}</div></section>}
-    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4"><div className="label">Crowd pulse</div><h2 className="text-2xl font-black uppercase">Fan Favorite leaders</h2></div><div className="panel divide-y divide-line">{voteGroups.length ? voteGroups.map((row, index) => { const player = fanById.get(row.playerId); return player ? <div key={row.playerId} className="flex items-center gap-3 p-4"><span className="w-6 text-xl font-black">{index + 1}</span><PlayerAvatar {...player} size={index === 0 ? "lg" : "md"}/><div className="flex-1"><div className="font-black">{formatPlayerDisplayName(player)}</div><div className="text-xs text-gray-500">{player.team?.shortName || "Player pool"}</div></div><strong>{row._count._all} votes</strong></div> : null; }) : <div className="p-8 text-center text-gray-500">No votes yet.</div>}<Link href="/fan-favorite" className="block p-4 text-center text-sm font-bold text-court">View live rankings →</Link></div></div></section>
+    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Crowd's choice</div><h2 className="text-2xl font-black">Fan Favorite</h2></div><Sparkles className="h-5 w-5 text-gold"/></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
     <section><div className="mb-4"><div className="label">Numbers supporting the judges</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div><div className="grid gap-4 md:grid-cols-2"><MvpLeader title="Male MVP" row={mvp.male[0]}/><MvpLeader title="Female MVP" row={mvp.female[0]}/></div></section>
   </div></main>;
 }
@@ -108,6 +113,22 @@ function HeroActions({ desktop = false }: { desktop?: boolean }) {
     <Link href="/format" className={secondary}>Format Guide</Link>
     <Link href="/fan-favorite" className={secondary}>Vote Fan Favorite</Link>
     <Link href="/mvp" className={secondary}>MVP Rankings</Link>
+  </div>;
+}
+
+function FanFavoriteHomeCard({ male, female, totalVotes }: {
+  male?: { row: { playerId: string; _count: { _all: number } }; player: { id: string; firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: "MALE" | "FEMALE"; team: { shortName: string } | null } };
+  female?: { row: { playerId: string; _count: { _all: number } }; player: { id: string; firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: "MALE" | "FEMALE"; team: { shortName: string } | null } };
+  totalVotes: number;
+}) {
+  const leaders = [{ label: "Male leader", entry: male }, { label: "Female leader", entry: female }];
+  return <div className="fan-arena relative overflow-hidden rounded-2xl border border-ink/10 p-4 text-white shadow-panel md:p-5">
+    <Heart className="absolute -right-5 -top-6 h-28 w-28 rotate-12 text-white/5" fill="currentColor"/>
+    <div className="relative z-10 flex items-start justify-between gap-3"><div><div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest"><Heart className="h-3 w-3" fill="currentColor"/> For the fans</div><div className="mt-2 text-lg font-black">You decide the crowd champs.</div><div className="mt-1 text-xs font-semibold text-white/70">{totalVotes ? `${totalVotes} votes are already in.` : "The race is waiting for its first vote."}</div></div><Crown className="h-7 w-7 shrink-0 text-gold" fill="currentColor"/></div>
+    <div className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2">{leaders.map(({ label, entry }) => entry ? <Link href={`/players/${entry.player.id}`} key={label} className="group flex items-center gap-3 rounded-xl bg-white/95 p-3 text-ink transition hover:-translate-y-0.5 hover:bg-white">
+      <PlayerAvatar {...entry.player} size="md"/><div className="min-w-0 flex-1"><div className="text-[9px] font-black uppercase tracking-widest text-flame">{label}</div><div className="truncate font-black group-hover:text-court">{formatPlayerDisplayName(entry.player)}</div><div className="text-xs font-semibold text-gray-500">{entry.player.team?.shortName || "Player pool"}</div></div><div className="text-right"><div className="text-xl font-black text-court">{entry.row._count._all}</div><div className="text-[9px] font-black uppercase tracking-widest text-gray-400">votes</div></div>
+    </Link> : <div key={label} className="rounded-xl border border-white/15 bg-white/10 p-4"><div className="text-[9px] font-black uppercase tracking-widest text-white/60">{label}</div><div className="mt-1 text-sm font-bold">No votes yet</div></div>)}</div>
+    <Link href="/fan-favorite" className="relative z-10 mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gold px-4 text-sm font-black text-ink transition hover:-translate-y-0.5 hover:bg-white"><Heart className="h-4 w-4" fill="currentColor"/> Vote & see the live race</Link>
   </div>;
 }
 

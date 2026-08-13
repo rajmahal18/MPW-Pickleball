@@ -31,6 +31,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .filter-control { @apply min-h-11 w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-court focus:ring-2 focus:ring-court/10; }
 .public-card { @apply rounded-xl border border-line bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-court/40 hover:shadow-md; }
 .public-empty { @apply rounded-xl border border-dashed border-line bg-white/70 p-10 text-center text-sm font-semibold text-gray-500; }
+.fan-arena { background: radial-gradient(circle at 82% 18%, rgba(244,177,31,.32), transparent 24%), radial-gradient(circle at 16% 82%, rgba(232,93,42,.24), transparent 28%), linear-gradient(135deg, #12386f 0%, #1f6fb2 54%, #12386f 100%); }
 .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
 
 @media print {
