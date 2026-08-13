@@ -122,8 +122,8 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
       </div>
       <div className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-4 sm:divide-y-0">
         <Stat label="Played" value={decided.length}/>
-        <Stat label="Record" value={`${summary.wins}-${summary.losses}`}/>
-        <Stat label="NPD" value={`${npd > 0 ? "+" : ""}${npd}`}/>
+        <Stat label="Record" value={`${summary.wins}-${summary.losses}`} tone={summary.wins > summary.losses ? "positive" : summary.losses > summary.wins ? "negative" : "neutral"}/>
+        <Stat label="NPD" value={`${npd > 0 ? "+" : ""}${npd}`} tone={npd > 0 ? "positive" : npd < 0 ? "negative" : "neutral"}/>
         <Stat label="Total points" value={summary.pointsFor}/>
       </div>
     </section>
@@ -132,7 +132,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
       <div className="mb-4"><div className="public-kicker">On-court record</div><h2 className="text-2xl font-black tracking-tight md:text-3xl">Match history</h2><p className="mt-1 text-sm text-gray-500">Completed appearances plus any match currently in progress.</p></div>
       {history.length ? <div className="space-y-3">{history.map((game) => {
         const side = sideFor(game, player.id);
-        return <Link href={`/matches/${game.matchupId}`} key={game.id} className="group block rounded-xl border border-line bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-court/40 hover:shadow-md">
+        return <Link href={`/matches/${game.matchupId}`} key={game.id} className={`group block rounded-xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${side.result === "W" ? "border-emerald-200 hover:border-emerald-400" : side.result === "L" ? "border-red-200 hover:border-red-300" : "border-line hover:border-court/40"}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-extrabold uppercase tracking-widest text-court">{game.matchup.division.name} · {matchupContext(game.matchup)} · Match {game.gameNumber}</span>{game.matchup.courtLabel && <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Court {game.matchup.courtLabel}</span>}</div>
@@ -141,7 +141,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={game.status} compact/>
-              <div className="text-right"><div className={`text-2xl font-black tabular-nums ${side.result === "W" ? "text-court" : side.result === "L" ? "text-flame" : "text-ink"}`}>{side.score}–{side.opponentScore}</div>{side.result && <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{side.result === "W" ? "Win" : "Loss"}</div>}</div>
+              <div className="text-right"><div className={`text-2xl font-black tabular-nums ${side.result === "W" ? "text-emerald-700" : side.result === "L" ? "text-red-700" : "text-ink"}`}>{side.score}–{side.opponentScore}</div>{side.result && <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{side.result === "W" ? "Win" : "Loss"}</div>}</div>
             </div>
           </div>
         </Link>;
@@ -150,6 +150,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
   </main>;
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return <div className="px-4 py-4 text-center md:px-6 md:py-5"><div className="text-2xl font-black text-ink md:text-3xl">{value}</div><div className="mt-1 text-[10px] font-extrabold uppercase tracking-widest text-gray-500">{label}</div></div>;
+function Stat({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "positive" | "negative" }) {
+  const valueTone = tone === "positive" ? "text-emerald-700" : tone === "negative" ? "text-red-700" : "text-ink";
+  return <div className="px-4 py-4 text-center md:px-6 md:py-5"><div className={`text-2xl font-black md:text-3xl ${valueTone}`}>{value}</div><div className="mt-1 text-[10px] font-extrabold uppercase tracking-widest text-gray-500">{label}</div></div>;
 }

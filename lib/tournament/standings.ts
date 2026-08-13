@@ -297,6 +297,26 @@ export function selectDivisionQualifiers(
   return { direct, wildcards: unresolved.some((tie) => tie.scope === "WILDCARD") ? [] : wildcards, qualifiers: unresolved.length ? direct : qualifiers, unresolved };
 }
 
+export type QualificationOutcome = "QUALIFIED" | "ELIMINATED" | "PENDING";
+
+export function qualificationOutcomes(
+  groupTables: StandingRow[][],
+  qualifiersPerGroup: number,
+  wildcardCount: number,
+  options: { groupStageComplete: boolean },
+) {
+  const outcomes = new Map<string, QualificationOutcome>();
+  if (!options.groupStageComplete) return outcomes;
+
+  const selection = selectDivisionQualifiers(groupTables, qualifiersPerGroup, wildcardCount, { groupStageComplete: true });
+  const qualifiedIds = new Set(selection.qualifiers.map((row) => row.team.id));
+  const unresolvedIds = new Set(selection.unresolved.flatMap((tie) => tie.teamIds));
+  for (const row of groupTables.flat()) {
+    outcomes.set(row.team.id, unresolvedIds.has(row.team.id) ? "PENDING" : qualifiedIds.has(row.team.id) ? "QUALIFIED" : "ELIMINATED");
+  }
+  return outcomes;
+}
+
 // Backward-compatible helper retained for existing tests and any old Codex references.
 export function selectQualifiers(groupTables: StandingRow[][]) {
   const { direct, wildcards } = selectDivisionQualifiers(groupTables, 1, 1);

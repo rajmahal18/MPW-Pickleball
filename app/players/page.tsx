@@ -144,7 +144,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-gray-500">
                 <span>{player.sex === "MALE" ? "Men" : "Women"}</span>
                 <span aria-hidden="true">·</span>
-                <span className="text-court">Confirmed</span>
+                <span className="inline-flex items-center gap-1 font-extrabold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Confirmed</span>
               </div>
             </div>
           </div>

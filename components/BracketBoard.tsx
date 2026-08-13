@@ -135,8 +135,8 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
       <span>{scheduleLabel(matchup)}</span>
       <strong>{displayStatus(matchup.status)}</strong>
     </div>
-    <TeamRow team={matchup.homeTeam} wins={matchup.homeWins} winner={homeWon} champion={isFinal && homeWon} />
-    <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} champion={isFinal && awayWon} />
+    <TeamRow team={matchup.homeTeam} wins={matchup.homeWins} winner={homeWon} faded={Boolean(matchup.winnerTeamId) && !homeWon} champion={isFinal && homeWon} />
+    <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} faded={Boolean(matchup.winnerTeamId) && !awayWon} champion={isFinal && awayWon} />
     <div className="bracket-card-footer">
       <span>{matchup.stage === "THIRD_PLACE" ? "Battle for 3rd" : matchup.roundLabel}</span>
       <span>Best of {matchup.gamesPerMatchup} · first to {winsNeededForMatchup(matchup.stage, matchup.gamesPerMatchup)}</span>
@@ -144,8 +144,8 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
   </Link>;
 }
 
-function TeamRow({ team, wins, winner, champion = false }: { team: BracketMatchup["homeTeam"]; wins: number; winner: boolean; champion?: boolean }) {
-  return <div className={`bracket-team-row ${winner ? "bracket-team-row-winner" : ""} ${champion ? "bracket-team-row-champion" : ""}`}>
+function TeamRow({ team, wins, winner = false, faded = false, champion = false }: { team: BracketMatchup["homeTeam"]; wins: number; winner?: boolean; faded?: boolean; champion?: boolean }) {
+  return <div className={`bracket-team-row ${faded ? "bracket-team-row-faded" : ""} ${champion ? "bracket-team-row-champion" : ""}`}>
     <div className="bracket-team-line">
       <TeamMark team={team} winner={winner} />
       <span className="bracket-team-copy">

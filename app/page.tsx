@@ -3,7 +3,7 @@ import LiveGamesGrid from "@/components/LiveGamesGrid";
 import StandingsTable from "@/components/StandingsTable";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { prisma } from "@/lib/prisma";
-import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers } from "@/lib/tournament/standings";
+import { areGroupMatchupsComplete, computeStandings, qualificationOutcomes, selectDivisionQualifiers } from "@/lib/tournament/standings";
 import { calculateMvpRankings } from "@/lib/tournament/mvp";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import TournamentSync from "@/components/TournamentSync";
@@ -88,10 +88,12 @@ export default async function Home() {
   const femaleFanLeader = fanLeaderboard.find((entry) => entry.player.sex === "FEMALE");
   const totalFanVotes = voteGroups.reduce((sum, row) => sum + row._count._all, 0);
 
-  const groupCards = tournament.divisions.flatMap((division) => division.groups.map((group) => {
-    const matchups = division.matchups.filter((matchup) => matchup.stage === "GROUP" && matchup.groupLabel === group.name);
-    return { division, group, standings: computeStandings(group.teams, matchups, group.standingOverrides) };
-  }));
+  const groupCards = tournament.divisions.flatMap((division) => {
+    const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
+    const tables = division.groups.map((group) => computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
+    const outcomes = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(groupMatchups) }) : new Map();
+    return division.groups.map((group, index) => ({ division, group, standings: tables[index] ?? [], qualificationByTeam: outcomes }));
+  });
   const wildcardCards = tournament.divisions.flatMap((division) => {
     if (division.formatType !== "GROUP_KNOCKOUT" || !division.groups.length || !division.wildcardCount) return [];
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
@@ -124,7 +126,7 @@ export default async function Home() {
       championImageUrl={division.championImageTeamId === matchup.winnerTeamId ? division.championImageUrl : null}
     />)}</section> : <LiveGamesGrid initial={live}/>} 
 
-    {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm"><span className="label">{division} wildcard</span><strong className="ml-2">{row.team.name}</strong></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings }) => <div className="panel min-w-0" key={group.id}><div className="flex items-center justify-between border-b border-line p-4"><div><div className="label">{division.name}</div><h3 className="font-black uppercase">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings}/></div>)}</div></section>}
+    {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span className="label text-emerald-700">{division} wildcard · qualified</span><strong className="ml-2">{row.team.name}</strong></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings, qualificationByTeam }) => <div className="panel min-w-0 overflow-hidden" key={group.id}><div className="flex items-center justify-between border-b border-line bg-gray-50/70 p-4"><div><div className="label">{division.name}</div><h3 className="font-black">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings} qualificationByTeam={qualificationByTeam}/></div>)}</div></section>}
 
     {bracketDivisions.length > 0 && <section>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -137,7 +139,7 @@ export default async function Home() {
       </section>)}</div>
     </section>}
 
-    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Public voting</div><h2 className="text-2xl font-black">Fan Favorite</h2></div></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
+    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-emerald-400"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Public voting</div><h2 className="text-2xl font-black">Fan Favorite</h2></div></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
     <section><div className="mb-4"><div className="label">MVP</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(mvp.male[0] || mvp.female[0]) ? <MythicalPairPoster male={mvp.male[0]} female={mvp.female[0]} compact/> : <div className="panel p-6 text-sm text-gray-500">No completed matches yet.</div>}</section>
   </div></main>;
 }

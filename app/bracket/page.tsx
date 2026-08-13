@@ -29,13 +29,11 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
   return <main className="public-page mx-auto max-w-[1600px] px-4 py-5 md:py-8">
     <TournamentSync initialRevision={revision} />
     {query.success && <div className="mb-5 border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{query.success}</div>}
-    <div className="label">Knockout stage</div>
-    <h1 className="text-3xl font-black uppercase md:text-4xl">Bracket</h1>
-    <p className="mt-2 hidden max-w-3xl text-sm text-gray-600 md:block">Configured knockout matchups are shown by division. Future slots stay TBD until qualification is resolved.</p>
+    <section className="public-hero"><div><div className="public-kicker">Knockout stage</div><h1 className="public-title">Bracket</h1><p className="public-lede">Follow the road to the title. Green marks winners, red marks eliminated sides, and the crown stays with the Grand Final champion.</p></div></section>
 
-    <div className="mt-5 space-y-6 md:mt-8 md:space-y-8">
-      {divisions.map((division) => <section key={division.id} className="border border-line bg-white">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-4 py-3 md:px-5 md:py-4">
+    <div className="mt-6 space-y-6 md:mt-8 md:space-y-8">
+      {divisions.map((division) => <section key={division.id} className="panel overflow-hidden">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line bg-gray-50/70 px-4 py-3 md:px-5 md:py-4">
           <div>
             <div className="label text-court">{division.formatType.replaceAll("_", " ")}</div>
             <h2 className="text-xl font-black uppercase md:text-2xl">{division.name}</h2>

@@ -104,3 +104,9 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Quarterfinal seed-source mappings are editable only before QF play has recorded history. A deliberate manual edit of a future QF competitor clears that QF's automatic source mapping so recalculation cannot silently overwrite the organizer.
 - Tournament Setup exposes a division-level **Generate all group matchups** action. Keep per-group generation as the narrower/manual fallback.
 - A completed Grand Final may have an admin-uploaded champion team photo. The image is associated with the winning team; public champion presentation must fall back to a clear placeholder when no matching image exists or if the winner later changes.
+
+## Public outcome-cue rules — 2026-08-13
+
+- Do not hardcode public group qualification coloring to `rank <= 2`. Derive qualified/eliminated state from the configured division qualifier rules only after the full group stage is terminal; unresolved cutoff ties stay pending instead of being colored as final.
+- Keep public outcome colors semantically consistent: green = winner/qualified/ready/positive, red = loss/eliminated/danger, orange = live action. Blue remains the brand/navigation color.
+- QF qualification-source selectors should prevent accidental duplicate source choices in the UI, while the API continues to enforce uniqueness server-side.

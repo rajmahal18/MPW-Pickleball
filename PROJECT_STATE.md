@@ -240,3 +240,10 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Added optional Division champion image metadata and an admin-only upload flow after a Grand Final winner exists. The homepage champion poster uses the image only when it belongs to the current winner; otherwise it shows a navy/gold photo placeholder. Champion image metadata participates in checkpoints/reset safety.
 - Fixed the Grand Final champion-name visibility bug: the final card inherited white text into a white team row. Bracket team rows now set their own foreground color so the winning team name remains visible beside the crown.
 - Quick knockout scenarios are stage-aware: Semifinals Ready completes any QFs first, Final Ready completes QF/SF feeders, and Tournament Completed walks through configured QF/SF/Battle-for-3rd/Final stages instead of assuming groups feed directly into semifinals.
+
+## Public outcome cues + QF setup guardrails — 2026-08-13
+
+- Completed Group Knockout standings now expose qualification state directly: officially advanced teams are green, eliminated teams are red, and unresolved tiebreak participants remain amber/pending. The state is derived from the configured `qualifiersPerGroup` / wildcard rules after the full division group stage is terminal; it is not hardcoded to a fixed top-two format.
+- Tournament Setup Quarterfinal seed-source pickers are now mutually exclusive in the UI. Once a Group/Wildcard seed source is chosen for one QF box, it disappears from the remaining boxes while staying visible in its own selector. Server-side uniqueness validation remains authoritative.
+- Public result language now uses stronger consistent semantics: green for winners/qualified/ready/completed-positive outcomes, red for losses/elimination, orange for live action, while blue remains the primary brand/navigation color.
+- Shared score/status/bracket/standings components use these cues so viewers can identify the winner, eliminated side, qualification state, and live state at a glance. Public Group, Bracket, Matchup, Team, and Player-history surfaces received the same clearer hierarchy without changing tournament logic.

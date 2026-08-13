@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Matchup } from "@prisma/client";
-import { compareStandingRows, computeStandings, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
+import { compareStandingRows, computeStandings, qualificationOutcomes, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
 import { calculateMvpRankings } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
 import { qrMatrix } from "../lib/qr";
@@ -111,6 +111,21 @@ test("division qualifiers honor configurable direct and wildcard counts", () => 
   assert.equal(selected.direct.length, 2);
   assert.deepEqual(selected.wildcards.map((row) => row.team.id), ["B2", "A2"]);
   assert.equal(selected.qualifiers.length, 4);
+});
+
+test("qualification outcome colors follow configured qualifiers only after group stage completion", () => {
+  const tables = ["A", "B"].map((group) => [
+    { team: team(`${group}1`, `${group} 1`, group), points: 9, headToHeadPoints: 0, differential: 10, gameWins: 15, gameLosses: 5, played: 3, won: 3, lost: 0, totalPointsScored: 80, totalPointsConceded: 60, rank: 1, rankLabel: "1", rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false },
+    { team: team(`${group}2`, `${group} 2`, group), points: 6, headToHeadPoints: 0, differential: 5, gameWins: 12, gameLosses: 8, played: 3, won: 2, lost: 1, totalPointsScored: 72, totalPointsConceded: 66, rank: 2, rankLabel: "2", rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false },
+    { team: team(`${group}3`, `${group} 3`, group), points: -4, headToHeadPoints: 0, differential: -5, gameWins: 7, gameLosses: 13, played: 3, won: 1, lost: 2, totalPointsScored: 58, totalPointsConceded: 62, rank: 3, rankLabel: "3", rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false },
+  ]) as unknown as StandingRow[][];
+  const complete = qualificationOutcomes(tables, 2, 0, { groupStageComplete: true });
+  assert.equal(complete.get("A1"), "QUALIFIED");
+  assert.equal(complete.get("A2"), "QUALIFIED");
+  assert.equal(complete.get("A3"), "ELIMINATED");
+  assert.equal(complete.get("B2"), "QUALIFIED");
+  assert.equal(complete.get("B3"), "ELIMINATED");
+  assert.equal(qualificationOutcomes(tables, 2, 0, { groupStageComplete: false }).size, 0);
 });
 
 test("division qualifiers stay empty while group stage is incomplete", () => {

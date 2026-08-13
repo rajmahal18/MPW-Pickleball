@@ -62,8 +62,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
           : bothSubmitted
             ? { status: "READY", label: "Ready to play" }
             : { status: "LINEUP_PENDING", label: "Waiting for opponent" };
-    const accent = managerStatus.status === "LIVE" ? "border-l-4 border-l-flame" : managerStatus.status === "LINEUP_PENDING" && !submitted ? "border-l-4 border-l-amber-400" : managerStatus.status === "READY" ? "border-l-4 border-l-emerald-500" : "";
-    return <div className={`panel flex flex-wrap items-center justify-between gap-3 p-4 ${accent}`} key={matchup.id}>
+    return <div className="panel flex flex-wrap items-center justify-between gap-3 p-4" key={matchup.id}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><StatusBadge status={managerStatus.status} label={managerStatus.label} compact/><span className="label">{matchup.division.name} · {matchupContext(matchup)}</span></div>
         <div className="mt-2 text-lg font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div>

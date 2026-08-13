@@ -66,11 +66,12 @@ function groupLabel(key: string) {
 function ScoreCell({ home, away, status }: { home: number; away: number; status: string }) {
   const homeWon = (status === "COMPLETED" || status === "FORFEITED") && home > away;
   const awayWon = (status === "COMPLETED" || status === "FORFEITED") && away > home;
-  const scoreClass = (winner: boolean) => winner ? "border-court bg-court text-white" : "border-line bg-paper text-ink";
+  const decided = status === "COMPLETED" || status === "FORFEITED";
+  const scoreClass = (winner: boolean, loser: boolean) => winner ? "border-emerald-600 bg-emerald-600 text-white" : loser ? "border-red-200 bg-red-50 text-red-800" : "border-line bg-paper text-ink";
   return <div className="flex items-center gap-2 font-black tabular-nums md:justify-center">
-    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(homeWon)}`}>{home}</span>
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(homeWon, decided && awayWon)}`}>{home}</span>
     <span className="text-gray-400">:</span>
-    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(awayWon)}`}>{away}</span>
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 text-sm sm:h-9 sm:min-w-10 sm:px-2 ${scoreClass(awayWon, decided && homeWon)}`}>{away}</span>
   </div>;
 }
 
@@ -276,7 +277,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         const homeWins = rows.filter((game) => game.homeScore > game.awayScore && (game.status === "COMPLETED" || game.status === "FORFEITED")).length;
         const awayWins = rows.filter((game) => game.awayScore > game.homeScore && (game.status === "COMPLETED" || game.status === "FORFEITED")).length;
         return <section key={key} className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
-          <div className="border-l-4 border-court bg-gradient-to-r from-court/10 via-white to-gold/10">
+          <div className="bg-gradient-to-r from-court/10 via-white to-gold/10">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div><div className="label text-court">{label.division} · {label.context} · {label.court}</div><h2 className="mt-1 text-lg font-black text-ink">{firstGame.homeTeam.name} vs {firstGame.awayTeam.name}</h2></div>
               <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status} compact/><div className="flex items-center border border-line bg-white text-sm font-black tabular-nums"><span className="bg-court px-3 py-2 text-white">{homeWins}</span><span className="px-2 text-gray-400">-</span><span className="bg-gold/30 px-3 py-2 text-ink">{awayWins}</span></div><Link href={`/matches/${matchup.id}`} className="btn-ghost px-3 py-2 text-xs">Open matchup</Link></div>
@@ -286,7 +287,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
           <div className="divide-y divide-line">
             {rows.map((game) => <Link key={game.id} href={`/matches/${game.matchupId}`} className={`block hover:bg-court/5 ${game.status === "LIVE" ? "bg-flame/5" : ""}`}>
               <div className="p-3 md:hidden"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center border border-court/30 bg-court/10 text-sm font-black text-court">M{game.gameNumber}</span><StatusBadge status={game.status} compact/></div><span className="text-[10px] font-bold uppercase text-gray-400">Tap for matchup</span></div><div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/></div></div>
-              <div className="hidden gap-3 px-4 py-3 md:grid md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center"><div className="grid h-10 w-10 place-items-center border border-court/30 bg-court/10 text-xl font-black text-court">{game.gameNumber}</div><div className="min-w-0"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}</div><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><div className="min-w-0 text-right"><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-court">Winner</span>}</div><div className="text-right"><StatusBadge status={game.status}/></div></div>
+              <div className="hidden gap-3 px-4 py-3 md:grid md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center"><div className="grid h-10 w-10 place-items-center border border-court/30 bg-court/10 text-xl font-black text-court">{game.gameNumber}</div><div className="min-w-0"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><div className="min-w-0 text-right"><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><div className="text-right"><StatusBadge status={game.status}/></div></div>
             </Link>)}
           </div>
         </section>;

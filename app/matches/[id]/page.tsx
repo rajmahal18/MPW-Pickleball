@@ -58,8 +58,7 @@ export default async function MatchupPage({ params }: { params: Promise<{ id: st
   const context = matchup.roundLabel.toLowerCase().includes(scope.toLowerCase()) ? matchup.roundLabel : `${scope} · ${matchup.roundLabel}`;
 
   return <main className="public-page mx-auto max-w-6xl px-4 py-5 md:py-8">
-    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div>
-    <h1 className="mt-2 text-3xl font-black uppercase md:text-4xl">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
+    <section className="public-hero"><div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="public-kicker">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div><h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">{matchup.homeTeam?.name || "TBD"} <span className="text-gray-300">vs</span> {matchup.awayTeam?.name || "TBD"}</h1></div></section>
     <LiveMatchBoard initial={initial}/>
   </main>;
 }

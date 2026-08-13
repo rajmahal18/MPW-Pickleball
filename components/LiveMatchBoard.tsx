@@ -108,7 +108,7 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
 }
 
 function TeamPanel({ team, wins, winner }: { team: Matchup["homeTeam"]; wins: number; winner: boolean }) {
-  return <div className={`panel p-5 text-center ${winner ? "border-gold bg-gold/15" : ""}`}><div className="label">{winner ? "Winner" : "Team"}</div><div className="mt-1 text-2xl font-black">{team?.name || "TBD"}</div><div className="mt-3 text-5xl font-black tabular-nums">{wins}</div></div>;
+  return <div className={`panel p-5 text-center ${winner ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200" : ""}`}><div className={`label ${winner ? "text-emerald-700" : ""}`}>{winner ? "✓ Winner" : "Team"}</div><div className={`mt-1 text-2xl font-black ${winner ? "text-emerald-900" : ""}`}>{team?.name || "TBD"}</div><div className={`mt-3 text-5xl font-black tabular-nums ${winner ? "text-emerald-700" : ""}`}>{wins}</div></div>;
 }
 function PairView({ players, team, right }: { players: Player[]; team: string; right?: boolean }) {
   return <div className={`flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-3 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
