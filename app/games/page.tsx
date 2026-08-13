@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
-import { formatPlayerDisplayName } from "@/lib/player-name";
+import { formatPlayerCompactName } from "@/lib/player-name";
 import StatusBadge from "@/components/StatusBadge";
 import PlayerAvatar from "@/components/PlayerAvatar";
 
@@ -29,7 +29,7 @@ function isStatusTab(value: unknown): value is StatusTab {
 }
 
 function playerName(player: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null }) {
-  return formatPlayerDisplayName(player);
+  return formatPlayerCompactName(player);
 }
 
 function pairName(pair: {
@@ -55,7 +55,8 @@ function groupKey(game: {
 
 function groupLabel(key: string) {
   const [, division, scope, round, court] = key.split("::");
-  return { division, scope, round, court };
+  const context = round && scope && round.toLowerCase().includes(scope.toLowerCase()) ? round : [scope, round].filter(Boolean).join(" · ");
+  return { division, context, court };
 }
 
 function ScoreCell({ home, away, status }: { home: number; away: number; status: string }) {
@@ -110,9 +111,10 @@ export default async function GamesPage({
   const currentPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
 
-  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
+  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
 
   const where: Prisma.GameWhereInput = {
+    NOT: { status: "SCHEDULED", matchup: { status: "COMPLETED", winnerTeamId: { not: null } } },
     matchup: {
       tournamentId: tournament.id,
       division: { isPublic: true },
@@ -163,7 +165,7 @@ export default async function GamesPage({
     return groups;
   }, new Map<string, typeof games>());
 
-  return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">
     <TournamentSync initialRevision={revision} />
     <div className="label text-court">Tournament matches</div>
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -195,7 +197,7 @@ export default async function GamesPage({
           <div className="border-l-4 border-court bg-gradient-to-r from-court/10 via-white to-gold/10">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div>
-                <div className="label text-court">{label.division} · {label.scope} | {label.round} | {label.court}</div>
+                <div className="label text-court">{label.division} · {label.context} · {label.court}</div>
                 <h2 className="mt-1 text-lg font-black text-ink">{firstGame.homeTeam.name} vs {firstGame.awayTeam.name}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">

@@ -67,9 +67,11 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - User-facing terminology is **Match / Matches**. Prisma `Game`, `/games`, and `gamesPerMatchup` remain legacy internal identifiers only; do not reintroduce “game” in UI copy.
 - `gamesPerMatchup` stores the configurable **pair-match count** per team matchup. Division settings may define a group/default count and a separate knockout count; unplayed knockout matchups may sync to the knockout count while recorded history stays locked.
 - Divisions may enable a Battle for 3rd, populated from semifinal losers when automatic progression is supported.
-- Divisions may enable sudden death at 10-10; scoring validation must honor the live division setting.
+- Stage scoring is fixed for the current tournament direction: GROUP/ROUND_ROBIN is first to 11 with sudden death at 10-10 (11-10 is final); QF/SF/Final/Battle for 3rd is first to 11, win by 2 after 10-10, hard cap 15 (15-14 is final). `suddenDeathAtTen` is retained only for CUSTOM-stage compatibility.
 - Team Event playing pairs are **matchup-specific lineup choices from the team roster**. Do not require organizers to pre-create/permanently lock seven pair combinations. `Pair` rows may act as technical/historical snapshots for lineup/match compatibility; only a pair match with recorded play protects that specific slot.
 - Live score point controls must save in place. Do not reintroduce redirect/full-page refresh behavior for each +1/-1 action, and do not recalculate the full tournament on every rally.
+- Knockout team matchups end as soon as one side reaches a majority of configured pair matches (5 => first to 3). Do not require or simulate the remaining untouched slots after a clinch; group/round-robin matchups still play all configured pair matches.
+- Simulation must use the same stage scoring, lineup-category, duplicate-player, and early-clinch rules as real tournament operation.
 - Auto group-to-knockout progression supports exactly 2, 4, or 8 selected qualifiers today.
 - Other qualifier counts/structures require organizer-controlled future matchups.
 

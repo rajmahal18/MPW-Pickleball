@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MatchupStage, Prisma } from "@prisma/client";
 import { displayStatus } from "@/components/StatusBadge";
+import { winsNeededForMatchup } from "@/lib/tournament/rules";
 
 const PROGRESSION_STAGES = ["QUARTERFINAL", "SEMIFINAL", "FINAL"] as const;
 export const KNOCKOUT_STAGES = [...PROGRESSION_STAGES, "THIRD_PLACE"] as const;
@@ -167,7 +168,7 @@ function BracketCard({ matchup, bronze = false }: { matchup: BracketMatchup; bro
     <TeamRow team={matchup.awayTeam} wins={matchup.awayWins} winner={awayWon} />
     <div className="bracket-card-footer">
       <span>{matchup.stage === "THIRD_PLACE" ? "Battle for 3rd" : matchup.roundLabel}</span>
-      <span>{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</span>
+      <span>Best of {matchup.gamesPerMatchup} · first to {winsNeededForMatchup(matchup.stage, matchup.gamesPerMatchup)}</span>
     </div>
   </Link>;
 }

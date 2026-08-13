@@ -1,8 +1,9 @@
-import type { MatchupStage, Prisma } from "@prisma/client";
+import type { MatchupStage, PairMatchCategory, Prisma } from "@prisma/client";
 import { generateVotingCode, hashVotingCode, votingCodeHint } from "@/lib/tournament/voting";
 import { createSeededRandom, pickOne, randomInteger } from "@/lib/tournament/rng";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
+import { categoriesForStage, scoreRuleForStage, winsNeededForMatchup, type MatchScoreRule } from "@/lib/tournament/rules";
 
 export type SimulationOptions = {
   kind: string;
@@ -22,20 +23,39 @@ export type SimulationOptions = {
 function simulationScore(
   random: () => number,
   winner: "HOME" | "AWAY",
+  rule: MatchScoreRule,
   style: SimulationOptions["scoreStyle"] = "RANDOM",
 ) {
   let winnerScore = 11;
   let loserScore = randomInteger(random, 3, 9);
+
   if (style === "DOMINANT") loserScore = randomInteger(random, 0, 4);
   if (style === "CLOSE") loserScore = randomInteger(random, 8, 9);
-  if (style === "DEUCE") {
-    loserScore = randomInteger(random, 10, 14);
-    winnerScore = loserScore + 2;
-  }
-  if (style === "RANDOM" && random() > 0.85) {
+
+  if (rule.mode === "SUDDEN_DEATH_11") {
+    if (style === "DEUCE" || (style === "RANDOM" && random() > 0.85)) loserScore = 10;
+  } else if (rule.mode === "WIN_BY_TWO_CAP_15") {
+    const extended = [
+      { winnerScore: 12, loserScore: 10 },
+      { winnerScore: 13, loserScore: 11 },
+      { winnerScore: 14, loserScore: 12 },
+      { winnerScore: 15, loserScore: 13 },
+      { winnerScore: 15, loserScore: 14 },
+    ];
+    if (style === "DEUCE") {
+      const picked = extended[randomInteger(random, 0, extended.length - 1)]!;
+      winnerScore = picked.winnerScore;
+      loserScore = picked.loserScore;
+    } else if (style === "RANDOM" && random() > 0.85) {
+      const picked = extended[randomInteger(random, 0, extended.length - 1)]!;
+      winnerScore = picked.winnerScore;
+      loserScore = picked.loserScore;
+    }
+  } else if (style === "DEUCE" || (style === "RANDOM" && random() > 0.85)) {
     loserScore = randomInteger(random, 10, 13);
     winnerScore = loserScore + 2;
   }
+
   return winner === "HOME"
     ? { homeScore: winnerScore, awayScore: loserScore }
     : { homeScore: loserScore, awayScore: winnerScore };
@@ -47,11 +67,18 @@ type SimulationPair = {
   playerBId: string;
 };
 
+function pairFitsCategory(a: "MALE" | "FEMALE", b: "MALE" | "FEMALE", category: PairMatchCategory | null) {
+  if (!category) return true;
+  if (category === "MENS") return a === "MALE" && b === "MALE";
+  if (category === "WOMENS") return a === "FEMALE" && b === "FEMALE";
+  return a !== b;
+}
+
 async function selectSimulationPairs(
   db: Prisma.TransactionClient,
   teamId: string,
   divisionId: string,
-  required: number,
+  categories: Array<PairMatchCategory | null>,
   random: () => number,
   autoGeneratePairs: boolean,
 ) {
@@ -62,21 +89,9 @@ async function selectSimulationPairs(
       playerA: { participationStatus: "CONFIRMED", isActive: true, divisionEntries: { some: { divisionId, status: "CONFIRMED" } } },
       playerB: { participationStatus: "CONFIRMED", isActive: true, divisionEntries: { some: { divisionId, status: "CONFIRMED" } } },
     },
-    select: { id: true, playerAId: true, playerBId: true },
+    select: { id: true, playerAId: true, playerBId: true, playerA: { select: { sex: true } }, playerB: { select: { sex: true } } },
     orderBy: { label: "asc" },
   });
-  const selected: SimulationPair[] = [];
-  const usedPlayerIds = new Set<string>();
-  for (const pair of activePairs) {
-    if (selected.length >= required) break;
-    if (usedPlayerIds.has(pair.playerAId) || usedPlayerIds.has(pair.playerBId)) continue;
-    selected.push(pair);
-    usedPlayerIds.add(pair.playerAId);
-    usedPlayerIds.add(pair.playerBId);
-  }
-  if (selected.length >= required) return selected;
-  if (!autoGeneratePairs) throw new Error(`Both teams need ${required} active pairs.`);
-
   const players = await db.player.findMany({
     where: {
       teamId,
@@ -84,23 +99,53 @@ async function selectSimulationPairs(
       participationStatus: "CONFIRMED",
       divisionEntries: { some: { divisionId, status: "CONFIRMED" } },
     },
-    select: { id: true },
+    select: { id: true, sex: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
   });
-  const available = players.filter((player) => !usedPlayerIds.has(player.id));
-  if (available.length < (required - selected.length) * 2) {
-    throw new Error(`Team needs ${required} pairs, but it does not have enough confirmed active players to generate missing pairs.`);
-  }
-  const shuffled = [...available].sort(() => random() - 0.5);
-  while (selected.length < required) {
-    const playerA = shuffled.shift();
-    const playerB = shuffled.shift();
-    if (!playerA || !playerB) break;
-    const sequence = selected.length + 1;
+
+  const selected: SimulationPair[] = [];
+  const usedPlayerIds = new Set<string>();
+  for (const [index, category] of categories.entries()) {
+    const existing = activePairs.find((pair) =>
+      !usedPlayerIds.has(pair.playerAId)
+      && !usedPlayerIds.has(pair.playerBId)
+      && pairFitsCategory(pair.playerA.sex, pair.playerB.sex, category),
+    );
+    if (existing) {
+      selected.push({ id: existing.id, playerAId: existing.playerAId, playerBId: existing.playerBId });
+      usedPlayerIds.add(existing.playerAId);
+      usedPlayerIds.add(existing.playerBId);
+      continue;
+    }
+
+    if (!autoGeneratePairs) {
+      throw new Error(`Match ${index + 1} does not have an eligible unused active pair for the configured lineup category.`);
+    }
+
+    const available = players.filter((player) => !usedPlayerIds.has(player.id));
+    const shuffled = [...available].sort(() => random() - 0.5);
+    let playerA: (typeof players)[number] | undefined;
+    let playerB: (typeof players)[number] | undefined;
+    if (category === "MENS" || category === "WOMENS") {
+      const sex = category === "MENS" ? "MALE" : "FEMALE";
+      const candidates = shuffled.filter((player) => player.sex === sex);
+      [playerA, playerB] = candidates;
+    } else if (category === "MIXED") {
+      const male = shuffled.find((player) => player.sex === "MALE");
+      const female = shuffled.find((player) => player.sex === "FEMALE");
+      if (random() < 0.5) [playerA, playerB] = [male, female];
+      else [playerA, playerB] = [female, male];
+    } else {
+      [playerA, playerB] = shuffled;
+    }
+    if (!playerA || !playerB || playerA.id === playerB.id) {
+      throw new Error(`Match ${index + 1} cannot be auto-filled without violating the lineup category or duplicate-player rule.`);
+    }
+
     const created = await db.pair.create({
       data: {
         teamId,
-        label: `Simulation ${Date.now()}-${sequence}`,
+        label: `Simulation ${Date.now()}-${index + 1}`,
         playerAId: playerA.id,
         playerBId: playerB.id,
         isActive: true,
@@ -117,17 +162,29 @@ async function selectSimulationPairs(
 async function ensureGames(db: Prisma.TransactionClient, matchupId: string, random: () => number, autoGeneratePairs: boolean) {
   const matchup = await db.matchup.findUnique({
     where: { id: matchupId },
-    include: { games: true, lineups: { include: { slots: true } } },
+    include: {
+      games: true,
+      lineups: { include: { slots: true } },
+      division: { select: {
+        defaultGamesPerMatchup: true,
+        knockoutGamesPerMatchup: true,
+        groupMatchCategories: true,
+        knockoutMatchCategories: true,
+        groupCategoryRulesEnabled: true,
+        knockoutCategoryRulesEnabled: true,
+      } },
+    },
   });
   if (!matchup?.homeTeamId || !matchup.awayTeamId) throw new Error("Team matchup does not have two assigned teams.");
   const required = Math.max(1, matchup.gamesPerMatchup);
   if (matchup.games.length === required) return matchup.games.sort((a, b) => a.gameNumber - b.gameNumber);
 
+  const categories = categoriesForStage(matchup.division, matchup.stage, required);
   const [homePairs, awayPairs] = await Promise.all([
-    selectSimulationPairs(db, matchup.homeTeamId, matchup.divisionId, required, random, autoGeneratePairs),
-    selectSimulationPairs(db, matchup.awayTeamId, matchup.divisionId, required, random, autoGeneratePairs),
+    selectSimulationPairs(db, matchup.homeTeamId, matchup.divisionId, categories, random, autoGeneratePairs),
+    selectSimulationPairs(db, matchup.awayTeamId, matchup.divisionId, categories, random, autoGeneratePairs),
   ]);
-  if (homePairs.length !== required || awayPairs.length !== required) throw new Error(`Both teams need ${required} active pairs.`);
+  if (homePairs.length !== required || awayPairs.length !== required) throw new Error(`Both teams need ${required} valid lineup slots.`);
 
   await db.game.deleteMany({ where: { matchupId } });
   await db.lineup.deleteMany({ where: { matchupId } });
@@ -364,10 +421,48 @@ async function simulateOneMatchup(
   actorId: string,
   simulationRunId: string,
 ) {
+  const matchup = await db.matchup.findUniqueOrThrow({
+    where: { id: matchupId },
+    include: { division: { select: { suddenDeathAtTen: true } } },
+  });
+  if (matchup.status === "COMPLETED" || matchup.status === "FORFEITED") return;
+
   const games = await ensureGames(db, matchupId, random, Boolean(options.autoGeneratePairs));
   const outcome = options.matchupOutcome ?? "RANDOM";
-  let homeWinsTarget = 0;
   const totalGames = games.length;
+  const scoreRule = scoreRuleForStage(matchup.stage, matchup.division.suddenDeathAtTen);
+  const winsNeeded = winsNeededForMatchup(matchup.stage, totalGames);
+
+  if (winsNeeded !== null) {
+    let seriesWinner: "HOME" | "AWAY";
+    let loserWins = 0;
+    if (outcome === "SWEEP_HOME") seriesWinner = "HOME";
+    else if (outcome === "SWEEP_AWAY") seriesWinner = "AWAY";
+    else if (outcome === "CLOSE_HOME") { seriesWinner = "HOME"; loserWins = winsNeeded - 1; }
+    else if (outcome === "CLOSE_AWAY") { seriesWinner = "AWAY"; loserWins = winsNeeded - 1; }
+    else if (outcome === "HOME") { seriesWinner = "HOME"; loserWins = randomInteger(random, 0, Math.max(0, winsNeeded - 1)); }
+    else if (outcome === "AWAY") { seriesWinner = "AWAY"; loserWins = randomInteger(random, 0, Math.max(0, winsNeeded - 1)); }
+    else {
+      seriesWinner = random() < 0.5 ? "HOME" : "AWAY";
+      loserWins = randomInteger(random, 0, Math.max(0, winsNeeded - 1));
+    }
+
+    const decisions: Array<"HOME" | "AWAY"> = [];
+    const loser: "HOME" | "AWAY" = seriesWinner === "HOME" ? "AWAY" : "HOME";
+    for (let index = 0; index < loserWins; index += 1) decisions.push(loser);
+    for (let index = 0; index < winsNeeded - 1; index += 1) decisions.push(seriesWinner);
+    decisions.sort(() => random() - 0.5);
+    decisions.push(seriesWinner);
+
+    for (const [index, winner] of decisions.entries()) {
+      const game = games[index];
+      if (!game) break;
+      await completeGame(db, game.id, simulationScore(random, winner, scoreRule, options.scoreStyle), actorId, simulationRunId);
+    }
+    return;
+  }
+
+  let homeWinsTarget = 0;
   const majority = Math.floor(totalGames / 2) + 1;
   if (outcome === "SWEEP_HOME") homeWinsTarget = totalGames;
   else if (outcome === "SWEEP_AWAY") homeWinsTarget = 0;
@@ -381,7 +476,7 @@ async function simulateOneMatchup(
   while (homeWinningSlots.size < homeWinsTarget) homeWinningSlots.add(randomInteger(random, 0, Math.max(0, totalGames - 1)));
   for (const [index, game] of games.entries()) {
     const winner = homeWinningSlots.has(index) ? "HOME" : "AWAY";
-    await completeGame(db, game.id, simulationScore(random, winner, options.scoreStyle), actorId, simulationRunId);
+    await completeGame(db, game.id, simulationScore(random, winner, scoreRule, options.scoreStyle), actorId, simulationRunId);
   }
 }
 
@@ -446,11 +541,15 @@ export async function executeSimulation(
 
   if (options.kind === "GAME") {
     if (!options.targetId) throw new Error("Select a match.");
-    const game = await db.game.findUniqueOrThrow({ where: { id: options.targetId } });
+    const game = await db.game.findUniqueOrThrow({ where: { id: options.targetId }, include: { matchup: { include: { division: { select: { suddenDeathAtTen: true } } } } } });
+    if (game.matchup.status === "COMPLETED" && game.matchup.winnerTeamId && game.status === "SCHEDULED") {
+      throw new Error("This playoff matchup is already clinched. Remaining matches are not required.");
+    }
     const winner = options.winner === "RANDOM" || !options.winner
       ? (random() < 0.5 ? "HOME" : "AWAY")
       : options.winner;
-    await completeGame(db, game.id, simulationScore(random, winner, options.scoreStyle), actorId, simulationRunId);
+    const rule = scoreRuleForStage(game.matchup.stage, game.matchup.division.suddenDeathAtTen);
+    await completeGame(db, game.id, simulationScore(random, winner, rule, options.scoreStyle), actorId, simulationRunId);
     result.gameId = game.id;
   } else if (options.kind === "MATCHUP") {
     if (!options.targetId) throw new Error("Select a team matchup.");

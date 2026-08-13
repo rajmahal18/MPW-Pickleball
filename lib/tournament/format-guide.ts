@@ -1,4 +1,5 @@
 import type { DivisionFormat, MatchupStage } from "@prisma/client";
+import { scoreRuleForStage, winsNeededForMatchup } from "@/lib/tournament/rules";
 
 type GuideDivision = {
   id: string;
@@ -52,9 +53,20 @@ export function buildDivisionGuide(division: GuideDivision) {
 
   const rules: string[] = [];
   rules.push(`${FORMAT_LABELS[division.formatType]}.`);
-  rules.push(`${division.defaultGamesPerMatchup} pair match${division.defaultGamesPerMatchup === 1 ? "" : "es"} per group/default matchup; knockout stages use ${division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup}. Individual matchups may still override this.`);
+  const knockoutMatches = division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup;
+  const knockoutWinsNeeded = winsNeededForMatchup("FINAL", knockoutMatches)!;
+  rules.push(`${division.defaultGamesPerMatchup} pair match${division.defaultGamesPerMatchup === 1 ? "" : "es"} per group/default matchup; knockout stages use up to ${knockoutMatches}. Individual matchups may still override this.`);
   if (division.thirdPlaceEnabled) rules.push("A Battle for 3rd is enabled and is populated by the semifinal losers when automatic progression is active.");
-  rules.push(division.suddenDeathAtTen ? "At 10-10, the next point wins (sudden death)." : "Matches continue under the normal win-by-two rule after 10-10.");
+  if (division.formatType === "GROUP_KNOCKOUT" || division.formatType === "ROUND_ROBIN") {
+    rules.push(`Group / round-robin scoring: ${scoreRuleForStage("GROUP").label}.`);
+  }
+  if (division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION") {
+    rules.push(`Playoff scoring: ${scoreRuleForStage("FINAL").label}.`);
+    rules.push(`Knockout team matchups are best of ${knockoutMatches}: first to ${knockoutWinsNeeded} match wins. Once clinched, remaining pair-match slots are not played.`);
+  }
+  if (division.formatType === "CUSTOM") {
+    rules.push(`Custom-stage scoring: ${scoreRuleForStage("CUSTOM", division.suddenDeathAtTen).label}.`);
+  }
   if (division.groups.length) {
     rules.push(`${division.groups.length} group${division.groups.length === 1 ? "" : "s"}, with ${division.teams.length} team${division.teams.length === 1 ? "" : "s"} currently assigned.`);
     if (division.formatType === "GROUP_KNOCKOUT") {

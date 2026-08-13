@@ -1,7 +1,7 @@
 import Link from "next/link";
 import ScoreBadge from "./ScoreBadge";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { formatPlayerDisplayName, type PlayerNameParts } from "@/lib/player-name";
+import { formatPlayerCompactName, type PlayerNameParts } from "@/lib/player-name";
 import StatusBadge from "@/components/StatusBadge";
 
 type Player = PlayerNameParts & { id: string; avatarUrl?: string | null };
@@ -21,7 +21,7 @@ export type LiveGame = {
 };
 
 function pairName(pair: LiveGame["homePair"] | LiveGame["awayPair"]) {
-  return `${formatPlayerDisplayName(pair.playerA)} / ${formatPlayerDisplayName(pair.playerB)}`;
+  return `${formatPlayerCompactName(pair.playerA)} / ${formatPlayerCompactName(pair.playerB)}`;
 }
 
 function PairIdentity({ pair, team, right = false }: { pair: LiveGame["homePair"] | LiveGame["awayPair"]; team: string; right?: boolean }) {

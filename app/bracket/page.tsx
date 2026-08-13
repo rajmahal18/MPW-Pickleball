@@ -2,8 +2,13 @@ import { prisma } from "@/lib/prisma";
 import TournamentSync from "@/components/TournamentSync";
 import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
+import { winsNeededForMatchup } from "@/lib/tournament/rules";
 
 export const dynamic = "force-dynamic";
+
+function knockoutSeriesLabel(matches: number) {
+  return `Best of ${matches} · first to ${winsNeededForMatchup("FINAL", matches)}`;
+}
 
 export default async function Bracket({ searchParams }: { searchParams: Promise<{ success?: string }> }) {
   const query = await searchParams;
@@ -21,7 +26,7 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
   }) : [];
   const revision = tournament ? await getPublicTournamentRevision(tournament.id) : "none:0";
 
-  return <main className="mx-auto max-w-[1600px] px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-[1600px] px-4 py-5 md:py-8">
     <TournamentSync initialRevision={revision} />
     {query.success && <div className="mb-5 border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{query.success}</div>}
     <div className="label">Knockout stage</div>
@@ -37,7 +42,7 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
           </div>
           <div className="flex gap-2 overflow-x-auto text-[10px] font-black uppercase md:flex-wrap md:text-xs">
             <span className="shrink-0 border border-line bg-paper px-3 py-2">{division.matchups.length} knockout matchup{division.matchups.length === 1 ? "" : "s"}</span>
-            <span className="shrink-0 border border-line bg-paper px-3 py-2">{division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup} matches / knockout</span>
+            <span className="shrink-0 border border-line bg-paper px-3 py-2">{knockoutSeriesLabel(division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup)}</span>
             {division.thirdPlaceEnabled && <span className="shrink-0 border border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">Battle for 3rd on</span>}
           </div>
         </div>

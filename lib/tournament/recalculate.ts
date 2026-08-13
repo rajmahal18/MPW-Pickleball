@@ -1,7 +1,7 @@
 import type { MatchupStage, Prisma } from "@prisma/client";
 import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers } from "@/lib/tournament/standings";
 import { writeAudit } from "@/lib/audit";
-import { gamesForStage } from "@/lib/tournament/rules";
+import { gamesForStage, winsNeededForMatchup } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
 
 function matchupHasStarted(matchup: { games: Array<{ status: string; homeScore: number; awayScore: number }> }) {
@@ -205,7 +205,9 @@ export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId
   const homeWins = decidedGames.filter((game) => game.winnerTeamId === matchup.homeTeamId).length;
   const awayWins = decidedGames.filter((game) => game.winnerTeamId === matchup.awayTeamId).length;
   const expectedGames = Math.max(1, matchup.gamesPerMatchup);
-  const complete = matchup.games.length === expectedGames && decidedGames.length === expectedGames;
+  const winsNeeded = winsNeededForMatchup(matchup.stage, expectedGames);
+  const seriesClinched = winsNeeded !== null && (homeWins >= winsNeeded || awayWins >= winsNeeded);
+  const complete = seriesClinched || (matchup.games.length === expectedGames && decidedGames.length === expectedGames);
   const hasLiveGame = matchup.games.some((game) => game.status === "LIVE" || game.status === "INTERRUPTED");
   const status = complete
     ? "COMPLETED"

@@ -21,3 +21,16 @@ export function formatPlayerFullName(player: PlayerNameParts) {
 export function formatPlayerDisplayName(player: PlayerNameParts) {
   return player.displayName?.trim() || formatPlayerFullName(player);
 }
+
+export function formatPlayerCompactName(player: PlayerNameParts) {
+  const display = player.displayName?.trim();
+  if (display) {
+    const parts = display.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return `${parts[0]!.slice(0, 1).toUpperCase()}. ${parts.at(-1)}`;
+  }
+  const first = player.firstName.trim();
+  const last = player.lastName.trim();
+  if (!first) return last;
+  if (!last) return first;
+  return `${first.slice(0, 1).toUpperCase()}. ${last}`;
+}

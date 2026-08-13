@@ -12,6 +12,15 @@ import StatusBadge from "@/components/StatusBadge";
 import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
 
 export const dynamic = "force-dynamic";
+
+function matchupContext(matchup: { groupLabel: string | null; stage: string; roundLabel: string }) {
+  const scope = matchup.groupLabel || matchup.stage.replaceAll("_", " ");
+  const round = matchup.roundLabel.trim();
+  if (!round) return scope;
+  if (matchup.groupLabel && round.toLowerCase().includes(matchup.groupLabel.toLowerCase())) return round;
+  if (round.toLowerCase() === scope.toLowerCase()) return round;
+  return `${scope} · ${round}`;
+}
 export default async function Home() {
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
@@ -20,7 +29,7 @@ export default async function Home() {
     },
     orderBy: { createdAt: "desc" },
   });
-  if (!tournament) return <main className="mx-auto max-w-7xl p-6">Run the seed script first.</main>;
+  if (!tournament) return <main className="public-page mx-auto max-w-7xl p-6">Run the seed script first.</main>;
 
   const [live, upcoming, voteGroups, mvpGames, revision] = await Promise.all([
     prisma.game.findMany({
@@ -65,7 +74,7 @@ export default async function Home() {
   })).filter(({ division, matchups }) => division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION" || matchups.length > 0);
   const mvp = calculateMvpRankings(mvpGames);
 
-  return <main><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
+  return <main className="public-page"><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
     <div className="relative">
       <img src="/finalbanner.png" alt="MPW Dink and Dash 2026 event banner" className="block h-auto w-full" />
       <div className="absolute inset-0 hidden md:block">
@@ -88,7 +97,7 @@ export default async function Home() {
       </section>)}</div>
     </section>}
     {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-amber-300 bg-amber-50 px-3 py-2 text-sm"><span className="label">{division} wildcard</span><strong className="ml-2">{row.team.name}</strong></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings }) => <div className="panel min-w-0" key={group.id}><div className="flex items-center justify-between border-b border-line p-4"><div><div className="label">{division.name}</div><h3 className="font-black uppercase">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings}/></div>)}</div></section>}
-    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchup.groupLabel || matchup.stage} · {matchup.roundLabel} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>)}</div></div><div><div className="mb-4"><div className="label">Crowd pulse</div><h2 className="text-2xl font-black uppercase">Fan Favorite leaders</h2></div><div className="panel divide-y divide-line">{voteGroups.length ? voteGroups.map((row, index) => { const player = fanById.get(row.playerId); return player ? <div key={row.playerId} className="flex items-center gap-3 p-4"><span className="w-6 text-xl font-black">{index + 1}</span><PlayerAvatar {...player} size={index === 0 ? "lg" : "md"}/><div className="flex-1"><div className="font-black">{formatPlayerDisplayName(player)}</div><div className="text-xs text-gray-500">{player.team?.shortName || "Player pool"}</div></div><strong>{row._count._all} votes</strong></div> : null; }) : <div className="p-8 text-center text-gray-500">No votes yet.</div>}<Link href="/fan-favorite" className="block p-4 text-center text-sm font-bold text-court">View live rankings →</Link></div></div></section>
+    <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <Link key={matchup.id} href={`/matches/${matchup.id}`} className="panel flex items-center justify-between gap-3 p-4 hover:border-court"><div><div className="label">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</div><div className="font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><StatusBadge status={matchup.status} compact/></Link>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4"><div className="label">Crowd pulse</div><h2 className="text-2xl font-black uppercase">Fan Favorite leaders</h2></div><div className="panel divide-y divide-line">{voteGroups.length ? voteGroups.map((row, index) => { const player = fanById.get(row.playerId); return player ? <div key={row.playerId} className="flex items-center gap-3 p-4"><span className="w-6 text-xl font-black">{index + 1}</span><PlayerAvatar {...player} size={index === 0 ? "lg" : "md"}/><div className="flex-1"><div className="font-black">{formatPlayerDisplayName(player)}</div><div className="text-xs text-gray-500">{player.team?.shortName || "Player pool"}</div></div><strong>{row._count._all} votes</strong></div> : null; }) : <div className="p-8 text-center text-gray-500">No votes yet.</div>}<Link href="/fan-favorite" className="block p-4 text-center text-sm font-bold text-court">View live rankings →</Link></div></div></section>
     <section><div className="mb-4"><div className="label">Numbers supporting the judges</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div><div className="grid gap-4 md:grid-cols-2"><MvpLeader title="Male MVP" row={mvp.male[0]}/><MvpLeader title="Female MVP" row={mvp.female[0]}/></div></section>
   </div></main>;
 }

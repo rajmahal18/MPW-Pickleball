@@ -9,6 +9,14 @@ import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
+function matchupContext(matchup: { groupLabel: string | null; stage: string; roundLabel: string }) {
+  const scope = matchup.groupLabel || matchup.stage.replaceAll("_", " ");
+  const round = matchup.roundLabel.trim();
+  if (!round || round.toLowerCase() === scope.toLowerCase()) return scope;
+  if (matchup.groupLabel && round.toLowerCase().includes(matchup.groupLabel.toLowerCase())) return round;
+  return `${scope} · ${round}`;
+}
+
 export default async function Leader({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "TEAM_LEADER" || !user.teamId) redirect("/login");
@@ -57,7 +65,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     const accent = managerStatus.status === "LIVE" ? "border-l-4 border-l-flame" : managerStatus.status === "LINEUP_PENDING" && !submitted ? "border-l-4 border-l-amber-400" : managerStatus.status === "READY" ? "border-l-4 border-l-emerald-500" : "";
     return <div className={`panel flex flex-wrap items-center justify-between gap-3 p-4 ${accent}`} key={matchup.id}>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><StatusBadge status={managerStatus.status} label={managerStatus.label} compact/><span className="label">{matchup.division.name} · {matchup.groupLabel || matchup.stage} · {matchup.roundLabel}</span></div>
+        <div className="flex flex-wrap items-center gap-2"><StatusBadge status={managerStatus.status} label={managerStatus.label} compact/><span className="label">{matchup.division.name} · {matchupContext(matchup)}</span></div>
         <div className="mt-2 text-lg font-black">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span className="border border-court/20 bg-court/5 px-2 py-1 font-black text-court">Series {matchup.homeWins}-{matchup.awayWins}</span>

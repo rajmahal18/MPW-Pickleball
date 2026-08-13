@@ -2,7 +2,9 @@
 
 import { FormEvent, useMemo, useRef, useState } from "react";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { formatPlayerDisplayName, type PlayerNameParts } from "@/lib/player-name";
+import { formatPlayerCompactName, type PlayerNameParts } from "@/lib/player-name";
+import { scoreRuleForStage } from "@/lib/tournament/rules";
+import type { MatchupStage } from "@prisma/client";
 import StatusBadge from "@/components/StatusBadge";
 
 type Team = { id: string; name: string; shortName: string };
@@ -30,13 +32,14 @@ type GameState = {
     roundLabel: string;
     courtLabel: string | null;
     suddenDeathAtTen: boolean;
+    stage: MatchupStage;
   };
 };
 
 type ApiResponse = { ok: true; game: GameState; message?: string } | { ok: false; error: string };
 
 function pairName(pair: Pair) {
-  return `${formatPlayerDisplayName(pair.playerA)} / ${formatPlayerDisplayName(pair.playerB)}`;
+  return `${formatPlayerCompactName(pair.playerA)} / ${formatPlayerCompactName(pair.playerB)}`;
 }
 
 export default function AdminScoreConsole({ initial }: { initial: GameState }) {
@@ -48,7 +51,7 @@ export default function AdminScoreConsole({ initial }: { initial: GameState }) {
   const busyRef = useRef(false);
 
   const terminal = game.status === "COMPLETED" || game.status === "FORFEITED";
-  const rule = game.matchup.suddenDeathAtTen ? "Sudden death at 10-10" : "Win by 2";
+  const rule = scoreRuleForStage(game.matchup.stage, game.matchup.suddenDeathAtTen).label;
   const winner = useMemo(() => game.winnerTeamId, [game.winnerTeamId]);
 
   async function mutate(action: string, extra: Record<string, unknown> = {}) {

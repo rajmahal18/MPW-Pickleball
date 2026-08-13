@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/permissions";
 import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { recalculateMatchup, recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
-import { assertValidCompletedScore } from "@/lib/tournament/rules";
+import { assertValidCompletedScore, scoreRuleForStage } from "@/lib/tournament/rules";
 
 type ScoreStatus = "SCHEDULED" | "LIVE" | "COMPLETED" | "FORFEITED" | "INTERRUPTED";
 type ScoreState = {
@@ -84,6 +84,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         if (!game) throw new Error("Match not found.");
         if (expectedVersion !== null && game.version !== expectedVersion) throw new Error("The score changed in another session. Reload this match before submitting again.");
 
+        const scoreRule = scoreRuleForStage(game.matchup.stage, game.matchup.division.suddenDeathAtTen);
+        const untouchedAfterClinch = game.matchup.status === "COMPLETED"
+          && Boolean(game.matchup.winnerTeamId)
+          && game.status === "SCHEDULED"
+          && game.homeScore === 0
+          && game.awayScore === 0;
+        if (untouchedAfterClinch) throw new Error("This playoff matchup is already clinched. Remaining matches are not required.");
+
         const before = stateOf(game);
         const next: ScoreState = { ...before };
         const terminalBefore = game.status === "COMPLETED" || game.status === "FORFEITED";
@@ -123,7 +131,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
           next.awayScore = awayScore;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
           if (game.status === "COMPLETED") {
-            assertValidCompletedScore(homeScore, awayScore, game.matchup.division.suddenDeathAtTen);
+            assertValidCompletedScore(homeScore, awayScore, scoreRule);
             next.status = "COMPLETED";
             next.winnerTeamId = homeScore > awayScore ? game.homeTeamId : game.awayTeamId;
             next.completedAt = game.completedAt?.toISOString() ?? new Date().toISOString();
@@ -133,7 +141,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
             next.completedAt = null;
           }
         } else if (action === "finalize") {
-          assertValidCompletedScore(game.homeScore, game.awayScore, game.matchup.division.suddenDeathAtTen);
+          assertValidCompletedScore(game.homeScore, game.awayScore, scoreRule);
           next.status = "COMPLETED";
           next.winnerTeamId = game.homeScore > game.awayScore ? game.homeTeamId : game.awayTeamId;
           next.startedAt = game.startedAt?.toISOString() ?? new Date().toISOString();
@@ -247,6 +255,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
                 awayWins: true,
                 roundLabel: true,
                 courtLabel: true,
+                stage: true,
                 division: { select: { suddenDeathAtTen: true } },
               },
             },
@@ -277,6 +286,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         awayWins: fresh.matchup.awayWins,
         roundLabel: fresh.matchup.roundLabel,
         courtLabel: fresh.matchup.courtLabel,
+        stage: fresh.matchup.stage,
         suddenDeathAtTen: fresh.matchup.division.suddenDeathAtTen,
       },
     };

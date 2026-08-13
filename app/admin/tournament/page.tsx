@@ -6,6 +6,7 @@ import AdminNav from "@/components/AdminNav";
 import FlashMessage from "@/components/FlashMessage";
 import SubmitButton from "@/components/SubmitButton";
 import TournamentCourtBoard, { type CourtQueueMatchup } from "@/components/TournamentCourtBoard";
+import TournamentSetupTabs from "@/components/TournamentSetupTabs";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import { computeStandings, type StandingRow } from "@/lib/tournament/standings";
 import { displayStatus } from "@/components/StatusBadge";
@@ -75,6 +76,15 @@ function groupCode(group: { name: string; slug: string }) {
 function slotLabel(team: { groupPosition: number | null; group: { name: string; slug: string } | null }) {
   if (!team.group || !team.groupPosition) return "No slot";
   return `${groupCode(team.group)}${team.groupPosition}`;
+}
+
+
+function matchupContextLabel(matchup: { groupLabel: string | null; stage: string; roundLabel: string }) {
+  const scope = matchup.groupLabel || matchup.stage.replaceAll("_", " ");
+  const round = matchup.roundLabel.trim();
+  if (!round || round.toLowerCase() === scope.toLowerCase()) return scope;
+  if (matchup.groupLabel && round.toLowerCase().includes(matchup.groupLabel.toLowerCase())) return round;
+  return `${scope} · ${round}`;
 }
 
 function unresolvedTieSets(rows: StandingRow[]) {
@@ -203,14 +213,9 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
       </div>
     </section>
 
-    <nav aria-label="Tournament setup workflow" className="mt-5 flex gap-2 overflow-x-auto rounded-lg border border-line bg-white p-2 shadow-sm">
-      {[['division-settings','1','Division'],['teams','2','Teams & groups'],['lineup-rules','3','Lineup rules'],['schedule','4','Courts'],['matchups','5','Matchups']].map(([href, step, label]) => <a key={href} href={`#${href}`} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-line bg-paper px-3 text-xs font-black text-ink hover:border-court hover:text-court"><span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-[9px] text-white">{step}</span>{label}</a>)}
-      <Link href="/admin/players" className="btn-primary min-h-10 shrink-0 rounded-md px-3 text-xs">Player Pool</Link>
-    </nav>
-
-    <div className="mt-5 space-y-5">
+    <TournamentSetupTabs>
       <section id="division-settings" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
-        <SectionHeader step={1} eyebrow="Division" title="Format & basic settings">Set the competition format and match counts here. Technical URL/display fields stay under Advanced.</SectionHeader>
+        <SectionHeader eyebrow="Division" title="Format & settings">Competition structure and match counts.</SectionHeader>
         <form action="/api/admin/tournament-structure" method="post" className="space-y-5">
           <input type="hidden" name="action" value="update-division" />
           <input type="hidden" name="divisionId" value={selected.id} />
@@ -226,7 +231,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
             <label className="flex min-h-11 items-center gap-3 rounded-md border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="isPublic" defaultChecked={selected.isPublic} /> Public division</label>
             <label className="flex min-h-11 items-center gap-3 rounded-md border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="autoProgression" defaultChecked={selected.autoProgression} /> Auto progression</label>
             <label className="flex min-h-11 items-center gap-3 rounded-md border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="thirdPlaceEnabled" defaultChecked={selected.thirdPlaceEnabled} /> Battle for 3rd</label>
-            <label className="flex min-h-11 items-center gap-3 rounded-md border border-line bg-paper px-3 text-sm font-bold"><input type="checkbox" name="suddenDeathAtTen" defaultChecked={selected.suddenDeathAtTen} /> Sudden death at 10-10</label>
+            <div className="rounded-md border border-line bg-paper px-3 py-2 text-xs font-bold leading-5 text-gray-600"><span className="block text-ink">Scoring</span> Group: 11 sudden death · Playoffs: 11, win by 2, cap 15</div>
           </div>
           {selected.formatType === "GROUP_KNOCKOUT" ? <div className="grid gap-4 rounded-lg border border-court/20 bg-court/5 p-4 md:grid-cols-2"><Field label="Teams advancing per group" name="qualifiersPerGroup" type="number" min={0} max={16} defaultValue={selected.qualifiersPerGroup} required/><Field label="Wildcard slots" name="wildcardCount" type="number" min={0} max={16} defaultValue={selected.wildcardCount} required/></div> : <><input type="hidden" name="qualifiersPerGroup" value={selected.qualifiersPerGroup}/><input type="hidden" name="wildcardCount" value={selected.wildcardCount}/></>}
           <details className="rounded-lg border border-line bg-paper p-4">
@@ -234,6 +239,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="URL slug" name="slug" defaultValue={selected.slug} required />
               <Field label="Display order" name="sortOrder" type="number" min={0} max={999} defaultValue={selected.sortOrder} required />
+              <label className="flex min-h-11 items-center gap-3 rounded-md border border-line bg-white px-3 text-sm font-bold md:col-span-2"><input type="checkbox" name="suddenDeathAtTen" defaultChecked={selected.suddenDeathAtTen} /> Sudden death for CUSTOM-stage matches</label>
               <label className="block md:col-span-2"><span className="label">Advancement rule</span><textarea name="advancementRule" defaultValue={selected.advancementRule ?? ""} className="mt-1 min-h-20 w-full rounded-md border border-line bg-white p-3 text-sm"/></label>
               <label className="block md:col-span-2"><span className="label">Guide notes</span><textarea name="guideNotes" defaultValue={selected.guideNotes ?? ""} className="mt-1 min-h-20 w-full rounded-md border border-line bg-white p-3 text-sm"/></label>
             </div>
@@ -243,10 +249,10 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
       </section>
 
       <section id="teams" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
-        <SectionHeader step={2} eyebrow="Entrants" title="Teams & groups" action={<div className="flex flex-wrap gap-2">
+        <SectionHeader eyebrow="Entrants" title="Teams & groups" action={<div className="flex flex-wrap gap-2">
           <details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Group</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-80"><input type="hidden" name="action" value="create-group"/><input type="hidden" name="divisionId" value={selected.id}/><Field label="Group name" name="name" required/><Field label="Slug" name="slug"/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create group</SubmitButton></form></details>
           <details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Team / entry</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-80"><input type="hidden" name="action" value="create-team"/><input type="hidden" name="divisionId" value={selected.id}/><Field label="Team / entrant name" name="name" required/><Field label="Short name" name="shortName" required/><Select label="Group" name="groupId"><option value="">No group</option>{selected.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</Select><Field label="Group position" name="groupPosition" type="number" min={1} max={99}/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create entry</SubmitButton></form></details>
-        </div>}>Team identity and group placement live in one place now. Playing pairs are still chosen per matchup by team managers.</SectionHeader>
+        </div>}>Create teams, assign groups, and edit names.</SectionHeader>
 
         {selected.groups.length > 0 && <div className="mb-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {selected.groups.map((group) => {
@@ -280,7 +286,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
       </section>
 
       <section id="lineup-rules" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
-        <SectionHeader step={3} eyebrow="Team manager rules" title="Lineup match categories">Define exactly which pair type is allowed in each match slot. These rules are enforced again when a lineup is saved.</SectionHeader>
+        <SectionHeader eyebrow="Team manager rules" title="Lineup categories">Set the allowed pair type for each match slot.</SectionHeader>
         <form action="/api/admin/tournament-structure" method="post" className="space-y-4">
           <input type="hidden" name="action" value="update-lineup-rules"/>
           <input type="hidden" name="divisionId" value={selected.id}/>
@@ -299,12 +305,12 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
       </section>
 
       <section id="schedule" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
-        <SectionHeader step={4} eyebrow="Tournament day" title="Courts & match queue">No clock times. Add whole team matchups to court lanes and arrange the overall call order.</SectionHeader>
+        <SectionHeader eyebrow="Tournament day" title="Courts & queue">Stack team matchups by court and call order.</SectionHeader>
         <TournamentCourtBoard initialActiveCourtCount={tournament.activeCourtCount} initialQueuedMatchups={queuedMatchups.map(queueDto)} initialAvailableMatchups={availableQueueMatchups.map(queueDto)}/>
       </section>
 
       <section id="matchups" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
-        <SectionHeader step={5} eyebrow="Future structure" title="Matchup configuration" action={<details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/><Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31}/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details>}>This is structural setup, not the tournament-day schedule. Court assignment and order belong only in the court board above.</SectionHeader>
+        <SectionHeader eyebrow="Future structure" title="Matchups" action={<details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/><Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31}/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details>}>Create or edit future team matchups.</SectionHeader>
         <div className="grid gap-3 2xl:grid-cols-2">
           {selected.matchups.map((matchup) => {
             const locked = matchupLocked(matchup);
@@ -313,7 +319,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
             const categoryRulesEnabled = isKnockout ? selected.knockoutCategoryRulesEnabled : selected.groupCategoryRulesEnabled;
             return <article key={matchup.id} className={`rounded-lg border p-4 ${locked ? "border-amber-300 bg-amber-50" : "border-line bg-white"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black text-ink">{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"}</h3><StatusBadge tone={locked ? "locked" : matchup.status === "READY" ? "ready" : "warn"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge>{matchup.queuePosition !== null && <StatusBadge tone="ready">Queue #{matchup.queuePosition} · Court {matchup.courtLabel}</StatusBadge>}</div><div className="mt-1 text-xs text-gray-500">{matchup.stage.replaceAll("_", " ")} · {matchup.groupLabel || "No scope"} · {matchup.roundLabel} · {matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div><div className="mt-2 flex flex-wrap gap-1">{Array.from({ length: matchup.gamesPerMatchup }, (_, index) => <span key={index} className="rounded-md border border-line bg-paper px-2 py-1 text-[10px] font-bold">M{index + 1}: {categoryLabel(categoryRulesEnabled ? configuredCategories[index] ?? null : null)}</span>)}</div></div>
+                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black text-ink">{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"}</h3><StatusBadge tone={locked ? "locked" : matchup.status === "READY" ? "ready" : "warn"}>{locked ? "Protected" : displayStatus(matchup.status)}</StatusBadge>{matchup.queuePosition !== null && <StatusBadge tone="ready">Queue #{matchup.queuePosition} · Court {matchup.courtLabel}</StatusBadge>}</div><div className="mt-1 text-xs text-gray-500">{matchupContextLabel(matchup)} · {matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div><div className="mt-2 flex flex-wrap gap-1">{Array.from({ length: matchup.gamesPerMatchup }, (_, index) => <span key={index} className="rounded-md border border-line bg-paper px-2 py-1 text-[10px] font-bold">M{index + 1}: {categoryLabel(categoryRulesEnabled ? configuredCategories[index] ?? null : null)}</span>)}</div></div>
                 {matchup.games.length === matchup.gamesPerMatchup && matchup.games.length > 0 && <Link href={`/admin/matches/${matchup.id}/scorecards`} className="btn-ghost rounded-md px-3 py-2 text-xs">Print scorecards</Link>}
               </div>
               <details className="mt-3 rounded-md border border-line bg-white p-3" open={!locked && (!matchup.homeTeamId || !matchup.awayTeamId)}><summary className="cursor-pointer text-xs font-black uppercase text-gray-600">Edit matchup</summary><form action="/api/admin/tournament-structure" method="post" className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input type="hidden" name="action" value="update-matchup"/><input type="hidden" name="matchupId" value={matchup.id}/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue={matchup.stage}>{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel" defaultValue={matchup.groupLabel}/><Select label="Home team" name="homeTeamId" defaultValue={matchup.homeTeamId}><option value="">TBD</option>{selected.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} - {team.name}</option>)}</Select><Select label="Away team" name="awayTeamId" defaultValue={matchup.awayTeamId}><option value="">TBD</option>{selected.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} - {team.name}</option>)}</Select><Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31} defaultValue={matchup.gamesPerMatchup}/><Field label="Round label" name="roundLabel" defaultValue={matchup.roundLabel} required/><div className="md:col-span-2 xl:col-span-4"><SubmitButton className="btn-primary rounded-md px-3 py-2 text-xs" pendingLabel="Saving...">Save matchup</SubmitButton></div></form>{!locked && <form action="/api/admin/tournament-structure" method="post" className="mt-2"><input type="hidden" name="action" value="delete-matchup"/><input type="hidden" name="matchupId" value={matchup.id}/><SubmitButton className="btn-ghost rounded-md px-3 py-2 text-xs text-red-700" pendingLabel="Deleting...">Delete future matchup</SubmitButton></form>}</details>
@@ -323,10 +329,11 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
         {!selected.matchups.length && <EmptyState text="No matchups configured yet. Create future matchups once teams are known."/>}
       </section>
 
-      <details className="rounded-xl border border-red-200 bg-red-50 p-5">
+    </TournamentSetupTabs>
+
+      <details className="mt-5 rounded-xl border border-red-200 bg-red-50 p-5">
         <summary className="cursor-pointer text-sm font-black uppercase text-red-800">Danger zone · delete division</summary>
         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_360px] lg:items-end"><div className="text-sm leading-6 text-red-950">Deletion is blocked once recorded play exists. Type <strong>{selected.name}</strong> to confirm.</div><form action="/api/admin/tournament-structure" method="post" className="grid gap-2"><input type="hidden" name="action" value="delete-division"/><input type="hidden" name="divisionId" value={selected.id}/><Field label="Confirmation" name="confirmDivisionName" required/><SubmitButton className="btn-ghost rounded-md border-red-300 bg-white text-xs text-red-800" pendingLabel="Deleting...">Delete division</SubmitButton></form></div>
       </details>
-    </div>
   </main>;
 }

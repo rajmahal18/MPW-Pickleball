@@ -122,7 +122,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Division settings now separate group/default pair matches per matchup from knockout pair matches per matchup. The Team Event can therefore use 7 matches in group play and 5 matches in QF/SF/Battle for 3rd/Grand Final without changing pair master data.
 - Changing an unplayed knockout match count clears stale generated matches/lineups so team leaders resubmit the correct number of pairs; started/completed history remains protected.
 - Divisions can enable Battle for 3rd. Supported automatic brackets create it and populate it from the two semifinal losers.
-- Divisions can toggle sudden death at 10-10. When enabled, an 11-10 completed score is valid; otherwise the normal win-by-two validation remains.
+- Legacy `suddenDeathAtTen` remains only for CUSTOM-stage compatibility. Current GROUP/ROUND_ROBIN and playoff scoring is stage-driven; see the latest scoring section below.
 - Public bracket connectors now derive from actual feeder winners/assigned downstream teams rather than row-parity CSS, preventing misleading connector directions. Battle for 3rd is rendered separately beneath the championship progression.
 - Official scorecards use A4 landscape with two portrait scorecards side-by-side per sheet. Each card now uses the printable height, the separate Group input was removed because group identity comes from the configured round/matchup, and the umpire band is deliberately compact so player/score/signature space is maximized.
 
@@ -140,7 +140,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Lineups have explicit Fill all editable slots / Empty all editable slots controls. Fill uses eligible unused players and respects the configured Men’s/Women’s/Mixed category for every editable slot; played slots remain protected.
 - Pair rows created for Team Event lineup compatibility are treated as internal/historical snapshots. Tournament Setup no longer exposes those technical pair combinations as if they were permanent team configuration. Executive fixed-pair entrants remain available through an advanced Player Pool tool.
 - Future player/pair invalidation now reopens only affected unplayed lineup slots. Scoring and scorecard printing verify that internal `Game` pair references still match the latest complete lineups, preventing stale pair sheets/results after a late roster change.
-- Score finalization now rejects impossible overshoot finals (for example 12-9). Normal play ends at 11 with a two-point lead or, after 10-10, at the first two-point lead; sudden-death mode ends 10-10 on the next point.
+- Score finalization rejects impossible overshoot finals. Stage-specific scoring is authoritative: group/round-robin uses 11-point sudden death at 10-10, while playoffs use target 11 / win by 2 / cap 15.
 - Testing/Simulation remains available for QA but is de-emphasized under Advanced admin tools and is not part of the normal team-leader or live-scoring workflow.
 - Homepage live courts now use one batched `/api/public/live-games` poll per viewer instead of one request per live court, and the homepage no longer refreshes the entire RSC tree on a timer.
 - Team/participation/eligibility edits now perform future-lineup invalidation and the corresponding master-data mutation in the same database transaction, preventing a failed edit from leaving valid future lineup slots removed.
@@ -194,3 +194,15 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Tournament-day scheduling now renders as per-court lanes with matchup blocks, while `Matchup.queuePosition` remains the canonical overall call order.
 - Active court count, queue insertion, court reassignment, queue reorder, and queue removal use client-side fetch mutations with authoritative server state returned as JSON. These actions no longer navigate/reload the Tournament Setup page.
 - Header auth controls now occupy the far-right desktop slot. The header Dashboard shortcut is wrapped in a desktop-only container so the shared `.btn-ghost` display rule cannot accidentally make it visible on mobile; signed-in mobile users use the bottom Dashboard navigation instead.
+
+
+## Playoff clinch, stage scoring + public UX pass — 2026-08-13
+
+- Knockout team matchups are majority series. A 5-match playoff is best-of-5 / first to 3; once a side reaches three match wins, the matchup is complete immediately and untouched remaining slots are shown as **Not needed** rather than blocking advancement. Group/round-robin team matchups still play every configured pair match because pair-match wins, NPD, and TP all matter to standings.
+- Stage scoring is now authoritative in shared tournament rules and score validation: **Group/round-robin = first to 11, sudden death at 10-10, hard max 11**; **QF/SF/Final/Battle for 3rd = target 11, win by 2 after 10-10, hard cap 15**, with 15-14 valid at the cap.
+- Simulation uses the same stage score rules, lineup-category restrictions, no-duplicate-player rule, and knockout early-clinch behavior. Sweep simulations of a 5-match playoff record only three matches; close series may use all five.
+- Public live-match/scoring surfaces use compact player names where full legal names are unnecessary (for example, `A. Eala`). Full names remain on identity-heavy pages such as Players, MVP, and Fan Favorite.
+- Signed-in mobile users again have the sticky **Home / Dashboard** bottom navigation. The top-header Dashboard remains desktop-only, while Sign in / Sign out stays at the far-right header slot.
+- Tournament Setup is now a true five-tab workspace instead of anchor scrolling. The chosen tab is remembered for the browser session so ordinary form saves return the organizer to the same setup area.
+- Upcoming-matchup and match-directory context labels suppress duplicated group/round wording.
+- Public pages share a quieter typography/spacing/card treatment. The public Players page was rebuilt with search plus Division, Team, Category filters and First name / Last name / Team sorting.

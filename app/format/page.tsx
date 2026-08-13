@@ -25,7 +25,7 @@ export default async function FormatPage() {
     },
     orderBy: { createdAt: "desc" },
   });
-  if (!tournament) return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
+  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
 
   const [playerCount, teamCount, gameCount] = await Promise.all([
     prisma.player.count({ where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED", divisionEntries: { some: { status: "CONFIRMED", division: { isPublic: true } } } } }),
@@ -33,7 +33,7 @@ export default async function FormatPage() {
     prisma.game.count({ where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } } } }),
   ]);
 
-  return <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">
     <div className="label text-court">Live tournament configuration</div><h1 className="text-3xl font-black uppercase text-ink md:text-4xl">Format Guide</h1>
     <p className="mt-2 hidden max-w-4xl text-sm text-gray-600 md:block">This guide is generated from the current tournament configuration. If organizers change a division, match count, team assignment, or future bracket structure, the public guide updates with it.</p>
     <section className="mt-5 grid grid-cols-2 gap-3 md:mt-6 md:gap-4 lg:grid-cols-4"><StatBox label="Divisions" value={tournament.divisions.length}/><StatBox label="Teams" value={teamCount}/><StatBox label="Confirmed players" value={playerCount}/><StatBox label="Matches created" value={gameCount}/></section>

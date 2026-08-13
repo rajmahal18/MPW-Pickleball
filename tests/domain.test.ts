@@ -7,8 +7,8 @@ import { calculateMvpRankings } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
 import { qrMatrix } from "../lib/qr";
 import { normalizeVotingCode } from "../lib/tournament/voting";
-import { formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
-import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage } from "../lib/tournament/rules";
+import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
+import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
 
 function team(id: string, name: string, groupName: string) {
@@ -280,6 +280,8 @@ test("player names render official full names without nulls or double spaces", (
   assert.equal(formatPlayerFullName({ firstName: "Ryan Ibrahim", middleInitial: "L", lastName: "Elias" }), "Ryan Ibrahim L. Elias");
   assert.equal(formatPlayerFullName({ firstName: "Jihan", middleInitial: null, lastName: "Arimao" }), "Jihan Arimao");
   assert.equal(formatPlayerDisplayName({ firstName: "Ryan", middleInitial: "L.", lastName: "Elias", displayName: "Coach Ryan" }), "Coach Ryan");
+  assert.equal(formatPlayerCompactName({ firstName: "Alexandra", lastName: "Eala", displayName: null }), "A. Eala");
+  assert.equal(formatPlayerCompactName({ firstName: "Roger", lastName: "Federer", displayName: "Roger Federer" }), "R. Federer");
 });
 
 test("public redirects prefer reverse-proxy host over internal localhost origin", () => {
@@ -321,15 +323,28 @@ test("lineup match categories follow separate group and playoff patterns", () =>
   assert.deepEqual(categoriesForStage({ ...division, groupCategoryRulesEnabled: false } as never, "GROUP"), [null, null, null, null, null, null, null]);
 });
 
-test("sudden death at 10-10 allows 11-10 while normal scoring still requires win by two", () => {
-  assert.throws(() => assertValidCompletedScore(11, 10, false), /two-point/);
-  assert.doesNotThrow(() => assertValidCompletedScore(11, 10, true));
-  assert.doesNotThrow(() => assertValidCompletedScore(11, 9, false));
-  assert.doesNotThrow(() => assertValidCompletedScore(12, 10, false));
-  assert.doesNotThrow(() => assertValidCompletedScore(13, 11, false));
-  assert.throws(() => assertValidCompletedScore(12, 9, false), /ends at 11/);
-  assert.throws(() => assertValidCompletedScore(14, 11, false), /first two-point lead/);
-  assert.throws(() => assertValidCompletedScore(12, 11, true), /must end on the next point/);
-  assert.throws(() => assertValidCompletedScore(12, 9, true), /ends at 11/);
-  assert.throws(() => assertValidCompletedScore(10, 9, true), /reach 11/);
+test("stage scoring enforces group sudden death and playoff win-by-two with a 15 cap", () => {
+  const groupRule = scoreRuleForStage("GROUP");
+  const playoffRule = scoreRuleForStage("SEMIFINAL");
+
+  assert.doesNotThrow(() => assertValidCompletedScore(11, 10, groupRule));
+  assert.doesNotThrow(() => assertValidCompletedScore(11, 9, groupRule));
+  assert.throws(() => assertValidCompletedScore(12, 10, groupRule), /end at 11/);
+  assert.throws(() => assertValidCompletedScore(10, 9, groupRule), /reach 11/);
+
+  for (const [home, away] of [[11, 9], [12, 10], [13, 11], [14, 12], [15, 13], [15, 14]] as const) {
+    assert.doesNotThrow(() => assertValidCompletedScore(home, away, playoffRule));
+  }
+  assert.throws(() => assertValidCompletedScore(11, 10, playoffRule), /two-point lead/);
+  assert.throws(() => assertValidCompletedScore(13, 12, playoffRule), /two-point lead/);
+  assert.throws(() => assertValidCompletedScore(15, 12, playoffRule), /ended earlier/);
+  assert.throws(() => assertValidCompletedScore(16, 14, playoffRule), /capped at 15/);
+});
+
+test("knockout team matchups clinch on a majority of configured pair matches", () => {
+  assert.equal(winsNeededForMatchup("GROUP", 7), null);
+  assert.equal(winsNeededForMatchup("QUARTERFINAL", 5), 3);
+  assert.equal(winsNeededForMatchup("SEMIFINAL", 5), 3);
+  assert.equal(winsNeededForMatchup("FINAL", 5), 3);
+  assert.equal(winsNeededForMatchup("THIRD_PLACE", 5), 3);
 });

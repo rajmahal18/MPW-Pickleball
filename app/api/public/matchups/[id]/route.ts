@@ -23,6 +23,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       awayWins: true,
       winnerTeamId: true,
       gamesPerMatchup: true,
+      stage: true,
+      division: { select: { suddenDeathAtTen: true } },
       homeTeamId: true,
       awayTeamId: true,
       homeTeam: { select: { id: true, name: true, shortName: true } },
@@ -44,5 +46,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       },
     },
   });
-  return matchup ? NextResponse.json(matchup) : new NextResponse("Not found", { status: 404 });
+  if (!matchup) return new NextResponse("Not found", { status: 404 });
+  const { division, ...publicMatchup } = matchup;
+  return NextResponse.json({ ...publicMatchup, suddenDeathAtTen: division.suddenDeathAtTen });
 }

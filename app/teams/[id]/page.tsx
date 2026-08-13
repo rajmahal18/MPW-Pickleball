@@ -22,7 +22,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   if (!team) notFound();
 
   const players = team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === team.divisionId && entry.status === "CONFIRMED"));
-  return <main className="mx-auto max-w-5xl px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-5xl px-4 py-5 md:py-8">
     <div className="label">{team.division.name}{team.group ? ` · ${team.group.name}` : ""}</div>
     <h1 className="text-3xl font-black uppercase md:text-4xl">{team.name}</h1>
     <p className="mt-2 text-sm text-gray-500"><span className="font-bold text-ink">{players.length} confirmed player{players.length === 1 ? "" : "s"}</span><span className="hidden md:inline">. Playing pairs are submitted per matchup, so this roster does not imply permanent pair combinations.</span></p>

@@ -34,6 +34,8 @@ export default async function MatchupPage({ params }: { params: Promise<{ id: st
     awayWins: matchup.awayWins,
     winnerTeamId: matchup.winnerTeamId,
     gamesPerMatchup: matchup.gamesPerMatchup,
+    stage: matchup.stage,
+    suddenDeathAtTen: matchup.division.suddenDeathAtTen,
     homeTeamId: matchup.homeTeamId,
     awayTeamId: matchup.awayTeamId,
     homeTeam: matchup.homeTeam ? { id: matchup.homeTeam.id, name: matchup.homeTeam.name, shortName: matchup.homeTeam.shortName } : null,
@@ -52,8 +54,11 @@ export default async function MatchupPage({ params }: { params: Promise<{ id: st
     })),
   };
 
-  return <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
-    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · {matchup.groupLabel || matchup.stage} · {matchup.roundLabel} · Court {matchup.courtLabel || "TBA"}</span></div>
+  const scope = matchup.groupLabel || matchup.stage.replaceAll("_", " ");
+  const context = matchup.roundLabel.toLowerCase().includes(scope.toLowerCase()) ? matchup.roundLabel : `${scope} · ${matchup.roundLabel}`;
+
+  return <main className="public-page mx-auto max-w-6xl px-4 py-5 md:py-8">
+    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div>
     <h1 className="mt-2 text-3xl font-black uppercase md:text-4xl">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
     <p className="mt-2 hidden text-sm text-gray-500 md:block">Scores update in place while this page is open. No full-page refresh during live play.</p>
     <LiveMatchBoard initial={initial}/>

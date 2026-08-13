@@ -7,6 +7,7 @@ import AdminNav from "@/components/AdminNav";
 import SubmitButton from "@/components/SubmitButton";
 import AdminScoreConsole from "@/components/AdminScoreConsole";
 import StatusBadge from "@/components/StatusBadge";
+import { winsNeededForMatchup } from "@/lib/tournament/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -72,8 +73,12 @@ export default async function Score({ params, searchParams }: { params: Promise<
       roundLabel: game.matchup.roundLabel,
       courtLabel: game.matchup.courtLabel,
       suddenDeathAtTen: game.matchup.division.suddenDeathAtTen,
+      stage: game.matchup.stage,
     },
   };
+
+  const winsNeeded = winsNeededForMatchup(game.matchup.stage, game.matchup.gamesPerMatchup);
+  const seriesClinched = winsNeeded !== null && game.matchup.status === "COMPLETED" && Boolean(game.matchup.winnerTeamId);
 
   return <main className="admin-shell">
     <AdminNav/>
@@ -89,7 +94,14 @@ export default async function Score({ params, searchParams }: { params: Promise<
 
     <section className="panel mt-5 overflow-hidden">
       <div className="border-b border-line bg-paper px-4 py-3"><div className="label">Matches in this team matchup</div><p className="mt-1 hidden text-xs text-gray-500 md:block">Jump directly between pair matches without returning to the dashboard.</p></div>
-      <div className="flex gap-2 overflow-x-auto p-4">{game.matchup.games.map((item) => <Link key={item.id} href={`/admin/score/${item.id}`} aria-current={item.id === game.id ? "page" : undefined} className={`inline-flex items-center gap-2 border px-3 py-2 text-xs font-black ${item.id === game.id ? "border-court bg-court text-white" : item.status === "LIVE" ? "border-flame bg-flame/10 text-flame" : item.status === "COMPLETED" || item.status === "FORFEITED" ? "border-court/30 bg-court/10 text-court" : "border-line bg-white text-gray-600"}`}><span>M{item.gameNumber}</span><span className="tabular-nums">{item.homeScore}-{item.awayScore}</span><span className="text-[9px] uppercase opacity-70">{item.status === "LIVE" ? "Live" : item.status === "COMPLETED" ? "Done" : item.status === "FORFEITED" ? "Forfeit" : item.status === "INTERRUPTED" ? "Paused" : "Pending"}</span></Link>)}</div>
+      <div className="flex gap-2 overflow-x-auto p-4">{game.matchup.games.map((item) => {
+        const notNeeded = seriesClinched && item.status === "SCHEDULED" && item.homeScore === 0 && item.awayScore === 0;
+        const className = `inline-flex items-center gap-2 border px-3 py-2 text-xs font-black ${item.id === game.id ? "border-court bg-court text-white" : notNeeded ? "border-line bg-gray-100 text-gray-400" : item.status === "LIVE" ? "border-flame bg-flame/10 text-flame" : item.status === "COMPLETED" || item.status === "FORFEITED" ? "border-court/30 bg-court/10 text-court" : "border-line bg-white text-gray-600"}`;
+        const content = <><span>M{item.gameNumber}</span><span className="tabular-nums">{item.homeScore}-{item.awayScore}</span><span className="text-[9px] uppercase opacity-70">{notNeeded ? "Not needed" : item.status === "LIVE" ? "Live" : item.status === "COMPLETED" ? "Done" : item.status === "FORFEITED" ? "Forfeit" : item.status === "INTERRUPTED" ? "Paused" : "Pending"}</span></>;
+        return notNeeded
+          ? <span key={item.id} className={className} title="Series already clinched">{content}</span>
+          : <Link key={item.id} href={`/admin/score/${item.id}`} aria-current={item.id === game.id ? "page" : undefined} className={className}>{content}</Link>;
+      })}</div>
     </section>
 
     <AdminScoreConsole initial={initial}/>

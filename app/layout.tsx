@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -16,5 +17,5 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
-  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}><Header user={user}/>{children}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
+  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}><Header user={user}/>{children}{user && <MobileBottomNav dashboardHref={user.role === "ADMIN" ? "/admin" : "/leader"}/>}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
 }
