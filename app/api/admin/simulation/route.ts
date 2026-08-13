@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   const requestedCount = data.count ? Number(data.count) : undefined;
   const options: SimulationOptions = {
     kind: String(data.kind || "QUICK_SCENARIO"),
-    seed: String(data.seed || Date.now()),
+    seed: String(data.seed || `${Date.now()}-${randomUUID()}`),
     targetId: data.targetId ? String(data.targetId) : undefined,
     winner: winnerValues.find((value) => value === requestedWinner),
     scoreStyle: scoreStyleValues.find((value) => value === requestedStyle),

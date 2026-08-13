@@ -189,7 +189,7 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
 
     <section className="border-b border-line bg-white p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div><div className="label">Players at a glance</div><h3 className="font-black uppercase">Roster status</h3></div>
+        <div><div className="label">Players</div><h3 className="font-black uppercase">Roster status</h3></div>
         <div className="hidden text-xs text-gray-500 md:block">Green = available, red = duplicate/unavailable, gray = already protected by played match.</div>
       </div>
       <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">

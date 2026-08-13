@@ -75,12 +75,12 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .bracket-card-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 0 .25rem .35rem; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
 .bracket-card-meta strong { border-radius: 4px; background: rgba(255,255,255,.9); padding: .15rem .35rem; color: #050505; font-size: 9px; }
 .bracket-team-row { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: stretch; gap: .25rem; margin-top: .25rem; }
-.bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .55rem; border-radius: 6px; background: #fff; padding: .5rem; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .55rem; border-radius: 6px; background: #fff; padding: .5rem; color: #050505; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
 .bracket-team-row:not(.bracket-team-row-winner) .bracket-team-line { color: #888; }
-.bracket-team-copy { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; gap: .45rem; }
-.bracket-team-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bracket-team-copy { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; gap: .45rem; overflow: visible; }
+.bracket-team-name { min-width: 0; flex: 1 1 auto; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
 .bracket-team-row-champion .bracket-team-copy { align-items: flex-start; flex-direction: column; gap: .2rem; }
-.bracket-team-row-champion .bracket-team-name { overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.15; }
+.bracket-team-row-champion .bracket-team-name { width: 100%; flex: 0 0 auto; display: block; overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.15; color: #050505; }
 .bracket-champion-crown { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .25rem; border-radius: 999px; background: #f4b11f; padding: .25rem .45rem; color: #050505; font-size: 8px; font-weight: 900; letter-spacing: .05em; }
 .bracket-team-row-champion .bracket-team-line { box-shadow: 0 0 0 2px rgba(244,177,31,.85), 0 8px 24px rgba(0,0,0,.12); }
 .bracket-score { display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,.7); font-size: 22px; font-weight: 900; color: #050505; }

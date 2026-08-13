@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Crown, Sparkles, Trophy } from "lucide-react";
+import { Crown, Sparkles } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import type { MvpRow } from "@/lib/tournament/mvp";
@@ -11,8 +11,7 @@ export default function MythicalPairPoster({ male, female, compact = false }: { 
     <div className="mythical-pair-glow mythical-pair-glow-right"/>
     <Crown className="absolute -right-5 -top-7 h-28 w-28 rotate-12 text-gold/10" fill="currentColor"/>
     <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-      <div><div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em] text-gold"><Sparkles className="h-3.5 w-3.5"/> Live tracker</div><h2 className={`${compact ? "mt-2 text-2xl md:text-3xl" : "mt-3 text-3xl md:text-5xl"} font-black tracking-[-.04em]`}>Mythical Pair</h2><p className="mt-1 max-w-xl text-xs font-semibold text-white/65 md:text-sm">Current male and female MVP leaders. The pair updates as official match results are encoded.</p></div>
-      <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-black/15 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white/70 sm:flex"><Trophy className="h-3.5 w-3.5 text-gold"/> Not final</div>
+      <div><div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em] text-gold"><Sparkles className="h-3.5 w-3.5"/> MVP leaders</div><h2 className={`${compact ? "mt-2 text-2xl md:text-3xl" : "mt-3 text-3xl md:text-5xl"} font-black tracking-[-.04em]`}>Mythical Pair</h2></div>
     </div>
 
     <div className={`relative z-10 mt-5 grid items-stretch ${compact ? "gap-3 sm:grid-cols-[1fr_auto_1fr]" : "gap-4 md:mt-7 md:grid-cols-[1fr_auto_1fr]"}`}>

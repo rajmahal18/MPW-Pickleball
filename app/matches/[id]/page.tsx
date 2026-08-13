@@ -60,7 +60,6 @@ export default async function MatchupPage({ params }: { params: Promise<{ id: st
   return <main className="public-page mx-auto max-w-6xl px-4 py-5 md:py-8">
     <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div>
     <h1 className="mt-2 text-3xl font-black uppercase md:text-4xl">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
-    <p className="mt-2 hidden text-sm text-gray-500 md:block">Scores update in place while this page is open. No full-page refresh during live play.</p>
     <LiveMatchBoard initial={initial}/>
   </main>;
 }

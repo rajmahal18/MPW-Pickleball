@@ -6,8 +6,9 @@ function jsonSafe<T>(value: T) {
 }
 
 export async function captureTournamentSnapshot(db: Prisma.TransactionClient, tournamentId: string) {
-  const [tournament, matchups, lineups, lineupSlots, games, scoreEvents, votingCodes, fanVotes, voteAttempts] = await Promise.all([
+  const [tournament, divisions, matchups, lineups, lineupSlots, games, scoreEvents, votingCodes, fanVotes, voteAttempts] = await Promise.all([
     db.tournament.findUniqueOrThrow({ where: { id: tournamentId } }),
+    db.division.findMany({ where: { tournamentId }, select: { id: true, championImageUrl: true, championImageTeamId: true } }),
     db.matchup.findMany({ where: { tournamentId }, orderBy: { order: "asc" } }),
     db.lineup.findMany({ where: { matchup: { tournamentId } } }),
     db.lineupSlot.findMany({ where: { lineup: { matchup: { tournamentId } } } }),
@@ -19,7 +20,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
   ]);
 
   return jsonSafe({
-    version: 4,
+    version: 5,
     capturedAt: new Date().toISOString(),
     tournament: {
       id: tournament.id,
@@ -29,6 +30,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
       destructiveToolsEnabled: tournament.destructiveToolsEnabled,
       activeCourtCount: tournament.activeCourtCount,
     },
+    divisions,
     matchups,
     lineups,
     lineupSlots,
@@ -50,6 +52,7 @@ type Snapshot = {
     destructiveToolsEnabled: boolean;
     activeCourtCount?: number;
   };
+  divisions?: Array<{ id: string; championImageUrl?: string | null; championImageTeamId?: string | null }>;
   matchups: Array<Record<string, unknown>>;
   lineups: Array<Record<string, unknown>>;
   lineupSlots: Array<Record<string, unknown>>;
@@ -83,7 +86,7 @@ export async function restoreTournamentSnapshot(
   rawSnapshot: Prisma.JsonValue,
 ) {
   const snapshot = rawSnapshot as unknown as Snapshot;
-  if (!snapshot || ![1, 2, 3, 4].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
+  if (!snapshot || ![1, 2, 3, 4, 5].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
     throw new Error("Checkpoint is incompatible with this tournament.");
   }
 
@@ -105,6 +108,14 @@ export async function restoreTournamentSnapshot(
       activeCourtCount: Number(snapshot.tournament.activeCourtCount ?? 0),
     },
   });
+
+
+  for (const divisionSnapshot of snapshot.divisions ?? []) {
+    const division = await db.division.findUnique({ where: { id: divisionSnapshot.id }, select: { tournamentId: true } });
+    if (division?.tournamentId === tournamentId) {
+      await db.division.update({ where: { id: divisionSnapshot.id }, data: { championImageUrl: divisionSnapshot.championImageUrl ?? null, championImageTeamId: divisionSnapshot.championImageTeamId ?? null } });
+    }
+  }
 
   const fallbackDivision = await db.division.findFirst({ where: { tournamentId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
   if (!fallbackDivision) throw new Error("Checkpoint restore requires at least one tournament division.");
@@ -134,6 +145,8 @@ export async function restoreTournamentSnapshot(
         gamesPerMatchup: Number(value.gamesPerMatchup ?? gamesForStage(division, enumValue(value.stage, MATCHUP_STAGES, "team matchup stage"))),
         homeTeamId: (value.homeTeamId as string | null) ?? null,
         awayTeamId: (value.awayTeamId as string | null) ?? null,
+        homeQualificationSource: (value.homeQualificationSource as string | null) ?? null,
+        awayQualificationSource: (value.awayQualificationSource as string | null) ?? null,
         status: enumValue(value.status, MATCHUP_STATUSES, "team matchup status"),
         scheduledAt: asDate(value.scheduledAt),
         courtLabel: (value.courtLabel as string | null) ?? null,

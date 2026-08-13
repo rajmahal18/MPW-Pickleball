@@ -229,3 +229,14 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Player selectors that benefit from visual identity use avatar-aware pickers instead of relying on native `<select>` options, which cannot render headshots consistently. Public Matches player filtering, Team Manager lineup selection, and the advanced Executive pair entrant flow use the shared picker.
 - Homepage information hierarchy is now Standings before Tournament Bracket during group-stage browsing.
 - Once a public division's Grand Final is officially decided, the homepage live-courts slot becomes a championship celebration poster for that division. The poster is data-driven from the actual champion team roster and also surfaces the current/final Mythical Pair and Fan Favorite leaders. Multiple completed public divisions can render separate champion posters without hardcoding one tournament format.
+
+## Simulation randomness + configurable QF bracket + champion media — 2026-08-13
+
+- Simulation no longer defaults to a fixed seed. Leaving Seed blank generates a fresh server seed per run, while entering a seed intentionally reproduces a prior test. Generic completed-tournament simulations randomize semifinal/final outcomes instead of forcing the home side.
+- Simulation dropdowns hide completed/forfeited individual matches and team matchups. Stage/division selectors are derived from unfinished competition so finished items do not remain normal simulation targets.
+- Added persisted Quarterfinal qualification-source mapping for supported 8-qualifier automatic brackets. Each QF top/bottom slot can be assigned from configured Group rank or Wildcard rank sources in Tournament Setup; actual teams resolve from final standings. Semifinal, Final, and Battle-for-3rd winner/loser progression remains unchanged.
+- QF source mapping is locked once QF play has recorded history. Manually changing a future QF competitor clears that automatic source mapping to preserve the organizer's explicit override.
+- Tournament Setup now exposes the existing division-wide **Generate all group matchups** backend action, while retaining per-group generation.
+- Added optional Division champion image metadata and an admin-only upload flow after a Grand Final winner exists. The homepage champion poster uses the image only when it belongs to the current winner; otherwise it shows a navy/gold photo placeholder. Champion image metadata participates in checkpoints/reset safety.
+- Fixed the Grand Final champion-name visibility bug: the final card inherited white text into a white team row. Bracket team rows now set their own foreground color so the winning team name remains visible beside the crown.
+- Quick knockout scenarios are stage-aware: Semifinals Ready completes any QFs first, Final Ready completes QF/SF feeders, and Tournament Completed walks through configured QF/SF/Battle-for-3rd/Final stages instead of assuming groups feed directly into semifinals.

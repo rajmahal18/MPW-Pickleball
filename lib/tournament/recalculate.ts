@@ -1,5 +1,6 @@
 import type { MatchupStage, Prisma } from "@prisma/client";
-import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers } from "@/lib/tournament/standings";
+import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers, type StandingRow } from "@/lib/tournament/standings";
+import { resolveQualificationSource } from "@/lib/tournament/bracket-seeding";
 import { writeAudit } from "@/lib/audit";
 import { gamesForStage, winsNeededForMatchup } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
@@ -144,6 +145,7 @@ async function configureAutoKnockout(
   db: Prisma.TransactionClient,
   division: KnockoutDivisionRules,
   qualifierIds: string[],
+  qualificationContext?: { groupTables: Array<{ groupId: string; rows: StandingRow[] }>; wildcards: StandingRow[] },
 ) {
   const count = qualifierIds.length;
   if (![2, 4, 8].includes(count)) return { supported: false, stage: null as MatchupStage | null };
@@ -168,8 +170,33 @@ async function configureAutoKnockout(
   const quarters = await ensureStageMatchups(db, division, "QUARTERFINAL", 4, "Quarterfinal");
   const semifinals = await ensureStageMatchups(db, division, "SEMIFINAL", 2, "Semifinal");
   const [final] = await ensureStageMatchups(db, division, "FINAL", 1, "Grand Final");
-  for (let index = 0; index < 4; index += 1) {
-    await assignTeams(db, quarters[index]!.id, qualifierIds[index]!, qualifierIds[7 - index]!);
+
+  const configuredSources = quarters.flatMap((quarter) => [quarter.homeQualificationSource, quarter.awayQualificationSource]);
+  const hasConfiguredSources = configuredSources.some(Boolean);
+  if (hasConfiguredSources) {
+    const completeConfiguration = configuredSources.every(Boolean);
+    const resolved = completeConfiguration && qualificationContext
+      ? quarters.map((quarter) => ({
+          homeTeamId: resolveQualificationSource(quarter.homeQualificationSource, qualificationContext.groupTables, qualificationContext.wildcards),
+          awayTeamId: resolveQualificationSource(quarter.awayQualificationSource, qualificationContext.groupTables, qualificationContext.wildcards),
+        }))
+      : [];
+    const resolvedIds = resolved.flatMap((slot) => [slot.homeTeamId, slot.awayTeamId]).filter(Boolean) as string[];
+    const validConfiguration = resolved.length === 4 && resolvedIds.length === 8 && new Set(resolvedIds).size === 8;
+    if (!validConfiguration) {
+      for (const quarter of quarters) await assignTeams(db, quarter.id, null, null);
+      await assignTeams(db, semifinals[0]!.id, null, null);
+      await assignTeams(db, semifinals[1]!.id, null, null);
+      await assignTeams(db, final.id, null, null);
+      return { supported: false, stage: "QUARTERFINAL" as MatchupStage };
+    }
+    for (let index = 0; index < 4; index += 1) {
+      await assignTeams(db, quarters[index]!.id, resolved[index]!.homeTeamId, resolved[index]!.awayTeamId);
+    }
+  } else {
+    for (let index = 0; index < 4; index += 1) {
+      await assignTeams(db, quarters[index]!.id, qualifierIds[index]!, qualifierIds[7 - index]!);
+    }
   }
   // Official Team Event feed: SF1 = QF1 vs QF3, SF2 = QF2 vs QF4.
   await assignTeams(db, semifinals[0]!.id, quarters[0]!.winnerTeamId, quarters[2]!.winnerTeamId);
@@ -250,9 +277,11 @@ export async function recalculateTournament(
   const results: Prisma.InputJsonObject[] = [];
   for (const division of divisions) {
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
-    const groupTables = division.groups.map((group) =>
-      computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides),
-    );
+    const groupStandings = division.groups.map((group) => ({
+      groupId: group.id,
+      rows: computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides),
+    }));
+    const groupTables = groupStandings.map((entry) => entry.rows);
     const allGroupComplete = areGroupMatchupsComplete(groupMatchups);
     let qualifierIds: string[] = [];
     let autoKnockoutSupported = true;
@@ -266,7 +295,7 @@ export async function recalculateTournament(
         await clearFutureKnockoutSlots(db, division.id);
         autoKnockoutSupported = false;
       } else {
-        const configured = await configureAutoKnockout(db, division, qualifierIds);
+        const configured = await configureAutoKnockout(db, division, qualifierIds, { groupTables: groupStandings, wildcards: selected.wildcards });
         autoKnockoutSupported = configured.supported;
       }
     } else if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && !allGroupComplete) {

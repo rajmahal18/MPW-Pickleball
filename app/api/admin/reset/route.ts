@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       }
 
       if (scope === "SCORES") {
+        await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
         await tx.game.updateMany({
           where: { matchup: { tournamentId: tournament.id } },
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
           });
         }
       } else if (scope === "PROGRESS") {
+        await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
         await tx.game.updateMany({
           where: { matchup: { tournamentId: tournament.id } },
@@ -102,10 +104,12 @@ export async function POST(request: Request) {
           }
         }
       } else if (scope === "EVENT") {
+        await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await rebuildActivityPreservingMasterData(tx, tournament.id);
         await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.votingCode.deleteMany({ where: { tournamentId: tournament.id } });
       } else if (scope === "MASTER_DATA") {
+        await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
         await tx.game.deleteMany({ where: { matchup: { tournamentId: tournament.id } } });
         await tx.lineup.deleteMany({ where: { matchup: { tournamentId: tournament.id } } });
@@ -120,6 +124,7 @@ export async function POST(request: Request) {
           data: { votingOpen: false, votingDeadline: null, simulationMode: false },
         });
       } else if (scope === "EXCEPT_USERS") {
+        await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await rebuildActivityPreservingMasterData(tx, tournament.id);
       } else if (scope === "VOTING") {
         await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });

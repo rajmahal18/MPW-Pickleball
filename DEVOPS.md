@@ -63,9 +63,20 @@ Avatar storage:
 
 Owned by `deploy:deploy`.
 
-## Normal deployment flow
+## Quick deployment
 
-Keep deployments short, sequential, and easy to verify.
+Use this for ordinary app releases. Keep deployments short, sequential, and easy to verify.
+
+Local machine:
+
+```bash
+git status --short
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+Production server:
 
 ```bash
 ssh alamanah
@@ -75,25 +86,20 @@ git status --short
 
 If there are unexpected local changes, **stop**. Do not overwrite them or run a blind pull.
 
-Update:
-
 ```bash
 git pull --ff-only
-```
-
-Install exact lockfile dependencies:
-
-```bash
 npm ci
-```
-
-Build:
-
-```bash
+npx prisma migrate status
 npm run build
 ```
 
-Only if the build succeeds:
+Only when `migrate status` shows an expected pending migration:
+
+```bash
+npx prisma migrate deploy
+```
+
+Restart only after the build succeeds and any required migration has been applied:
 
 ```bash
 sudo systemctl restart mpw-tournament
@@ -112,7 +118,21 @@ Expected health result:
 {"ok":true,"database":"ok",...}
 ```
 
-That is the normal production deployment. Do not add extra orchestration unless genuinely required.
+That is the normal production deployment. Do not add CI/CD, Docker, new process managers, or extra orchestration unless genuinely required.
+
+## Quick server commands
+
+Restart:
+
+```bash
+sudo systemctl restart mpw-tournament
+```
+
+Logs:
+
+```bash
+sudo journalctl -u mpw-tournament -n 100 --no-pager
+```
 
 ## Database migrations
 

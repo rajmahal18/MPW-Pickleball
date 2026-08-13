@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Crown, Heart, ScanLine, Sparkles, Trophy, Vote } from "lucide-react";
+import { Crown, Heart, ScanLine, Trophy, Vote } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { PUBLIC_POLL_INTERVAL_MS } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
@@ -128,17 +128,16 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
     <section className="fan-arena overflow-hidden rounded-2xl border border-ink/10 shadow-panel">
       <div className="relative grid gap-5 p-5 text-white md:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em]"><Sparkles className="h-3.5 w-3.5"/> Crowd's choice</div>
-          <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">Who owns the crowd today?</h2>
-          <p className="mt-2 max-w-xl text-sm font-medium text-white/80 md:text-base">One valid code gives you two picks: one male and one female Fan Favorite. Make them count.</p>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em]">Fan Favorite voting</div>
+          <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">Fan Favorite</h2>
         </div>
         <div className="relative z-10 flex items-center gap-3 lg:justify-end">
           <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur"><div className="text-3xl font-black">{snapshot.totalVotes}</div><div className="text-[10px] font-black uppercase tracking-widest text-white/65">votes cast</div></div>
           <div className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider ${snapshot.votingOpen ? "bg-gold text-ink" : "bg-white/15 text-white/70"}`}>{snapshot.votingOpen ? "Voting open" : "Voting closed"}</div>
         </div>
         <div className="relative z-10 grid gap-3 sm:grid-cols-2 lg:col-span-2">
-          <CrowdLeaderPoster ranking={maleLeader} label="Male crowd leader" tone="male"/>
-          <CrowdLeaderPoster ranking={femaleLeader} label="Female crowd leader" tone="female"/>
+          <CrowdLeaderPoster ranking={maleLeader} label="Male leader" tone="male"/>
+          <CrowdLeaderPoster ranking={femaleLeader} label="Female leader" tone="female"/>
         </div>
         <Heart className="absolute -right-6 -top-8 h-36 w-36 rotate-12 text-white/5" fill="currentColor"/>
         <Trophy className="absolute -bottom-8 left-1/2 h-32 w-32 -rotate-12 text-gold/10"/>
@@ -148,7 +147,7 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
     <div className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
       <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-4">
-          <div><div className="public-kicker">Make your picks</div><h2 className="text-2xl font-black tracking-tight">Cast your votes</h2></div>
+          <div><div className="public-kicker">Ballot</div><h2 className="text-2xl font-black tracking-tight">Cast your votes</h2></div>
           <div className="grid h-11 w-11 place-items-center rounded-full bg-gold/15 text-flame"><Vote className="h-5 w-5"/></div>
         </div>
         <form onSubmit={submitVote} className="space-y-5 p-4 md:p-5">
@@ -163,12 +162,12 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
           </div>
           {message && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
           {error && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
-          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Recording your picks..." : "Lock in my Fan Favorites"}</button>
+          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Submitting..." : "Submit votes"}</button>
         </form>
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-end justify-between gap-3 px-1"><div><div className="public-kicker">Live crowd race</div><h2 className="text-2xl font-black tracking-tight">Who’s leading?</h2></div><div className="text-right text-xs font-semibold text-gray-400">Updated<br/>{new Date(snapshot.updatedAt).toLocaleTimeString()}</div></div>
+        <div className="flex items-end justify-between gap-3 px-1"><div><div className="public-kicker">Standings</div><h2 className="text-2xl font-black tracking-tight">Fan Favorite Leaders</h2></div><div className="text-right text-xs font-semibold text-gray-400">Updated<br/>{new Date(snapshot.updatedAt).toLocaleTimeString()}</div></div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
           <Leaderboard title="Male" totalVotes={snapshot.totalsBySex.male} rankings={snapshot.rankingsBySex.male} tone="male"/>
           <Leaderboard title="Female" totalVotes={snapshot.totalsBySex.female} rankings={snapshot.rankingsBySex.female} tone="female"/>
@@ -179,7 +178,7 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
 }
 
 function CrowdLeaderPoster({ ranking, label, tone }: { ranking?: Ranking; label: string; tone: "male" | "female" }) {
-  if (!ranking?.player) return <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-4"><div className="text-[9px] font-black uppercase tracking-[.18em] text-white/55">{label}</div><div className="mt-2 text-lg font-black">Crown is up for grabs.</div><div className="mt-1 text-xs font-semibold text-white/55">No valid votes yet.</div></div>;
+  if (!ranking?.player) return <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-4"><div className="text-[9px] font-black uppercase tracking-[.18em] text-white/55">{label}</div><div className="mt-2 text-lg font-black">No votes yet</div></div>;
   const player = ranking.player;
   return <Link href={`/players/${player.id}`} className="group relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15">
     <div className={`absolute inset-y-0 ${tone === "male" ? "left-0 bg-court/25" : "right-0 bg-gold/20"} w-1/2 blur-3xl`}/>
@@ -222,6 +221,6 @@ function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; tot
         <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-[10px] font-bold text-gray-400">{ranking.percentage}%</div></div>
       </div>
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className={`h-full rounded-full bg-gradient-to-r ${accent}`} style={{ width: `${Math.max(4, ranking.percentage)}%` }}/></div>
-    </Link>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet. Be the first crowd voice.</div>}</div>
+    </Link>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet.</div>}</div>
   </div>;
 }

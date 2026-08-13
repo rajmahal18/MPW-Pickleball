@@ -108,7 +108,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
     <section className="mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
       <div className="bg-gradient-to-br from-ink via-court to-ink px-5 py-6 text-white md:px-8 md:py-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <div className="rounded-full bg-white/10 p-1"><PlayerAvatar {...player} size="xl"/></div>
+          {player.avatarUrl ? <a href={player.avatarUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${formatPlayerDisplayName(player)} profile photo`} className="rounded-full bg-white/10 p-1 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2 focus:ring-offset-ink"><PlayerAvatar {...player} size="xl"/></a> : <div className="rounded-full bg-white/10 p-1"><PlayerAvatar {...player} size="xl"/></div>}
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-extrabold uppercase tracking-[.18em] text-gold">Player profile</div>
             <h1 className="mt-1 text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1>

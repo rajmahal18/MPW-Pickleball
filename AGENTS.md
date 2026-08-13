@@ -95,3 +95,12 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Player identity controls should use actual avatars when a custom picker is practical; do not attempt to place images inside native `<option>` elements.
 - A decided Grand Final crowns the winner inside the Grand Final card. Keep the champion team name visible; the crown is supplementary, not a replacement label.
 - The homepage championship celebration is derived from real winner/roster/MVP/Fan Favorite data. Do not replace it with a hardcoded static roster or assume a fixed 14-player team.
+
+## Configurable QF seeding + simulation/champion media — 2026-08-13
+
+- Normal simulation runs use a fresh generated seed when the Seed field is blank. An explicit seed remains supported only for intentionally reproducible tests. Do not restore a fixed default seed or force the same side to win generic semifinal/final simulations.
+- Simulation selectors must exclude already completed/forfeited actionable matches and team matchups; division/stage choices should reflect unfinished competition where practical.
+- For an 8-qualifier automatic group-to-knockout division, organizers may map each Quarterfinal top/bottom box to a qualification source such as `Group A · 1st seed` or `Wildcard · 1st seed`. Store the source, not a hardcoded team ID. Resolve the source from final standings; SF/Final continue to advance from actual QF/SF winners.
+- Quarterfinal seed-source mappings are editable only before QF play has recorded history. A deliberate manual edit of a future QF competitor clears that QF's automatic source mapping so recalculation cannot silently overwrite the organizer.
+- Tournament Setup exposes a division-level **Generate all group matchups** action. Keep per-group generation as the narrower/manual fallback.
+- A completed Grand Final may have an admin-uploaded champion team photo. The image is associated with the winning team; public champion presentation must fall back to a clear placeholder when no matching image exists or if the winner later changes.

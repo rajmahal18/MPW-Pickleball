@@ -300,13 +300,30 @@ async function legacyGroupDivisionId(db: Prisma.TransactionClient, tournamentId:
 }
 
 async function resetScenarioState(db: Prisma.TransactionClient, tournamentId: string, divisionId: string) {
+  const division = await db.division.findUniqueOrThrow({ where: { id: divisionId }, select: { autoProgression: true } });
+  const matchups = await db.matchup.findMany({ where: { tournamentId, divisionId }, select: { id: true, stage: true, homeTeamId: true, awayTeamId: true } });
   await db.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId, divisionId } } } });
   await db.game.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
   await db.lineup.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
-  await db.matchup.updateMany({
-    where: { tournamentId, divisionId, stage: "GROUP" },
-    data: { status: "LINEUP_PENDING", homeWins: 0, awayWins: 0, winnerTeamId: null, version: { increment: 1 } },
-  });
+  for (const matchup of matchups) {
+    const autoKnockout = division.autoProgression && ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"].includes(matchup.stage);
+    const homeTeamId = autoKnockout ? null : matchup.homeTeamId;
+    const awayTeamId = autoKnockout ? null : matchup.awayTeamId;
+    await db.matchup.update({
+      where: { id: matchup.id },
+      data: {
+        ...(autoKnockout ? { homeTeamId: null, awayTeamId: null } : {}),
+        status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
+        homeWins: 0,
+        awayWins: 0,
+        winnerTeamId: null,
+        queuePosition: null,
+        courtLabel: null,
+        scheduledAt: null,
+        version: { increment: 1 },
+      },
+    });
+  }
 }
 
 function outcomeForWinner(
@@ -378,6 +395,46 @@ async function simulateGroupPattern(
     }
   }
   await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: pattern });
+}
+
+async function simulateKnockoutStages(
+  db: Prisma.TransactionClient,
+  tournamentId: string,
+  divisionId: string,
+  stages: MatchupStage[],
+  options: SimulationOptions,
+  random: () => number,
+  actorId: string,
+  simulationRunId: string,
+) {
+  let simulated = 0;
+  for (const stage of stages) {
+    await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}` });
+    const matchups = await db.matchup.findMany({
+      where: {
+        tournamentId,
+        divisionId,
+        stage,
+        homeTeamId: { not: null },
+        awayTeamId: { not: null },
+        status: { notIn: ["COMPLETED", "FORFEITED"] },
+      },
+      orderBy: { order: "asc" },
+    });
+    for (const matchup of matchups) {
+      await simulateOneMatchup(
+        db,
+        matchup.id,
+        { ...options, matchupOutcome: "RANDOM", scoreStyle: options.scoreStyle ?? "RANDOM" },
+        random,
+        actorId,
+        simulationRunId,
+      );
+      await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}` });
+      simulated += 1;
+    }
+  }
+  return simulated;
 }
 
 async function simulateVotingAttemptScenario(
@@ -607,24 +664,18 @@ export async function executeSimulation(
       result.scenario = scenario;
     } else if (["WILDCARD_TIEBREAK", "SEMIFINALS_READY", "FINAL_READY", "TOURNAMENT_COMPLETED"].includes(scenario)) {
       await simulateGroupPattern(db, tournamentId, "WILDCARD", options, random, actorId, simulationRunId);
-      if (["FINAL_READY", "TOURNAMENT_COMPLETED"].includes(scenario)) {
-        const divisionId = await legacyGroupDivisionId(db, tournamentId);
-        const semifinals = await db.matchup.findMany({ where: { tournamentId, divisionId, stage: "SEMIFINAL" }, orderBy: { order: "asc" } });
-        for (const matchup of semifinals) {
-          if (matchup.homeTeamId && matchup.awayTeamId) {
-            await simulateOneMatchup(db, matchup.id, { ...options, matchupOutcome: "CLOSE_HOME", scoreStyle: "CLOSE" }, random, actorId, simulationRunId);
-            await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: scenario });
-          }
-        }
-      }
-      if (scenario === "TOURNAMENT_COMPLETED") {
-        const divisionId = await legacyGroupDivisionId(db, tournamentId);
-        const final = await db.matchup.findFirst({ where: { tournamentId, divisionId, stage: "FINAL" } });
-        if (final?.homeTeamId && final.awayTeamId) {
-          await simulateOneMatchup(db, final.id, { ...options, matchupOutcome: "CLOSE_HOME", scoreStyle: "DEUCE" }, random, actorId, simulationRunId);
-        }
+      const divisionId = await legacyGroupDivisionId(db, tournamentId);
+      let knockoutStages: MatchupStage[] = [];
+      if (scenario === "SEMIFINALS_READY") knockoutStages = ["QUARTERFINAL"];
+      if (scenario === "FINAL_READY") knockoutStages = ["QUARTERFINAL", "SEMIFINAL"];
+      if (scenario === "TOURNAMENT_COMPLETED") knockoutStages = ["QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"];
+      if (knockoutStages.length) {
+        result.knockoutMatchupsSimulated = await simulateKnockoutStages(
+          db, tournamentId, divisionId, knockoutStages, options, random, actorId, simulationRunId,
+        );
       }
       result.scenario = scenario;
+      result.divisionId = divisionId;
     } else if (["MID_GROUP_STAGE", "GROUP_ALMOST_COMPLETE"].includes(scenario)) {
       const divisionId = await legacyGroupDivisionId(db, tournamentId);
       await resetScenarioState(db, tournamentId, divisionId);

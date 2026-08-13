@@ -238,7 +238,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">
     <TournamentSync initialRevision={revision} />
     <section className="public-hero">
-      <div><div className="public-kicker">Find the action</div><h1 className="public-title">Matches</h1><p className="public-lede">Start with a district/team, player, or exact matchup. Status is a secondary filter.</p></div>
+      <div><div className="public-kicker">Match directory</div><h1 className="public-title">Matches</h1></div>
       <div className="public-count"><strong>{totalGames}</strong><span>matches</span></div>
     </section>
 
@@ -258,7 +258,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         }))}
       /></div>
       <label><span className="filter-label">Matchup</span><select name="matchup" defaultValue={matchupId} className="filter-control"><option value="">All matchups</option>{matchups.map((matchup) => <option key={matchup.id} value={matchup.id}>{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"} · {matchContext(matchup)}</option>)}</select></label>
-      <div className="flex items-end">{hasPrimaryFilters ? <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link> : <div className="hidden min-h-11 items-center text-xs font-semibold text-gray-400 lg:flex">Auto-applies</div>}</div>
+      <div className="flex items-end">{hasPrimaryFilters && <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link>}</div>
     </PublicAutoSubmitForm>
 
     <div className="mt-4 flex items-center gap-3"><span className="hidden text-[10px] font-extrabold uppercase tracking-widest text-gray-400 sm:block">Status</span><nav className="flex min-w-0 flex-1 gap-2 overflow-x-auto border-b border-court/20 pb-2 text-sm font-bold">

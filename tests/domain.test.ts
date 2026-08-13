@@ -10,6 +10,7 @@ import { normalizeVotingCode } from "../lib/tournament/voting";
 import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
 import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
+import { qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -24,7 +25,7 @@ function matchup(
 ): Matchup & { games: Array<{ homeScore: number; awayScore: number; status: "COMPLETED" }> } {
   return {
     id, tournamentId: "t", divisionId: "d", stage: "GROUP", groupLabel: "Group A", roundLabel: id, roundNumber: 1, order: 1,
-    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, status: "COMPLETED", scheduledAt: null, courtLabel: null, queuePosition: null,
+    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, homeQualificationSource: null, awayQualificationSource: null, status: "COMPLETED", scheduledAt: null, courtLabel: null, queuePosition: null,
     winnerTeamId: homeWins === awayWins ? null : homeWins > awayWins ? homeTeamId : awayTeamId, homeWins, awayWins, version: 0, createdAt: new Date(), updatedAt: new Date(),
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
@@ -347,4 +348,26 @@ test("knockout team matchups clinch on a majority of configured pair matches", (
   assert.equal(winsNeededForMatchup("SEMIFINAL", 5), 3);
   assert.equal(winsNeededForMatchup("FINAL", 5), 3);
   assert.equal(winsNeededForMatchup("THIRD_PLACE", 5), 3);
+});
+
+
+test("quarterfinal qualification sources are configurable and resolve from group standings", () => {
+  const groups = [{ id: "ga", name: "Group A" }, { id: "gb", name: "Group B" }, { id: "gc", name: "Group C" }];
+  const options = qualificationSourceOptions(groups, 2, 2);
+  assert.equal(options.length, 8);
+  assert.equal(options[0]!.label, "Group A · 1st seed");
+  assert.equal(options[5]!.label, "Group C · 2nd seed");
+  assert.equal(options[6]!.label, "Wildcard · 1st seed");
+
+  const row = (id: string, rank: number) => ({ team: { id }, rank });
+  const tables = [
+    { groupId: "ga", rows: [row("A1", 1), row("A2", 2)] },
+    { groupId: "gb", rows: [row("B1", 1), row("B2", 2)] },
+    { groupId: "gc", rows: [row("C1", 1), row("C2", 2)] },
+  ];
+  const wildcards = [row("W1", 1), row("W2", 2)];
+
+  assert.equal(resolveQualificationSource("GROUP:gb:2", tables, wildcards), "B2");
+  assert.equal(resolveQualificationSource("WILDCARD:1", tables, wildcards), "W1");
+  assert.equal(resolveQualificationSource("GROUP:missing:1", tables, wildcards), null);
 });

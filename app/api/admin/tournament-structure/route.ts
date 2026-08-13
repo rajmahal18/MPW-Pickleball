@@ -8,6 +8,7 @@ import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { computeStandings } from "@/lib/tournament/standings";
 import { defaultCategoryPattern, gamesForStage } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
+import { qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 
 const FORMATS = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
 const STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
@@ -716,6 +717,79 @@ export async function POST(request: Request) {
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${assigned} ungrouped teams distributed across groups.` }), 303);
     }
 
+    if (action === "configure-quarterfinal-seeds") {
+      const divisionId = text(data.divisionId, "Division ID");
+      const division = await prisma.division.findUnique({
+        where: { id: divisionId },
+        include: { groups: { select: { id: true, name: true } } },
+      });
+      if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
+      if (division.formatType !== "GROUP_KNOCKOUT") throw new Error("Quarterfinal seed mapping is available for group-to-knockout divisions.");
+      if (!division.autoProgression) throw new Error("Enable Auto progression before using standings-based Quarterfinal seed mapping.");
+      const expectedQualifiers = division.groups.length * Math.max(0, division.qualifiersPerGroup) + Math.max(0, division.wildcardCount);
+      if (expectedQualifiers !== 8) throw new Error(`Configure exactly 8 qualifiers before using the Quarterfinal seed map. Current total: ${expectedQualifiers}.`);
+
+      const allowed = new Set(qualificationSourceOptions(division.groups, division.qualifiersPerGroup, division.wildcardCount).map((option) => option.value));
+      const requested = Array.from({ length: 4 }, (_, index) => ({
+        home: text(data[`qf-${index + 1}-home`], `Quarterfinal ${index + 1} top seed`, 160),
+        away: text(data[`qf-${index + 1}-away`], `Quarterfinal ${index + 1} bottom seed`, 160),
+      }));
+      const sourceValues = requested.flatMap((slot) => [slot.home, slot.away]);
+      if (sourceValues.some((value) => !allowed.has(value))) throw new Error("One or more Quarterfinal seed sources is no longer valid for this division.");
+      if (new Set(sourceValues).size !== sourceValues.length) throw new Error("Each Quarterfinal seed source can only be used once.");
+
+      const existing = await prisma.matchup.findMany({ where: { tournamentId: tournament.id, divisionId, stage: "QUARTERFINAL" }, include: { games: true }, orderBy: { order: "asc" } });
+      if (existing.length > 4) throw new Error("This division has more than four Quarterfinal matchups. Remove extra future QFs before using the 8-team seed map.");
+      if (existing.some(matchupHasRecordedPlay)) throw new Error("Quarterfinal seed mapping is locked because QF play has already started.");
+
+      await prisma.$transaction(async (tx) => {
+        const rows = [...existing];
+        const maxOrder = await tx.matchup.aggregate({ where: { divisionId, stage: "QUARTERFINAL" }, _max: { order: true } });
+        let nextOrder = (maxOrder._max.order ?? 0) + 1;
+        while (rows.length < 4) {
+          const sequence = rows.length + 1;
+          rows.push(await tx.matchup.create({
+            data: {
+              tournamentId: tournament.id,
+              divisionId,
+              stage: "QUARTERFINAL",
+              roundLabel: `Quarterfinal ${sequence}`,
+              roundNumber: 1,
+              order: nextOrder++,
+              gamesPerMatchup: gamesForStage(division, "QUARTERFINAL"),
+              status: "SCHEDULED",
+            },
+            include: { games: true },
+          }));
+        }
+        for (let index = 0; index < 4; index += 1) {
+          const row = rows[index]!;
+          await tx.game.deleteMany({ where: { matchupId: row.id } });
+          await tx.lineup.deleteMany({ where: { matchupId: row.id } });
+          await tx.matchup.update({
+            where: { id: row.id },
+            data: {
+              homeQualificationSource: requested[index]!.home,
+              awayQualificationSource: requested[index]!.away,
+              homeTeamId: null,
+              awayTeamId: null,
+              status: "SCHEDULED",
+              homeWins: 0,
+              awayWins: 0,
+              winnerTeamId: null,
+              queuePosition: null,
+              courtLabel: null,
+              scheduledAt: null,
+              version: { increment: 1 },
+            },
+          });
+        }
+        await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: "Quarterfinal seed map updated" });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "QUARTERFINAL_SEED_MAP_UPDATED", entityType: "Division", entityId: divisionId, afterState: { sources: requested } });
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Quarterfinal bracket map saved." }), 303);
+    }
+
     if (action === "generate-all-group-round-robins") {
       const divisionId = text(data.divisionId, "Division ID");
       const division = await prisma.division.findUnique({
@@ -949,6 +1023,8 @@ export async function POST(request: Request) {
         const divisionId = text(data.divisionId, "Division ID");
         const homeTeamId = optionalText(data.homeTeamId);
         const awayTeamId = optionalText(data.awayTeamId);
+        const requestedStage = stage(data.stage);
+        const competitorsChanged = homeTeamId !== before.homeTeamId || awayTeamId !== before.awayTeamId;
         if (homeTeamId && awayTeamId && homeTeamId === awayTeamId) throw new Error("Select two different teams.");
         const teamIds = [homeTeamId, awayTeamId].filter(Boolean) as string[];
         const count = await prisma.team.count({ where: { id: { in: teamIds }, divisionId } });
@@ -961,7 +1037,7 @@ export async function POST(request: Request) {
             data: {
               ...base,
               divisionId,
-              stage: stage(data.stage),
+              stage: requestedStage,
               groupLabel: optionalText(data.groupLabel, 80),
               gamesPerMatchup: number(data.gamesPerMatchup, "Matches per matchup", 1, 31),
               homeTeamId,
@@ -970,6 +1046,7 @@ export async function POST(request: Request) {
               homeWins: 0,
               awayWins: 0,
               winnerTeamId: null,
+              ...((before.stage === "QUARTERFINAL" && (requestedStage !== "QUARTERFINAL" || competitorsChanged)) ? { homeQualificationSource: null, awayQualificationSource: null } : {}),
               ...(!homeTeamId || !awayTeamId ? { queuePosition: null, courtLabel: null, scheduledAt: null } : {}),
               version: { increment: 1 },
             },

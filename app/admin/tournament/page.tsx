@@ -11,6 +11,7 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import { computeStandings, type StandingRow } from "@/lib/tournament/standings";
 import { displayStatus } from "@/components/StatusBadge";
 import { categoryLabel, defaultCategoryPattern } from "@/lib/tournament/rules";
+import { qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +167,12 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
   const unassignedConfirmed = confirmedEntries.filter((entry) => !entry.player.teamId || !selected.teams.some((team) => team.id === entry.player.teamId)).length;
   const lockedMatchups = selected.matchups.filter(matchupLocked).length;
   const groupMatchups = selected.matchups.filter((matchup) => matchup.stage === "GROUP");
+  const quarterfinals = selected.matchups.filter((matchup) => matchup.stage === "QUARTERFINAL").sort((a, b) => a.order - b.order);
+  const expectedQualifierCount = selected.groups.length * Math.max(0, selected.qualifiersPerGroup) + Math.max(0, selected.wildcardCount);
+  const qfSourceOptions = qualificationSourceOptions(selected.groups, selected.qualifiersPerGroup, selected.wildcardCount);
+  const qfConfigurationLocked = quarterfinals.some(matchupLocked);
+  const championFinal = selected.matchups.find((matchup) => matchup.stage === "FINAL" && matchup.winnerTeamId && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"));
+  const championTeam = championFinal ? selected.teams.find((team) => team.id === championFinal.winnerTeamId) : null;
 
   return <main className="admin-shell">
     <AdminNav />
@@ -246,10 +253,18 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
           </details>
           <SubmitButton className="btn-primary rounded-md" pendingLabel="Saving...">Save division</SubmitButton>
         </form>
+        {championTeam && <section className="mt-5 rounded-xl border border-gold/50 bg-amber-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="label text-amber-800">Champion media</div><h3 className="mt-1 text-lg font-black uppercase text-ink">{championTeam.name}</h3><p className="mt-1 text-sm text-gray-600">Upload the official champion team photo used by the homepage celebration banner.</p></div>{selected.championImageUrl && selected.championImageTeamId === championTeam.id && <img src={selected.championImageUrl} alt="Current champion team" className="h-20 w-32 rounded-lg border border-amber-200 object-cover"/>}</div>
+          <form action={`/api/admin/divisions/${selected.id}/champion-image`} method="post" encType="multipart/form-data" className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="block flex-1"><span className="label">Champion team photo</span><input type="file" name="championImage" accept="image/jpeg,image/png,image/webp" required className="mt-1 block w-full rounded-md border border-line bg-white p-2 text-sm"/><span className="mt-1 block text-xs text-gray-500">JPEG, PNG, or WebP · up to 10 MB. Uploading again replaces the current banner photo.</span></label>
+            <SubmitButton className="btn-primary rounded-md" pendingLabel="Uploading...">Upload champion photo</SubmitButton>
+          </form>
+        </section>}
       </section>
 
       <section id="teams" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
         <SectionHeader eyebrow="Entrants" title="Teams & groups" action={<div className="flex flex-wrap gap-2">
+          {selected.groups.length > 0 && <form action="/api/admin/tournament-structure" method="post"><input type="hidden" name="action" value="generate-all-group-round-robins"/><input type="hidden" name="divisionId" value={selected.id}/><SubmitButton className="btn-primary rounded-md px-3 py-2 text-xs" pendingLabel="Generating...">Generate all group matchups</SubmitButton></form>}
           <details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Group</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-80"><input type="hidden" name="action" value="create-group"/><input type="hidden" name="divisionId" value={selected.id}/><Field label="Group name" name="name" required/><Field label="Slug" name="slug"/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create group</SubmitButton></form></details>
           <details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Team / entry</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-80"><input type="hidden" name="action" value="create-team"/><input type="hidden" name="divisionId" value={selected.id}/><Field label="Team / entrant name" name="name" required/><Field label="Short name" name="shortName" required/><Select label="Group" name="groupId"><option value="">No group</option>{selected.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</Select><Field label="Group position" name="groupPosition" type="number" min={1} max={99}/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create entry</SubmitButton></form></details>
         </div>}>Create teams, assign groups, and edit names.</SectionHeader>
@@ -311,6 +326,11 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
 
       <section id="matchups" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
         <SectionHeader eyebrow="Future structure" title="Matchups" action={<details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/><Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31}/><SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details>}>Create or edit future team matchups.</SectionHeader>
+        {selected.formatType === "GROUP_KNOCKOUT" && selected.autoProgression && expectedQualifierCount === 8 && <section className="mb-5 rounded-xl border border-court/25 bg-court/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="label text-court">Quarterfinal bracket map</div><h3 className="mt-1 text-lg font-black uppercase">Choose who enters each QF slot</h3><p className="mt-1 max-w-3xl text-sm text-gray-600">Map standings positions to the eight Quarterfinal boxes. Actual teams are filled automatically once group standings are resolved; Semifinal and Final progression continues from QF winners.</p></div><StatusBadge tone={qfConfigurationLocked ? "locked" : "ready"}>{qfConfigurationLocked ? "Locked by recorded play" : "Configurable"}</StatusBadge></div>
+          {qfConfigurationLocked ? <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-950">Quarterfinal seed mapping is protected because QF play has already started.</div> : <form action="/api/admin/tournament-structure" method="post" className="mt-4 space-y-3"><input type="hidden" name="action" value="configure-quarterfinal-seeds"/><input type="hidden" name="divisionId" value={selected.id}/><div className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 4 }, (_, index) => { const quarter = quarterfinals[index]; return <div key={index} className="rounded-lg border border-line bg-white p-3"><div className="mb-2 text-xs font-black uppercase text-ink">Quarterfinal {index + 1}</div><div className="grid gap-2 sm:grid-cols-2"><Select label="Top box" name={`qf-${index + 1}-home`} defaultValue={quarter?.homeQualificationSource}><option value="">Choose seed source</option>{qfSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select><Select label="Bottom box" name={`qf-${index + 1}-away`} defaultValue={quarter?.awayQualificationSource}><option value="">Choose seed source</option>{qfSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></div></div>; })}</div><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-gray-500">Each seed source can be used once. Saving creates missing QF placeholders safely if needed.</p><SubmitButton className="btn-primary rounded-md" pendingLabel="Saving bracket...">Save QF bracket map</SubmitButton></div></form>}
+        </section>}
+        {selected.formatType === "GROUP_KNOCKOUT" && (!selected.autoProgression || expectedQualifierCount !== 8) && <div className="mb-5 rounded-lg border border-line bg-paper p-3 text-xs text-gray-600">Quarterfinal seed mapping appears when Auto progression is enabled and the division is configured for exactly 8 qualifiers. Current configured total: <strong>{expectedQualifierCount}</strong>.</div>}
         <div className="grid gap-3 2xl:grid-cols-2">
           {selected.matchups.map((matchup) => {
             const locked = matchupLocked(matchup);

@@ -130,7 +130,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
       <label><span className="filter-label">Team</span><select name="team" defaultValue={safeTeamId} className="filter-control"><option value="">All teams</option>{publicTeams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
       <label><span className="filter-label">Category</span><select name="sex" defaultValue={sex} className="filter-control"><option value="">All</option><option value="MALE">Men</option><option value="FEMALE">Women</option></select></label>
       <label><span className="filter-label">Sort</span><select name="sort" defaultValue={sort} className="filter-control">{SORTS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-      <div className="flex items-end">{hasFilters ? <Link href="/players" className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link> : <div className="hidden min-h-11 items-center text-xs font-semibold text-gray-400 lg:flex">Auto-applies</div>}</div>
+      <div className="flex items-end">{hasFilters && <Link href="/players" className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link>}</div>
     </PublicAutoSubmitForm>
 
     {players.length ? <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

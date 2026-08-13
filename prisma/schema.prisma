@@ -155,6 +155,8 @@ model Division {
   advancementRule        String?
   guideNotes             String?
   isPublic               Boolean             @default(true)
+  championImageUrl       String?
+  championImageTeamId    String?
   sortOrder              Int                 @default(0)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
@@ -316,6 +318,8 @@ model Matchup {
   homeTeam        Team?         @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: SetNull)
   awayTeamId      String?
   awayTeam        Team?         @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: SetNull)
+  homeQualificationSource String?
+  awayQualificationSource String?
   status          MatchupStatus @default(LINEUP_PENDING)
   scheduledAt     DateTime?
   courtLabel      String?
