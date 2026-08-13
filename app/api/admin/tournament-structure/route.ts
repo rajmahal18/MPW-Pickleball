@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
+import type { PairMatchCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/permissions";
 import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { writeAudit } from "@/lib/audit";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { computeStandings } from "@/lib/tournament/standings";
-import { gamesForStage } from "@/lib/tournament/rules";
+import { defaultCategoryPattern, gamesForStage } from "@/lib/tournament/rules";
+import { compactTournamentQueue } from "@/lib/tournament/queue";
 
 const FORMATS = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
 const STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const ENTRANT_TYPES = ["TEAM", "PLAYER", "PAIR"] as const;
+const PAIR_MATCH_CATEGORIES = ["MENS", "WOMENS", "MIXED"] as const;
 const TOURNAMENT_TRANSACTION_OPTIONS = { maxWait: 10000, timeout: 30000 };
 
 function text(value: unknown, label: string, max = 120) {
@@ -55,15 +57,21 @@ function stage(value: unknown) {
   if (!STAGES.includes(value as (typeof STAGES)[number])) throw new Error("Select a valid matchup stage.");
   return value as typeof STAGES[number];
 }
-function date(value: unknown) {
-  const cleaned = String(value || "").trim();
-  if (!cleaned) return null;
-  // datetime-local inputs have no timezone. Tournament operations are in Asia/Manila.
-  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(cleaned) ? `${cleaned}:00+08:00` : cleaned;
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.valueOf())) throw new Error("Invalid schedule date/time.");
-  return parsed;
+
+function pairMatchCategory(value: unknown) {
+  if (!PAIR_MATCH_CATEGORIES.includes(value as (typeof PAIR_MATCH_CATEGORIES)[number])) throw new Error("Select a valid match category.");
+  return value as PairMatchCategory;
 }
+
+function categoryPattern(data: Record<string, unknown>, prefix: string, count: number, current: PairMatchCategory[] = [], kind: "GROUP" | "KNOCKOUT") {
+  const defaults = defaultCategoryPattern(count, kind);
+  return Array.from({ length: count }, (_, index) => {
+    const submitted = String(data[`${prefix}-${index + 1}`] || "").trim();
+    if (submitted) return pairMatchCategory(submitted);
+    return current[index] ?? defaults[index]!;
+  });
+}
+
 
 function values(value: unknown) {
   if (value === undefined || value === null) return [];
@@ -79,6 +87,55 @@ async function started(matchupId: string) {
 function matchupHasRecordedPlay(matchup: { status: string; games: Array<{ status: string; homeScore: number; awayScore: number }> }) {
   return matchup.status === "COMPLETED" || matchup.status === "FORFEITED"
     || matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0);
+}
+
+async function tournamentQueueState(tournamentId: string) {
+  const [tournament, matchups] = await Promise.all([
+    prisma.tournament.findUnique({ where: { id: tournamentId }, select: { activeCourtCount: true } }),
+    prisma.matchup.findMany({
+      where: { tournamentId },
+      include: {
+        division: { select: { name: true, sortOrder: true } },
+        homeTeam: { select: { name: true, shortName: true } },
+        awayTeam: { select: { name: true, shortName: true } },
+        games: { select: { status: true, homeScore: true, awayScore: true } },
+      },
+      orderBy: [{ queuePosition: { sort: "asc", nulls: "last" } }, { division: { sortOrder: "asc" } }, { order: "asc" }],
+    }),
+  ]);
+
+  const serialize = (matchup: (typeof matchups)[number]) => ({
+    id: matchup.id,
+    queuePosition: matchup.queuePosition,
+    courtLabel: matchup.courtLabel,
+    divisionName: matchup.division.name,
+    homeName: matchup.homeTeam?.name ?? "TBD",
+    awayName: matchup.awayTeam?.name ?? "TBD",
+    homeShortName: matchup.homeTeam?.shortName ?? "TBD",
+    awayShortName: matchup.awayTeam?.shortName ?? "TBD",
+    gamesPerMatchup: matchup.gamesPerMatchup,
+    groupLabel: matchup.groupLabel,
+    stage: matchup.stage,
+    roundLabel: matchup.roundLabel,
+    status: matchup.status,
+  });
+
+  return {
+    activeCourtCount: tournament?.activeCourtCount ?? 0,
+    queuedMatchups: matchups
+      .filter((matchup) => matchup.queuePosition !== null && !["COMPLETED", "FORFEITED"].includes(matchup.status))
+      .map(serialize),
+    availableMatchups: matchups
+      .filter((matchup) => matchup.queuePosition === null && matchup.homeTeamId && matchup.awayTeamId && !matchupHasRecordedPlay(matchup))
+      .map(serialize),
+  };
+}
+
+async function queueMutationResponse(request: Request, tournamentId: string, message: string) {
+  if (request.headers.get("x-tournament-queue") === "1") {
+    return NextResponse.json({ ok: true, message, state: await tournamentQueueState(tournamentId) });
+  }
+  return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: message }), 303);
 }
 
 async function nextGroupPosition(tx: Prisma.TransactionClient, groupId: string) {
@@ -139,6 +196,10 @@ export async function POST(request: Request) {
             entrantType: entrantType(data.entrantType || "TEAM"),
             defaultGamesPerMatchup: number(data.defaultGamesPerMatchup || 1, "Group/default matches per matchup", 1, 31),
             knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31),
+            groupMatchCategories: [],
+            knockoutMatchCategories: [],
+            groupCategoryRulesEnabled: false,
+            knockoutCategoryRulesEnabled: false,
             qualifiersPerGroup: number(data.qualifiersPerGroup || 1, "Qualifiers per group", 0, 16),
             wildcardCount: number(data.wildcardCount || 0, "Wildcard count", 0, 16),
             autoProgression: data.autoProgression === "on",
@@ -159,13 +220,20 @@ export async function POST(request: Request) {
       const divisionId = text(data.divisionId, "Division ID");
       const before = await prisma.division.findUnique({ where: { id: divisionId } });
       if (!before || before.tournamentId !== tournament.id) throw new Error("Division not found.");
+      const nextDefaultGames = number(data.defaultGamesPerMatchup, "Group/default matches per matchup", 1, 31);
+      const nextKnockoutGames = optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31);
+      const preserveLineupRules = data.preserveLineupRules === "1";
       const next = {
         name: text(data.name, "Division name"),
         slug: slug(data.slug),
         formatType: format(data.formatType),
         entrantType: entrantType(data.entrantType || before.entrantType),
-        defaultGamesPerMatchup: number(data.defaultGamesPerMatchup, "Group/default matches per matchup", 1, 31),
-        knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31),
+        defaultGamesPerMatchup: nextDefaultGames,
+        knockoutGamesPerMatchup: nextKnockoutGames,
+        groupMatchCategories: preserveLineupRules ? before.groupMatchCategories : categoryPattern(data, "groupCategory", nextDefaultGames, before.groupMatchCategories, "GROUP"),
+        knockoutMatchCategories: preserveLineupRules ? before.knockoutMatchCategories : categoryPattern(data, "knockoutCategory", nextKnockoutGames ?? nextDefaultGames, before.knockoutMatchCategories, "KNOCKOUT"),
+        groupCategoryRulesEnabled: preserveLineupRules ? before.groupCategoryRulesEnabled : data.groupCategoryRulesEnabled === "on",
+        knockoutCategoryRulesEnabled: preserveLineupRules ? before.knockoutCategoryRulesEnabled : data.knockoutCategoryRulesEnabled === "on",
         qualifiersPerGroup: number(data.qualifiersPerGroup, "Qualifiers per group", 0, 16),
         wildcardCount: number(data.wildcardCount, "Wildcard count", 0, 16),
         autoProgression: data.autoProgression === "on",
@@ -190,6 +258,26 @@ export async function POST(request: Request) {
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "DIVISION_UPDATED", entityType: "Division", entityId: divisionId, beforeState: { formatType: before.formatType, entrantType: before.entrantType, defaultGamesPerMatchup: before.defaultGamesPerMatchup, knockoutGamesPerMatchup: before.knockoutGamesPerMatchup, autoProgression: before.autoProgression, thirdPlaceEnabled: before.thirdPlaceEnabled, suddenDeathAtTen: before.suddenDeathAtTen }, afterState: next });
       }, TOURNAMENT_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Division settings updated." }), 303);
+    }
+
+    if (action === "update-lineup-rules") {
+      const divisionId = text(data.divisionId, "Division ID");
+      const division = await prisma.division.findUnique({ where: { id: divisionId } });
+      if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
+      const groupMatchCategories = categoryPattern(data, "groupCategory", division.defaultGamesPerMatchup, division.groupMatchCategories, "GROUP");
+      const knockoutCount = division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup;
+      const knockoutMatchCategories = categoryPattern(data, "knockoutCategory", knockoutCount, division.knockoutMatchCategories, "KNOCKOUT");
+      const next = {
+        groupMatchCategories,
+        knockoutMatchCategories,
+        groupCategoryRulesEnabled: data.groupCategoryRulesEnabled === "on",
+        knockoutCategoryRulesEnabled: data.knockoutCategoryRulesEnabled === "on",
+      };
+      await prisma.$transaction(async (tx) => {
+        await tx.division.update({ where: { id: divisionId }, data: next });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "LINEUP_RULES_UPDATED", entityType: "Division", entityId: divisionId, afterState: next });
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Lineup match categories updated." }), 303);
     }
 
     if (action === "delete-division") {
@@ -231,6 +319,7 @@ export async function POST(request: Request) {
         await tx.group.deleteMany({ where: { divisionId } });
         await tx.divisionPlayer.deleteMany({ where: { divisionId } });
         await tx.division.delete({ where: { id: divisionId } });
+        await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, {
           tournamentId: tournament.id,
           actorId: user.id,
@@ -439,6 +528,9 @@ export async function POST(request: Request) {
               homeWins: 0,
               awayWins: 0,
               status: "SCHEDULED",
+              queuePosition: null,
+              courtLabel: null,
+              scheduledAt: null,
               version: { increment: 1 },
             },
           });
@@ -461,6 +553,18 @@ export async function POST(request: Request) {
         });
       });
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${team.name} removed. Its players returned to the unassigned pool and future matchup slots were cleared.` }), 303);
+    }
+
+    if (action === "update-team-identity") {
+      const teamId = text(data.teamId, "Team ID");
+      const before = await prisma.team.findUnique({ where: { id: teamId }, include: { division: true } });
+      if (!before || before.division.tournamentId !== tournament.id) throw new Error("Team not found.");
+      const next = { name: text(data.name, "Team name", 100), shortName: text(data.shortName, "Short name", 20) };
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({ where: { id: teamId }, data: next });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "TEAM_IDENTITY_UPDATED", entityType: "Team", entityId: teamId, beforeState: { name: before.name, shortName: before.shortName }, afterState: next });
+      });
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${next.name} updated.` }), 303);
     }
 
     if (action === "update-team-structure") {
@@ -506,10 +610,14 @@ export async function POST(request: Request) {
                 awayWins: 0,
                 winnerTeamId: null,
                 status: "SCHEDULED",
+                queuePosition: null,
+                courtLabel: null,
+                scheduledAt: null,
                 version: { increment: 1 },
               },
             });
           }
+          await compactTournamentQueue(tx, tournament.id);
           await tx.team.update({ where: { id: teamId }, data: { divisionId, groupId, groupPosition } });
           if (divisionId !== before.divisionId) {
             const members = await tx.player.findMany({ where: { teamId }, select: { id: true, participationStatus: true } });
@@ -652,6 +760,7 @@ export async function POST(request: Request) {
             }
           }
         }
+        await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "DIVISION_GROUP_ROUND_ROBINS_GENERATED", entityType: "Division", entityId: divisionId, afterState: { groupCount: division.groups.length, matchupCount: created } });
       });
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: created ? `${created} group round-robin matchups generated.` : "No group had enough teams to generate matchups." }), 303);
@@ -670,6 +779,7 @@ export async function POST(request: Request) {
           await tx.lineup.deleteMany({ where: { matchupId: { in: ids } } });
           await tx.matchup.deleteMany({ where: { id: { in: ids } } });
         }
+        await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "UNPLAYED_GROUP_MATCHUPS_CLEARED", entityType: "Division", entityId: divisionId, beforeState: { matchupCount: ids.length } });
       });
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: ids.length ? `${ids.length} unplayed group matchups cleared.` : "No group matchups to clear." }), 303);
@@ -687,7 +797,7 @@ export async function POST(request: Request) {
       const targetStage = groupId ? "GROUP" : "ROUND_ROBIN";
       const scope = { divisionId, stage: targetStage as "GROUP" | "ROUND_ROBIN", ...(group ? { groupLabel: group.name } : { groupLabel: null }) };
       const existing = await prisma.matchup.findMany({ where: scope, include: { games: true } });
-      if (existing.some((matchup) => matchup.status === "COMPLETED" || matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore || game.awayScore))) throw new Error("This schedule already has recorded play. Create/edit future matchups individually instead of regenerating it.");
+      if (existing.some((matchup) => matchup.status === "COMPLETED" || matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore || game.awayScore))) throw new Error("These matchups already have recorded play. Create/edit future matchups individually instead of regenerating them.");
       await prisma.$transaction(async (tx) => {
         await tx.matchup.deleteMany({ where: scope });
         const maxOrder = await tx.matchup.aggregate({ where: { divisionId, stage: targetStage }, _max: { order: true } });
@@ -712,9 +822,85 @@ export async function POST(request: Request) {
             order += 1;
           }
         }
+        await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "ROUND_ROBIN_REGENERATED", entityType: group ? "Group" : "Division", entityId: group?.id ?? divisionId, afterState: { teamCount: teams.length, matchupCount: (teams.length * (teams.length - 1)) / 2 } });
       });
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Round-robin matchups generated." }), 303);
+    }
+
+    if (action === "update-active-courts") {
+      const activeCourtCount = number(data.activeCourtCount, "Number of courts", 1, 20);
+      const queued = await prisma.matchup.findMany({ where: { tournamentId: tournament.id, queuePosition: { not: null } }, select: { courtLabel: true } });
+      const invalidQueuedCourt = queued.find((matchup) => {
+        const court = Number(matchup.courtLabel);
+        return Number.isInteger(court) && court > activeCourtCount;
+      });
+      if (invalidQueuedCourt) throw new Error("Move or remove queued matchups assigned to higher-numbered courts before reducing the court count.");
+      await prisma.tournament.update({ where: { id: tournament.id }, data: { activeCourtCount } });
+      return queueMutationResponse(request, tournament.id, `${activeCourtCount} active court${activeCourtCount === 1 ? "" : "s"} set.`);
+    }
+
+    if (action === "queue-matchup") {
+      if (tournament.activeCourtCount < 1) throw new Error("Set the number of active courts first.");
+      const matchupId = text(data.matchupId, "Matchup ID");
+      const courtNumber = number(data.courtNumber, "Court", 1, tournament.activeCourtCount);
+      const matchup = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
+      if (!matchup || matchup.tournamentId !== tournament.id) throw new Error("Matchup not found.");
+      if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("Assign both teams before adding this matchup to the queue.");
+      if (matchupHasRecordedPlay(matchup)) throw new Error("A started or completed matchup cannot be newly queued.");
+      if (matchup.queuePosition !== null) throw new Error("This matchup is already in the queue.");
+      await prisma.$transaction(async (tx) => {
+        await compactTournamentQueue(tx, tournament.id);
+        const max = await tx.matchup.aggregate({ where: { tournamentId: tournament.id, queuePosition: { not: null } }, _max: { queuePosition: true } });
+        await tx.matchup.update({ where: { id: matchupId }, data: { queuePosition: (max._max.queuePosition ?? 0) + 1, courtLabel: String(courtNumber), scheduledAt: null } });
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
+      return queueMutationResponse(request, tournament.id, `${matchup.roundLabel} added to Court ${courtNumber}.`);
+    }
+
+    if (action === "update-queue-court") {
+      if (tournament.activeCourtCount < 1) throw new Error("Set the number of active courts first.");
+      const matchupId = text(data.matchupId, "Matchup ID");
+      const courtNumber = number(data.courtNumber, "Court", 1, tournament.activeCourtCount);
+      const matchup = await prisma.matchup.findUnique({ where: { id: matchupId } });
+      if (!matchup || matchup.tournamentId !== tournament.id || matchup.queuePosition === null) throw new Error("Queued matchup not found.");
+      await prisma.matchup.update({ where: { id: matchupId }, data: { courtLabel: String(courtNumber) } });
+      return queueMutationResponse(request, tournament.id, `Matchup moved to Court ${courtNumber}.`);
+    }
+
+    if (action === "unqueue-matchup") {
+      const matchupId = text(data.matchupId, "Matchup ID");
+      const matchup = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
+      if (!matchup || matchup.tournamentId !== tournament.id) throw new Error("Matchup not found.");
+      if (matchupHasRecordedPlay(matchup)) throw new Error("A started matchup stays tied to its assigned court.");
+      await prisma.$transaction(async (tx) => {
+        await tx.matchup.update({ where: { id: matchupId }, data: { queuePosition: null, courtLabel: null, scheduledAt: null } });
+        await compactTournamentQueue(tx, tournament.id);
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
+      return queueMutationResponse(request, tournament.id, "Matchup removed from the court queue.");
+    }
+
+    if (action === "move-queue-item") {
+      const matchupId = text(data.matchupId, "Matchup ID");
+      const direction = String(data.direction || "");
+      if (!['up', 'down'].includes(direction)) throw new Error("Invalid queue direction.");
+      const current = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
+      if (!current || current.tournamentId !== tournament.id || current.queuePosition === null) throw new Error("Queued matchup not found.");
+      if (matchupHasRecordedPlay(current)) throw new Error("A matchup already in progress cannot be reordered.");
+      const neighbor = await prisma.matchup.findFirst({
+        where: { tournamentId: tournament.id, queuePosition: direction === "up" ? { lt: current.queuePosition } : { gt: current.queuePosition } },
+        include: { games: true },
+        orderBy: { queuePosition: direction === "up" ? "desc" : "asc" },
+      });
+      if (neighbor && matchupHasRecordedPlay(neighbor)) {
+        throw new Error("A future matchup cannot be reordered across a matchup already in progress.");
+      }
+      if (neighbor?.queuePosition !== null && neighbor?.queuePosition !== undefined) {
+        await prisma.$transaction([
+          prisma.matchup.update({ where: { id: current.id }, data: { queuePosition: neighbor.queuePosition } }),
+          prisma.matchup.update({ where: { id: neighbor.id }, data: { queuePosition: current.queuePosition } }),
+        ]);
+      }
+      return queueMutationResponse(request, tournament.id, "Queue order updated.");
     }
 
     if (action === "create-matchup") {
@@ -744,8 +930,8 @@ export async function POST(request: Request) {
           homeTeamId,
           awayTeamId,
           status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
-          scheduledAt: date(data.scheduledAt),
-          courtLabel: optionalText(data.courtLabel, 40),
+          scheduledAt: null,
+          courtLabel: null,
         },
       });
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${matchup.roundLabel} created.` }), 303);
@@ -756,7 +942,7 @@ export async function POST(request: Request) {
       const before = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { division: true } });
       if (!before || before.tournamentId !== tournament.id) throw new Error("Matchup not found.");
       const hasStarted = await started(matchupId);
-      const base = { roundLabel: text(data.roundLabel, "Round label", 80), scheduledAt: date(data.scheduledAt), courtLabel: optionalText(data.courtLabel, 40) };
+      const base = { roundLabel: text(data.roundLabel, "Round label", 80) };
       if (hasStarted) {
         await prisma.matchup.update({ where: { id: matchupId }, data: base });
       } else {
@@ -784,9 +970,11 @@ export async function POST(request: Request) {
               homeWins: 0,
               awayWins: 0,
               winnerTeamId: null,
+              ...(!homeTeamId || !awayTeamId ? { queuePosition: null, courtLabel: null, scheduledAt: null } : {}),
               version: { increment: 1 },
             },
           });
+          await compactTournamentQueue(tx, tournament.id);
         });
       }
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: hasStarted ? "Live/completed matchup metadata updated; competitors and match structure were preserved." : "Future matchup updated." }), 303);
@@ -811,8 +999,6 @@ export async function POST(request: Request) {
           const key = matchup.id;
           const base = {
             roundLabel: text(data[`roundLabel-${key}`], "Round label", 80),
-            scheduledAt: date(data[`scheduledAt-${key}`]),
-            courtLabel: optionalText(data[`courtLabel-${key}`], 40),
           };
           const requestedGames = isStarted ? matchup.gamesPerMatchup : number(data[`gamesPerMatchup-${key}`] || matchup.gamesPerMatchup, "Matches per matchup", 1, 31);
           if (!isStarted && requestedGames !== matchup.gamesPerMatchup) {
@@ -831,9 +1017,9 @@ export async function POST(request: Request) {
           });
           updated += 1;
         }
-        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "MATCHUP_SCHEDULE_BULK_UPDATED", entityType: "Division", entityId: divisionId, afterState: { matchupCount: updated } });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "MATCHUP_STRUCTURE_BULK_UPDATED", entityType: "Division", entityId: divisionId, afterState: { matchupCount: updated } });
       });
-      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${updated} matchup schedule rows saved.` }), 303);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${updated} matchup rows saved.` }), 303);
     }
 
     if (action === "delete-matchup") {
@@ -841,13 +1027,19 @@ export async function POST(request: Request) {
       const matchup = await prisma.matchup.findUnique({ where: { id: matchupId } });
       if (!matchup || matchup.tournamentId !== tournament.id) throw new Error("Matchup not found.");
       if (await started(matchupId)) throw new Error("A started/completed matchup cannot be deleted.");
-      await prisma.matchup.delete({ where: { id: matchupId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.matchup.delete({ where: { id: matchupId } });
+        await compactTournamentQueue(tx, tournament.id);
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Future matchup deleted." }), 303);
     }
 
     throw new Error("Unsupported tournament structure action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Tournament update failed.";
+    if (request.headers.get("x-tournament-queue") === "1") {
+      return NextResponse.json({ ok: false, message }, { status: 400 });
+    }
     return NextResponse.redirect(redirectBack(request, "/admin/tournament", { error: message }), 303);
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ChevronDown, ClipboardList, Gauge, History, RotateCcw, Settings2, TestTube2, Users, Vote } from "lucide-react";
+import { Activity, Gauge, History, RotateCcw, Settings2, Users, Vote } from "lucide-react";
 
 const primary = [
   { label: "Overview", href: "/admin", icon: Gauge },
@@ -40,13 +40,6 @@ export default function AdminNav() {
           const active = isActive(pathname, href);
           return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border px-3 py-2 text-xs font-black transition ${active ? "border-ink bg-ink text-white" : "border-line bg-paper text-gray-700 hover:border-court hover:text-court"}`}><Icon size={15}/>{label}</Link>;
         })}
-        <details className="shrink-0">
-          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 border border-line bg-paper px-3 py-2 text-xs font-black text-gray-700 hover:border-court hover:text-court"><ChevronDown size={14}/>Advanced</summary>
-          <div className="mt-1 grid min-w-52 gap-1 border border-line bg-white p-2 shadow-panel">
-            <Link href="/admin/simulation" className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold hover:bg-gray-50"><TestTube2 size={14}/>Testing / Simulation</Link>
-            <Link href="/admin/reset" className="inline-flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-50"><ClipboardList size={14}/>Reset / destructive tools</Link>
-          </div>
-        </details>
       </div>
     </div>
   </nav>;

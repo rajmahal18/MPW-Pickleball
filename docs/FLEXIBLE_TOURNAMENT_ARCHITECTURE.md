@@ -75,17 +75,17 @@ Admin may change:
 - home/away teams
 - games per matchup
 - round label
-- court
-- schedule
+- queue position
+- court assignment through the tournament-day stack
 - or delete the matchup
 
 Changing future structure clears stale lineups/games so team leaders cannot accidentally play an obsolete configuration. Moving an unplayed team between groups/divisions also clears that team from affected future matchup slots; if the division changes, its member eligibility is synced to the new division. An unplayed team may be removed entirely; its players return to the pool while only future matchup references are cleared. An unplayed group may also be removed, which ungroups its teams and removes only that group’s future matchups.
 
 ### Recorded play exists
 
-Competitors, stage, and game-count structure are locked. Safe metadata (round/court/schedule) may still be corrected.
+Competitors, stage, and match-count structure are locked. Safe round metadata may still be corrected; a started matchup remains tied to its assigned court and cannot be removed/reordered from the queue.
 
-Recorded play means a game is live/completed/forfeited/interrupted or has a non-zero score.
+Recorded play means a pair match is live/completed/forfeited/interrupted or has a non-zero score.
 
 ## Automatic progression
 

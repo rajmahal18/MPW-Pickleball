@@ -2,55 +2,67 @@
 
 import { useMemo, useRef, useState } from "react";
 
-type PlayerOption = { id: string; name: string; eligible: boolean };
+type Category = "MENS" | "WOMENS" | "MIXED" | null;
+type PlayerOption = { id: string; name: string; sex: "MALE" | "FEMALE"; eligible: boolean };
 type Slot = { slot: number; playerAId: string; playerBId: string; locked: boolean; gameStatus?: string | null };
 type ApiPayload = { ok: true; message: string } | { ok: false; error: string };
-
 type Selection = { playerAId: string; playerBId: string };
 
-function initialSelections(required: number, players: PlayerOption[], slots: Slot[]) {
-  const values: Selection[] = Array.from({ length: required }, (_, index) => {
+function baseSelections(required: number, slots: Slot[]) {
+  return Array.from({ length: required }, (_, index) => {
     const current = slots.find((slot) => slot.slot === index + 1);
     return { playerAId: current?.playerAId || "", playerBId: current?.playerBId || "" };
   });
-  // Auto-fill only when every eligible player must participate (for example 14 players → 7 matches).
-  // In a 5-of-7-pairs knockout, guessing the first 10 players is dangerous: the manager should
-  // intentionally choose who sits out. Existing saved/locked slots are always preserved.
-  const eligiblePlayers = players.filter((player) => player.eligible);
-  const shouldAutoFill = eligiblePlayers.length === required * 2;
-  if (shouldAutoFill) {
-    const used = new Set(values.flatMap((slot) => [slot.playerAId, slot.playerBId]).filter(Boolean));
-    for (const value of values) {
-      if (!value.playerAId) {
-        const candidate = eligiblePlayers.find((player) => !used.has(player.id));
-        if (candidate) { value.playerAId = candidate.id; used.add(candidate.id); }
-      }
-      if (!value.playerBId) {
-        const candidate = eligiblePlayers.find((player) => !used.has(player.id));
-        if (candidate) { value.playerBId = candidate.id; used.add(candidate.id); }
-      }
-    }
-  }
-  return values;
 }
 
-export default function LineupEditor({ matchupId, required, players, slots }: { matchupId: string; required: number; players: PlayerOption[]; slots: Slot[] }) {
-  const [selected, setSelected] = useState(() => initialSelections(required, players, slots));
+function categoryLabel(category: Category) {
+  if (category === "MENS") return "Men's";
+  if (category === "WOMENS") return "Women's";
+  if (category === "MIXED") return "Mixed";
+  return "Not set";
+}
+
+function playerAllowedByCategory(player: PlayerOption, category: Category, partner?: PlayerOption) {
+  if (!category) return true;
+  if (category === "MENS") return player.sex === "MALE";
+  if (category === "WOMENS") return player.sex === "FEMALE";
+  if (!partner) return true;
+  return player.sex !== partner.sex;
+}
+
+function pairMatchesCategory(a: PlayerOption | undefined, b: PlayerOption | undefined, category: Category) {
+  if (!a || !b || !category) return true;
+  if (category === "MENS") return a.sex === "MALE" && b.sex === "MALE";
+  if (category === "WOMENS") return a.sex === "FEMALE" && b.sex === "FEMALE";
+  return a.sex !== b.sex;
+}
+
+export default function LineupEditor({ matchupId, required, players, slots, categories }: { matchupId: string; required: number; players: PlayerOption[]; slots: Slot[]; categories: Category[] }) {
+  const initial = baseSelections(required, slots);
+  const [selected, setSelected] = useState<Selection[]>(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
-  const savedSnapshotRef = useRef(JSON.stringify(Array.from({ length: required }, (_, index) => {
-    const current = slots.find((slot) => slot.slot === index + 1);
-    return { playerAId: current?.playerAId || "", playerBId: current?.playerBId || "" };
-  })));
-  const lockedSlots = new Map(slots.filter((slot) => slot.locked).map((slot) => [slot.slot, slot]));
+  const savedSnapshotRef = useRef(JSON.stringify(initial));
+  const lockedSlots = useMemo(() => new Map(slots.filter((slot) => slot.locked).map((slot) => [slot.slot, slot])), [slots]);
+  const playerById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
   const allIds = selected.flatMap((slot) => [slot.playerAId, slot.playerBId]).filter(Boolean);
-  const duplicatePlayer = new Set(allIds).size !== allIds.length;
+  const counts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const id of allIds) map.set(id, (map.get(id) ?? 0) + 1);
+    return map;
+  }, [allIds.join("|")]);
+  const duplicateIds = new Set([...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id));
+  const duplicatePlayer = duplicateIds.size > 0;
+  const invalidCategorySlots = selected.map((slot, index) => {
+    if (lockedSlots.has(index + 1) || !slot.playerAId || !slot.playerBId) return false;
+    return !pairMatchesCategory(playerById.get(slot.playerAId), playerById.get(slot.playerBId), categories[index] ?? null);
+  });
+  const hasCategoryError = invalidCategorySlots.some(Boolean);
   const incomplete = selected.some((slot) => !slot.playerAId || !slot.playerBId || slot.playerAId === slot.playerBId);
-  const lockedPlayerIds = new Set(slots.filter((slot) => slot.locked).flatMap((slot) => [slot.playerAId, slot.playerBId]).filter(Boolean));
-  const completedPairs = selected.filter((slot) => slot.playerAId && slot.playerBId && slot.playerAId !== slot.playerBId).length;
+  const completedPairs = selected.filter((slot, index) => slot.playerAId && slot.playerBId && slot.playerAId !== slot.playerBId && !invalidCategorySlots[index]).length;
   const selectedPlayerCount = new Set(allIds).size;
   const eligiblePlayers = players.filter((player) => player.eligible);
   const availablePlayers = eligiblePlayers.filter((player) => !allIds.includes(player.id));
@@ -58,17 +70,20 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
   const dirty = JSON.stringify(selected) !== savedSnapshotRef.current;
 
   const playerUsage = useMemo(() => {
-    const usage = new Map<string, { game: number; locked: boolean }>();
+    const usage = new Map<string, Array<{ match: number; locked: boolean }>>();
     selected.forEach((selection, index) => {
-      const game = index + 1;
-      if (selection.playerAId) usage.set(selection.playerAId, { game, locked: Boolean(lockedSlots.get(game)) });
-      if (selection.playerBId) usage.set(selection.playerBId, { game, locked: Boolean(lockedSlots.get(game)) });
+      const match = index + 1;
+      for (const id of [selection.playerAId, selection.playerBId].filter(Boolean)) {
+        const rows = usage.get(id) ?? [];
+        rows.push({ match, locked: Boolean(lockedSlots.get(match)) });
+        usage.set(id, rows);
+      }
     });
     return usage;
-  }, [selected, slots]);
+  }, [selected, lockedSlots]);
 
   async function save() {
-    if (busyRef.current || incomplete || duplicatePlayer) return;
+    if (busyRef.current || incomplete || duplicatePlayer || hasCategoryError) return;
     busyRef.current = true;
     setBusy(true);
     setMessage(null);
@@ -97,17 +112,70 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
     setError(null);
   }
 
+  function emptyEditableSlots() {
+    setSelected((current) => current.map((slot, index) => lockedSlots.has(index + 1) ? slot : { playerAId: "", playerBId: "" }));
+    setMessage(null);
+    setError(null);
+  }
+
+  function fillEditableSlots() {
+    const next = selected.map((slot) => ({ ...slot }));
+    const used = new Set<string>();
+    next.forEach((slot, index) => {
+      if (!lockedSlots.has(index + 1)) {
+        slot.playerAId = "";
+        slot.playerBId = "";
+      } else {
+        if (slot.playerAId) used.add(slot.playerAId);
+        if (slot.playerBId) used.add(slot.playerBId);
+      }
+    });
+    const take = (sex?: "MALE" | "FEMALE") => eligiblePlayers.find((player) => !used.has(player.id) && (!sex || player.sex === sex));
+    for (let index = 0; index < required; index += 1) {
+      if (lockedSlots.has(index + 1)) continue;
+      const category = categories[index] ?? null;
+      let first: PlayerOption | undefined;
+      let second: PlayerOption | undefined;
+      if (category === "MENS") {
+        first = take("MALE"); if (first) used.add(first.id);
+        second = take("MALE");
+      } else if (category === "WOMENS") {
+        first = take("FEMALE"); if (first) used.add(first.id);
+        second = take("FEMALE");
+      } else if (category === "MIXED") {
+        first = take("MALE"); if (first) used.add(first.id);
+        second = take("FEMALE");
+      } else {
+        first = take(); if (first) used.add(first.id);
+        second = take();
+      }
+      if (!first || !second) {
+        setError(`Cannot fill all slots automatically. Match ${index + 1} (${categoryLabel(category)}) does not have enough eligible unused players.`);
+        return;
+      }
+      used.add(second.id);
+      next[index] = { playerAId: first.id, playerBId: second.id };
+    }
+    setSelected(next);
+    setMessage(null);
+    setError(null);
+  }
+
   return <div className="panel mt-6 overflow-hidden">
     <div className="border-b border-line bg-court/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="label text-court">Manager lineup</div>
           <h2 className="font-black uppercase">Match lineup</h2>
-          <p className="mt-1 hidden max-w-3xl text-sm text-gray-600 md:block">Choose two players for each match. Future slots stay editable; a match becomes protected only after play starts.</p>
+          <p className="mt-1 hidden max-w-3xl text-sm text-gray-600 md:block">Choose two players for each match. Category rules and duplicate-player protection are enforced before save and again on the server.</p>
         </div>
-        <span className={`border px-3 py-2 text-xs font-black uppercase ${incomplete || duplicatePlayer ? "border-amber-300 bg-amber-50 text-amber-900" : dirty ? "border-court/30 bg-white text-court" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}>
-          {duplicatePlayer ? "Duplicate player" : incomplete ? `${required - completedPairs} pair${required - completedPairs === 1 ? "" : "s"} still needed` : dirty ? "Ready to save" : "Lineup saved"}
+        <span className={`border px-3 py-2 text-xs font-black uppercase ${duplicatePlayer || hasCategoryError ? "border-red-300 bg-red-50 text-red-800" : incomplete ? "border-amber-300 bg-amber-50 text-amber-900" : dirty ? "border-court/30 bg-white text-court" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}>
+          {duplicatePlayer ? "Duplicate player" : hasCategoryError ? "Category mismatch" : incomplete ? `${required - completedPairs} pair${required - completedPairs === 1 ? "" : "s"} still needed` : dirty ? "Ready to save" : "Lineup saved"}
         </span>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={fillEditableSlots} className="btn-primary px-3 py-2 text-xs">Fill all editable slots</button>
+        <button type="button" onClick={emptyEditableSlots} className="btn-ghost px-3 py-2 text-xs">Empty all editable slots</button>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MiniStat label="Pairs ready" value={`${completedPairs}/${required}`} tone={completedPairs === required ? "good" : "warn"}/>
@@ -120,25 +188,26 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
     <section className="border-b border-line bg-white p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><div className="label">Players at a glance</div><h3 className="font-black uppercase">Roster status</h3></div>
-        <div className="hidden text-xs text-gray-500 md:block">Selected players show their match number. Unpaired players are immediately visible.</div>
+        <div className="hidden text-xs text-gray-500 md:block">Green = available, red = duplicate/unavailable, gray = already protected by played match.</div>
       </div>
       <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
         {players.map((player) => {
-          const usage = playerUsage.get(player.id);
-          const state = usage?.locked ? "locked" : usage ? player.eligible ? "selected" : "unavailable-selected" : player.eligible ? "available" : "unavailable";
-          const style = state === "locked"
-            ? "border-gray-300 bg-gray-100 text-gray-700"
-            : state === "selected"
-              ? "border-court/30 bg-court/10 text-court"
-              : state === "unavailable-selected"
-                ? "border-red-200 bg-red-50 text-red-800"
-                : state === "available"
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                : "border-line bg-gray-50 text-gray-400";
-          const status = state === "locked" ? `M${usage!.game} · played` : state === "selected" ? `M${usage!.game} · selected` : state === "available" ? "Unpaired" : "Unavailable";
+          const usage = playerUsage.get(player.id) ?? [];
+          const duplicate = duplicateIds.has(player.id);
+          const locked = usage.some((row) => row.locked);
+          const selectedNow = usage.length > 0;
+          const style = duplicate
+            ? "border-red-300 bg-red-50 text-red-800"
+            : locked
+              ? "border-gray-300 bg-gray-100 text-gray-700"
+              : selectedNow
+                ? "border-court/30 bg-court/10 text-court"
+                : player.eligible
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-red-200 bg-red-50 text-red-700";
+          const status = duplicate ? "Duplicate" : locked ? `M${usage[0]!.match} · played` : selectedNow ? `M${usage[0]!.match} · selected` : player.eligible ? "Available" : "Unavailable";
           return <div key={player.id} className={`flex shrink-0 items-center gap-2 border px-3 py-2 text-xs ${style}`}>
-            <span className="font-bold">{player.name}</span>
-            <span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
+            <span className="font-bold">{player.name}</span><span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
           </div>;
         })}
       </div>
@@ -150,34 +219,31 @@ export default function LineupEditor({ matchupId, required, players, slots }: { 
         const slotNumber = index + 1;
         const locked = lockedSlots.get(slotNumber);
         const value = selected[index]!;
+        const category = categories[index] ?? null;
         const pairComplete = Boolean(value.playerAId && value.playerBId && value.playerAId !== value.playerBId);
-        const blockedForPlayerA = new Set(lockedPlayerIds);
-        const blockedForPlayerB = new Set(lockedPlayerIds);
-        blockedForPlayerA.delete(value.playerAId);
-        blockedForPlayerB.delete(value.playerBId);
-        if (value.playerBId) blockedForPlayerA.add(value.playerBId);
-        if (value.playerAId) blockedForPlayerB.add(value.playerAId);
-        const rowTone = locked ? "bg-gray-50/80" : pairComplete ? "bg-emerald-50/25" : "bg-amber-50/35";
-        return <div className={`grid gap-3 p-4 lg:grid-cols-[130px_1fr_40px_1fr_150px] lg:items-center ${rowTone}`} key={slotNumber}>
+        const categoryError = invalidCategorySlots[index];
+        const rowTone = locked ? "bg-gray-50/80" : categoryError ? "bg-red-50/40" : pairComplete ? "bg-emerald-50/25" : "bg-amber-50/35";
+        return <div className={`grid gap-3 p-4 lg:grid-cols-[150px_1fr_40px_1fr_150px] lg:items-center ${rowTone}`} key={slotNumber}>
           <div>
             <div className="font-black uppercase">Match {slotNumber}</div>
-            <div className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-500">{locked ? "Played slot" : pairComplete ? "Pair selected" : "Needs pair"}</div>
+            <div className="mt-1 inline-flex border border-line bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest">{categoryLabel(category)}</div>
           </div>
-          <PlayerSelect label="Player 1" value={value.playerAId} disabled={Boolean(locked)} players={players} blocked={blockedForPlayerA} usage={playerUsage} onChange={(next) => update(index, "playerAId", next)}/>
+          <PlayerSelect label="Player 1" value={value.playerAId} otherValue={value.playerBId} slotNumber={slotNumber} disabled={Boolean(locked)} players={players} category={category} usage={playerUsage} duplicateIds={duplicateIds} onChange={(next) => update(index, "playerAId", next)}/>
           <div className="hidden text-center text-xl font-black text-gray-300 lg:block">+</div>
-          <PlayerSelect label="Player 2" value={value.playerBId} disabled={Boolean(locked)} players={players} blocked={blockedForPlayerB} usage={playerUsage} onChange={(next) => update(index, "playerBId", next)}/>
-          <div className="lg:text-right"><SlotBadge locked={Boolean(locked)} complete={pairComplete} gameStatus={locked?.gameStatus}/></div>
+          <PlayerSelect label="Player 2" value={value.playerBId} otherValue={value.playerAId} slotNumber={slotNumber} disabled={Boolean(locked)} players={players} category={category} usage={playerUsage} duplicateIds={duplicateIds} onChange={(next) => update(index, "playerBId", next)}/>
+          <div className="lg:text-right"><SlotBadge locked={Boolean(locked)} complete={pairComplete && !categoryError} invalid={Boolean(categoryError)} gameStatus={locked?.gameStatus}/></div>
         </div>;
       })}
     </div>
     <div className="border-t border-line bg-white p-4">
-      {duplicatePlayer && <div className="mb-3 border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">Each player can appear only once in this matchup lineup. Check the roster chips above to see where each player is already assigned.</div>}
-      {!duplicatePlayer && incomplete && <div className="mb-3 border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-950">{missingPlayerSlots} player slot{missingPlayerSlots === 1 ? "" : "s"} still need selection before this lineup can be saved.</div>}
+      {duplicatePlayer && <div className="mb-3 border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">Duplicate players are shown in red. Each player can appear only once in this team matchup.</div>}
+      {hasCategoryError && <div className="mb-3 border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">One or more pairs do not match the configured Men's / Women's / Mixed restriction.</div>}
+      {!duplicatePlayer && !hasCategoryError && incomplete && <div className="mb-3 border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-950">{missingPlayerSlots} player slot{missingPlayerSlots === 1 ? "" : "s"} still need selection before this lineup can be saved.</div>}
       {error && <div className="mb-3 border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
       {message && <div className="mb-3 border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">✓ {message}</div>}
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 text-xs text-gray-500">{dirty ? "You have unsaved lineup changes." : "No unsaved changes."}</div>
-        <button type="button" onClick={() => void save()} disabled={busy || incomplete || duplicatePlayer || !dirty} className="btn-primary w-full disabled:opacity-50 sm:w-auto sm:min-w-48">{busy ? "Saving lineup…" : dirty ? `Save ${required}-match lineup` : "Lineup saved"}</button>
+        <button type="button" onClick={() => void save()} disabled={busy || incomplete || duplicatePlayer || hasCategoryError || !dirty} className="btn-primary w-full disabled:opacity-50 sm:w-auto sm:min-w-48">{busy ? "Saving lineup…" : dirty ? `Save ${required}-match lineup` : "Lineup saved"}</button>
       </div>
     </div>
   </div>;
@@ -188,20 +254,28 @@ function MiniStat({ label, value, tone }: { label: string; value: string; tone: 
   return <div className={`border p-3 ${style}`}><div className="text-xl font-black tabular-nums">{value}</div><div className="label">{label}</div></div>;
 }
 
-function SlotBadge({ locked, complete, gameStatus }: { locked: boolean; complete: boolean; gameStatus?: string | null }) {
+function SlotBadge({ locked, complete, invalid, gameStatus }: { locked: boolean; complete: boolean; invalid: boolean; gameStatus?: string | null }) {
   if (locked) return <span className="inline-flex border border-gray-300 bg-gray-100 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-700">Protected · {(gameStatus || "played").replaceAll("_", " ")}</span>;
+  if (invalid) return <span className="inline-flex border border-red-300 bg-red-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-800">Wrong category</span>;
   if (complete) return <span className="inline-flex border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">✓ Pair ready</span>;
   return <span className="inline-flex border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-900">Pair needed</span>;
 }
 
-function PlayerSelect({ label, value, disabled, players, blocked, usage, onChange }: { label: string; value: string; disabled: boolean; players: PlayerOption[]; blocked: Set<string>; usage: Map<string, { game: number; locked: boolean }>; onChange: (value: string) => void }) {
+function PlayerSelect({ label, value, otherValue, slotNumber, disabled, players, category, usage, duplicateIds, onChange }: { label: string; value: string; otherValue: string; slotNumber: number; disabled: boolean; players: PlayerOption[]; category: Category; usage: Map<string, Array<{ match: number; locked: boolean }>>; duplicateIds: Set<string>; onChange: (value: string) => void }) {
   const selected = players.find((player) => player.id === value);
-  return <label className="block"><span className="label lg:hidden">{label}</span><select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className={`w-full border p-3 font-bold disabled:bg-gray-50 disabled:text-gray-600 ${value ? "border-court/40 bg-white" : "border-amber-300 bg-amber-50"}`}>
+  const partner = players.find((player) => player.id === otherValue);
+  const selectedInvalid = selected ? !playerAllowedByCategory(selected, category, partner) || duplicateIds.has(selected.id) || !selected.eligible : false;
+  return <label className="block"><span className="label lg:hidden">{label}</span><select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className={`w-full border p-3 font-bold disabled:bg-gray-50 disabled:text-gray-600 ${selectedInvalid ? "border-red-300 bg-red-50 text-red-800" : value ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
     <option value="">{label}…</option>
     {players.map((player) => {
-      const assigned = usage.get(player.id);
-      const suffix = !player.eligible ? " (unavailable)" : assigned && player.id !== value ? ` (M${assigned.game})` : "";
-      return <option key={player.id} value={player.id} disabled={(blocked.has(player.id) || !player.eligible) && player.id !== value}>{player.name}{suffix}</option>;
+      const rows = usage.get(player.id) ?? [];
+      const usedElsewhere = rows.some((row) => row.match !== slotNumber) || (rows.filter((row) => row.match === slotNumber).length > 1 && player.id !== value);
+      const categoryAllowed = playerAllowedByCategory(player, category, partner);
+      const allowed = player.eligible && categoryAllowed && !usedElsewhere && player.id !== otherValue;
+      const categoryReason = category === "MENS" ? "men's only" : category === "WOMENS" ? "women's only" : category === "MIXED" && partner ? "mixed requires opposite sex" : "category restriction";
+      const suffix = !player.eligible ? " (unavailable)" : player.id === otherValue ? " (already in this pair)" : usedElsewhere ? ` (used in M${rows.find((row) => row.match !== slotNumber)?.match ?? rows[0]?.match})` : !categoryAllowed ? ` (${categoryReason})` : "";
+      const displayAllowed = (allowed || player.id === value) && player.eligible && categoryAllowed && !duplicateIds.has(player.id) && player.id !== otherValue;
+      return <option className={displayAllowed ? "bg-emerald-100 text-emerald-950" : "bg-red-100 text-red-800"} key={player.id} value={player.id} disabled={!allowed && player.id !== value}>{player.name}{suffix}</option>;
     })}
     {value && !selected && <option value={value}>Recorded player</option>}
   </select></label>;

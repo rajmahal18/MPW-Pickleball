@@ -29,8 +29,8 @@ Go to **Admin → Tournament Setup**.
 - Round robin: keep teams ungrouped and use **Generate division round robin**.
 - Group stage: create groups, move teams into them, then generate each group's round robin.
 - Knockout/custom: create future matchups and assign teams as required.
-- Change `gamesPerMatchup` per division or per individual matchup.
-- Edit round, court, scope label, and schedule at any time before scoring.
+- Change the pair-match count (`gamesPerMatchup` internally) per division or per individual matchup.
+- Edit round/scope metadata before scoring. Set the active court count and manage court assignment plus order through the Court Queue / Match Stack.
 
 Then verify `/format` and `/bracket` publicly. Keep the division unchecked as **Public** until organizers are ready to expose it.
 
@@ -39,17 +39,17 @@ Then verify `/format` and `/bracket` publicly. Keep the division unchecked as **
 If scoring has **not** started:
 
 1. Change the player's participation/division status.
-2. The app invalidates affected future lineup/game records.
+2. The app invalidates affected future lineup/match records.
 3. Re-pair/reassign as needed.
 4. Team leader submits the revised lineup.
 
-If the player already has recorded play, historical games stay untouched. Future eligibility can still be changed.
+If the player already has recorded play, historical matches stay untouched. Future eligibility can still be changed.
 
 ## Scenario: Organizer changes future matchup
 
-From **Tournament Setup**, edit the future matchup. The app clears obsolete future lineup/game records and reopens it for lineup submission.
+From **Tournament Setup**, edit the future matchup. The app clears obsolete future lineup/match records and reopens it for lineup submission.
 
-Once recorded play exists, competitor/stage/game-count fields are protected.
+Once recorded play exists, competitor/stage/match-count fields are protected.
 
 ## Scenario: Bad score or operational mistake
 
@@ -60,8 +60,8 @@ Use existing scoring correction / undo / checkpoint tools. Granular round/stage 
 - Confirm every Division's public/private state.
 - Check player attendance statuses.
 - Check Executive pair units.
-- Check each matchup's game count.
-- Check courts/schedules.
+- Check each matchup's pair-match count.
+- Check the active court count and the Court Queue / Match Stack order.
 - Open `/format` and make sure the guide matches the organizers' verbal rules.
 - Run a test lineup submission for each distinct division style.
 - Verify Fan Favorite and MVP pages still load.
@@ -69,7 +69,7 @@ Use existing scoring correction / undo / checkpoint tools. Granular round/stage 
 
 ## Scenario: Team is moved before play
 
-If organizers reshuffle a team into a different group or division before any recorded play, use **Tournament Setup → Move**. The app removes that team from affected future matchup slots, clears obsolete future lineups/games, and preserves every other team. When moving divisions, current team members receive a matching eligibility record in the destination division.
+If organizers reshuffle a team into a different group or division before any recorded play, use **Tournament Setup → Move**. The app removes that team from affected future matchup slots, clears obsolete future lineups/matches, and preserves every other team. When moving divisions, current team members receive a matching eligibility record in the destination division.
 
 ## Scenario: A planned group or Executive pair unit is canceled before play
 

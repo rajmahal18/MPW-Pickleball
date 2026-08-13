@@ -2,26 +2,26 @@
 
 ## Terminology
 
-- **Game:** one pair versus another pair.
-- **Team Matchup:** one team/pair-unit versus another. The required number of pair games comes from `Matchup.gamesPerMatchup`.
-- **Round:** a scheduled collection of team matchups.
+- **Pair Match:** one pair versus another pair. The Prisma model is still named `Game` internally for compatibility.
+- **Team Matchup:** one team/pair-unit versus another. The required number of pair matches comes from `Matchup.gamesPerMatchup` (legacy internal field name).
+- **Round:** a configured collection of team matchups; tournament-day call order is controlled by the Court Queue / Match Stack rather than a fixed clock.
 - **Stage:** configurable scope such as Group, Round Robin, Quarterfinal, Semifinal, Final, Third Place, or Custom.
 
 ## Admin control room
 
-The admin dashboard surfaces live games, ready team matchups, voting state, and links to scoring, voting, simulation, checkpoints, audit logs, avatars, and reset controls.
+The admin dashboard surfaces live pair matches, ready team matchups, voting state, and links to scoring, voting, simulation, checkpoints, audit logs, avatars, and reset controls.
 
-Each score update includes the current game version. A stale browser submission is rejected instead of overwriting a newer score. Finalization requires at least 11 points and a two-point winning margin; forfeits use a separate terminal state. Corrections and forfeits create score events and audit entries, then recalculate dependent records.
+Each score update includes the current internal match-record version. A stale browser submission is rejected instead of overwriting a newer score. Finalization requires at least 11 points and a two-point winning margin; forfeits use a separate terminal state. Corrections and forfeits create score events and audit entries, then recalculate dependent records.
 
 ## Team-leader lineup workflow
 
 1. Sign in with the assigned team-leader account.
 2. Open a team matchup involving that account's team.
-3. Submit exactly the number of playing pairs required by that matchup from the current confirmed roster. A one-game Executive matchup needs one pair; a seven-game Open matchup needs seven.
+3. Submit exactly the number of playing pairs required by that matchup from the current confirmed roster. A one-match Executive matchup needs one pair; a seven-match Open matchup needs seven.
 4. Submit the lineup.
-5. Games are created only when both teams have valid lineups.
+5. Pair-match records are created only when both teams have valid lineups.
 
-The server verifies ownership, division eligibility, confirmed attendance, the exact required pair count, unique pair IDs, and no duplicated players in the submitted lineup.
+The server verifies ownership, division eligibility, confirmed attendance, the exact required slot count, per-slot Men's/Women's/Mixed rules when enabled, and no duplicated players in the submitted lineup.
 
 ## Fan Favorite workflow
 
@@ -44,18 +44,18 @@ Simulation Mode must be enabled. In production, destructive tools also require t
 Supported controls:
 
 - quick states: fresh, lineups pending, mid/almost-complete group stage, three-way tie, wildcard tiebreak, semifinals ready, final ready, completed tournament, player/team forfeits, interruption, score correction, close/tied Fan Favorite races, and invalid/reused/revoked code attempts;
-- one game with forced/random winner and dominant/close/deuce/random score;
-- one configured team matchup using its current game count, with sweep/closest-win/forced/random outcomes;
+- one pair match with forced/random winner and dominant/close/deuce/random score;
+- one configured team matchup using its current pair-match count, with sweep/closest-win/forced/random outcomes;
 - remaining group stage, semifinals, final, or entire tournament;
 - deterministic seed, such as `20260729`;
 - voting bursts toward random players or a selected player;
 - undo of a completed simulation via its automatic pre-run checkpoint.
 
-Simulation writes to the same lineups, games, score events, voting codes, votes, standings, bracket, and audit tables used by real operations.
+Simulation writes to the same lineups, pair-match records, score events, voting codes, votes, standings, bracket, and audit tables used by real operations.
 
 ## Checkpoints and undo
 
-Manual checkpoints capture tournament settings, team matchups, lineups, games, score-event history, voting codes, Fan Favorite votes, and rejected/accepted vote-attempt history.
+Manual checkpoints capture tournament settings, team matchups, lineups, pair-match records, score-event history, voting codes, Fan Favorite votes, and rejected/accepted vote-attempt history.
 
 Available rollback scopes:
 
@@ -66,7 +66,7 @@ Available rollback scopes:
 - selected/latest completed simulation;
 - full checkpoint restore.
 
-A matchup/round/stage rollback preserves lineups, clears game results in the selected scope, and recalculates dependent tournament state. A safety checkpoint is created before the rollback.
+A matchup/round/stage rollback preserves lineups, clears pair-match results in the selected scope, and recalculates dependent tournament state. A safety checkpoint is created before the rollback.
 
 ## Reset Data Center
 
@@ -81,4 +81,4 @@ Each destructive reset requires an exact confirmation phrase. Scoped resets crea
 
 ## Official paper scorecards
 
-When both sides have submitted complete lineups, the admin dashboard and Tournament Setup expose a **Scorecards** action for that matchup. The print preview produces two cards per A4 landscape page and is based on the latest generated games, so Team names and both players in every pair are pre-filled automatically. Group/bracket, round, and court can be adjusted on the print preview without mutating tournament records. Individual cards can be reprinted if a sheet is lost or a lineup changes before scoring.
+When both sides have submitted complete lineups, the admin dashboard and Tournament Setup expose a **Scorecards** action for that matchup. The print preview produces two cards per A4 landscape page and is based on the latest generated pair matches, so Team names and both players in every pair are pre-filled automatically. Group/bracket, round, and court can be adjusted on the print preview without mutating tournament records. Individual cards can be reprinted if a sheet is lost or a lineup changes before scoring.

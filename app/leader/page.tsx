@@ -16,7 +16,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
   const matchups = await prisma.matchup.findMany({
     where: { OR: [{ homeTeamId: user.teamId }, { awayTeamId: user.teamId }] },
     include: { division: true, homeTeam: true, awayTeam: true, lineups: { include: { slots: true } }, games: { orderBy: { gameNumber: "asc" } } },
-    orderBy: [{ scheduledAt: "asc" }, { order: "asc" }],
+    orderBy: [{ queuePosition: { sort: "asc", nulls: "last" } }, { order: "asc" }],
   });
   const revision = matchups[0] ? await getPublicTournamentRevision(matchups[0].tournamentId) : "none:0";
   const active = matchups.filter((matchup) => matchup.status !== "COMPLETED" && matchup.status !== "FORFEITED");

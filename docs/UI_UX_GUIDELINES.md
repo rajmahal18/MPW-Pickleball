@@ -1,6 +1,6 @@
 # MPW Pickleball UI/UX Guidelines
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ## Core Principle
 
@@ -18,27 +18,30 @@ Use **match / matches** in user-facing tournament language. Internal Prisma/doma
 
 ## Admin Information Architecture
 
-Admin navigation is grouped by operational purpose:
+Admin navigation prioritizes ordinary tournament-day operations:
 
-- Operate: Control, Tournament Setup, Player Pool
-- Engagement: Voting Codes
-- Testing: Simulation
-- Recovery / System: Checkpoints, Audit Logs, Reset Data
+- Overview / Control
+- Tournament Setup
+- Player Pool
+- Voting
+- Checkpoints and Audit
 
-Recovery and destructive tools should remain visually distinct from ordinary tournament-day operations.
+Testing/simulation and destructive maintenance routes may remain available for QA/recovery, but they should not add visual noise to the primary tournament-day navigation.
 
 ## Tournament Setup Pattern
 
-Tournament Setup should behave like a tournament operations console:
+Tournament Setup should behave like a tournament operations workflow:
 
-- show one selected division as the main workspace;
-- keep division switching obvious;
-- show summary metrics before editable fields;
-- surface readiness checks and warnings;
-- keep common settings first;
-- hide slugs, sort order, long guide notes, and uncommon fields under Advanced;
+- show one selected division as the main workspace and keep division switching obvious;
+- show compact summary metrics before editing;
+- order the main sections as **Division → Teams & Groups → Lineup Rules → Courts → Matchups**;
+- manage team identity and group placement in one team area instead of duplicating placement in a second section;
+- keep technical/bulk/developer helpers out of the normal setup flow;
+- hide slugs, sort order, long guide notes, destructive actions, and uncommon fields under disclosure;
 - make group, team, and matchup actions contextual;
-- show protected/locked state for matchups with recorded play.
+- show protected/locked state for matchups with recorded play;
+- present courts as horizontal court lanes with vertically stacked matchup blocks;
+- update court count, queue assignment, court reassignment, queue reorder, and removal in place without a full-page refresh.
 
 Do not restore an always-visible "create division" form that competes with the selected division workspace.
 
@@ -90,7 +93,7 @@ Mobile screens are purpose-focused, not compressed desktop screens. Ease of acce
 - Convert wide admin tables into compact mobile cards when the user needs to act on individual records; retain the richer table on desktop.
 - Keep live scoring controls for both sides visible at the same time. Do not force the scorer to scroll between teams for routine +1/−1 actions.
 - Render the bracket as a vertical stage-by-stage list on phones instead of forcing the desktop connector canvas into a horizontal scroll area.
-- Keep standings compact and readable with the official `P / W / L / NPD / TP` columns.
+- Keep standings compact and readable with the official `Matches / W / L / NPD / TP` columns; Matches/W/L are decided pair-match totals, not team-matchup records.
 - On Player Pool mobile views, expose search, attendance, and assignment first; put lower-frequency filters under **More filters**.
 - Keep destructive/recovery operations explicit and confirmed even when their mobile presentation is simplified.
 - Avoid horizontal page overflow. Horizontal scrolling is acceptable only inside deliberate controls such as nav strips, match chips, or data regions that cannot be represented more clearly as cards.

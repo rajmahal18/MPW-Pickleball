@@ -134,7 +134,6 @@ export async function createGroupFixtures(db: Prisma.TransactionClient, tourname
             homeTeamId: group.teams[homeIndex]!.id,
             awayTeamId: group.teams[awayIndex]!.id,
             status: "LINEUP_PENDING",
-            courtLabel: String(((order - 1) % 2) + 1),
           },
         });
       }
@@ -158,6 +157,9 @@ export async function rebuildActivityPreservingMasterData(db: Prisma.Transaction
         awayWins: 0,
         winnerTeamId: null,
         status: matchup.homeTeamId && matchup.awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
+        scheduledAt: null,
+        courtLabel: null,
+        queuePosition: null,
         version: { increment: 1 },
       },
     });
@@ -167,7 +169,7 @@ export async function rebuildActivityPreservingMasterData(db: Prisma.Transaction
   await db.voteAttempt.deleteMany({ where: { tournamentId } });
   await db.tournament.update({
     where: { id: tournamentId },
-    data: { votingOpen: false, votingDeadline: null, simulationMode: true },
+    data: { votingOpen: false, votingDeadline: null, simulationMode: true, activeCourtCount: 0 },
   });
 }
 

@@ -19,7 +19,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
   ]);
 
   return jsonSafe({
-    version: 3,
+    version: 4,
     capturedAt: new Date().toISOString(),
     tournament: {
       id: tournament.id,
@@ -27,6 +27,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
       votingDeadline: tournament.votingDeadline,
       simulationMode: tournament.simulationMode,
       destructiveToolsEnabled: tournament.destructiveToolsEnabled,
+      activeCourtCount: tournament.activeCourtCount,
     },
     matchups,
     lineups,
@@ -47,6 +48,7 @@ type Snapshot = {
     votingDeadline: string | null;
     simulationMode: boolean;
     destructiveToolsEnabled: boolean;
+    activeCourtCount?: number;
   };
   matchups: Array<Record<string, unknown>>;
   lineups: Array<Record<string, unknown>>;
@@ -81,7 +83,7 @@ export async function restoreTournamentSnapshot(
   rawSnapshot: Prisma.JsonValue,
 ) {
   const snapshot = rawSnapshot as unknown as Snapshot;
-  if (!snapshot || ![1, 2, 3].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
+  if (!snapshot || ![1, 2, 3, 4].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
     throw new Error("Checkpoint is incompatible with this tournament.");
   }
 
@@ -100,6 +102,7 @@ export async function restoreTournamentSnapshot(
       votingDeadline: asDate(snapshot.tournament.votingDeadline),
       simulationMode: snapshot.tournament.simulationMode,
       destructiveToolsEnabled: snapshot.tournament.destructiveToolsEnabled,
+      activeCourtCount: Number(snapshot.tournament.activeCourtCount ?? 0),
     },
   });
 
@@ -134,6 +137,7 @@ export async function restoreTournamentSnapshot(
         status: enumValue(value.status, MATCHUP_STATUSES, "team matchup status"),
         scheduledAt: asDate(value.scheduledAt),
         courtLabel: (value.courtLabel as string | null) ?? null,
+        queuePosition: value.queuePosition === null || value.queuePosition === undefined ? null : Number(value.queuePosition),
         winnerTeamId: (value.winnerTeamId as string | null) ?? null,
         homeWins: Number(value.homeWins ?? 0),
         awayWins: Number(value.awayWins ?? 0),

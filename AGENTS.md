@@ -11,7 +11,7 @@ Short-notice organizer changes are a normal operating condition, especially for 
 ## Non-negotiable rules
 
 1. **Do not hardcode the original tournament format.**
-   - `3 groups`, `12 teams`, `7 pairs`, `7 games`, `4 qualifiers`, `2 semifinals`, etc. are sample Open configuration values only.
+   - `3 groups`, `12 teams`, `7 pairs`, `7 pair matches`, `4 qualifiers`, `2 semifinals`, etc. are sample Open configuration values only.
    - Any feature that needs these numbers must read them from Division/Group/Team/Matchup data.
 
 2. **Player pool first.**
@@ -25,13 +25,13 @@ Short-notice organizer changes are a normal operating condition, especially for 
    - Removing an unplayed team must return its players to the pool; never delete Player records as cleanup.
 
 4. **Protect recorded history.**
-   - Never silently rewrite competitors/pairs/game counts of a matchup after recorded play exists.
+   - Never silently rewrite competitors/pairs/match counts of a matchup after recorded play exists.
    - Future/unplayed matchups may be regenerated or edited.
    - Completed results remain the source of truth for MVP/statistics.
 
 5. **Actual participation matters.**
    - Fan Favorite eligibility requires an active, confirmed, assigned player.
-   - MVP remains derived from actual completed/forfeited games, not mere registration.
+   - MVP remains derived from actual completed/forfeited pair matches, not mere registration.
    - Do not count a player as having played just because they exist in the pool or were once assigned.
 
 6. **Keep unrelated features intact.**
@@ -39,7 +39,7 @@ Short-notice organizer changes are a normal operating condition, especially for 
 
 7. **Dynamic public guidance.**
    - `/format` must describe the live Division/Matchup configuration.
-   - Do not restore static prose that claims a specific number of groups, teams, games, or qualifiers.
+   - Do not restore static prose that claims a specific number of groups, teams, matches, or qualifiers.
 
 8. **Division-aware queries.**
    - Orders, stages, rounds, standings, rollback scopes, simulation scopes, and public grouping must not accidentally merge separate divisions.
@@ -54,18 +54,21 @@ Short-notice organizer changes are a normal operating condition, especially for 
     - Do not replace migrations with `db push`.
 
 11. **Admin UX must stay operational, not database-like.**
-    - Tournament Setup should keep the selected-division console, summary/readiness indicators, contextual management sections, and Advanced disclosure for technical fields.
+    - Tournament Setup follows the visible workflow **Division → Teams & Groups → Lineup Rules → Courts → Matchups**. Do not reintroduce a separate duplicate team-placement section or always-visible bulk/dev-helper panel.
+    - Court queue controls are tournament-day controls and must update in place without full-page navigation.
     - Player Pool should stay attendance-first with filters and scannable statuses.
+    - Technical/developer tools may remain available but should not compete with normal tournament-day navigation.
     - See `docs/UI_UX_GUIDELINES.md` before changing admin setup/player-pool UI.
 
 ## Current supported format primitives
 
 - Division formats: `GROUP_KNOCKOUT`, `ROUND_ROBIN`, `SINGLE_ELIMINATION`, `CUSTOM`
 - Matchup stages: `GROUP`, `ROUND_ROBIN`, `QUARTERFINAL`, `SEMIFINAL`, `FINAL`, `THIRD_PLACE`, `CUSTOM`
-- `gamesPerMatchup` is configurable per matchup. Division settings may define a group/default count and a separate knockout count; unplayed knockout matchups may sync to the knockout count while recorded history stays locked.
+- User-facing terminology is **Match / Matches**. Prisma `Game`, `/games`, and `gamesPerMatchup` remain legacy internal identifiers only; do not reintroduce “game” in UI copy.
+- `gamesPerMatchup` stores the configurable **pair-match count** per team matchup. Division settings may define a group/default count and a separate knockout count; unplayed knockout matchups may sync to the knockout count while recorded history stays locked.
 - Divisions may enable a Battle for 3rd, populated from semifinal losers when automatic progression is supported.
 - Divisions may enable sudden death at 10-10; scoring validation must honor the live division setting.
-- Team Event playing pairs are **matchup-specific lineup choices from the team roster**. Do not require organizers to pre-create/permanently lock seven pair combinations. `Pair` rows may act as technical/historical snapshots for lineup/game compatibility; only a game with recorded play protects that specific slot.
+- Team Event playing pairs are **matchup-specific lineup choices from the team roster**. Do not require organizers to pre-create/permanently lock seven pair combinations. `Pair` rows may act as technical/historical snapshots for lineup/match compatibility; only a pair match with recorded play protects that specific slot.
 - Live score point controls must save in place. Do not reintroduce redirect/full-page refresh behavior for each +1/-1 action, and do not recalculate the full tournament on every rally.
 - Auto group-to-knockout progression supports exactly 2, 4, or 8 selected qualifiers today.
 - Other qualifier counts/structures require organizer-controlled future matchups.
@@ -76,6 +79,6 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Verify all player queries tolerate `teamId = null` where appropriate.
 - Verify a change in one division cannot affect another division accidentally, including simulation/reset helpers.
 - Verify private divisions and tentative player-pool names cannot leak through public detail/API routes.
-- Verify started/completed game history cannot be silently rewritten.
+- Verify started/completed pair-match history cannot be silently rewritten.
 - Verify Fan Favorite and MVP still work.
 - Update `PROJECT_STATE.md` when architecture/constraints materially change.

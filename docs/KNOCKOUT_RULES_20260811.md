@@ -15,20 +15,20 @@ The five-match knockout setting means team leaders submit five active pair slots
 
 The visible group standings columns are:
 
-- `P` — team matchups played
-- `W` — team matchups won
-- `L` — team matchups lost
-- `NPD` — Net Point Differential, computed as total points scored minus total points conceded across decided pair matches
+- `Matches` — total decided pair matches played by the team
+- `W` — total pair-match wins
+- `L` — total pair-match losses
+- `NPD` — Net Point Differential, total points scored minus total points conceded across decided pair matches
 - `TP` — Total Points Scored across decided pair matches
 
-Pair-match wins are still tracked even though they are not shown as a separate standings column. After the team-matchup W/L record, tied teams are ranked using the organizer's required sequence:
+Teams are ranked using the organizer's required sequence:
 
 A. **Total Pair Match Wins**
 B. **Net Point Differential** — Total Points Scored − Total Points Conceded across the pair matches
 C. **Head-to-head result** between the teams still tied after A and B
 D. **Total Points Scored**
 
-If teams remain mathematically tied after all of the automatic criteria and the group stage is complete, the existing organizer tiebreak override remains available. Cross-group wildcard comparison cannot use head-to-head, so it uses team-matchup record, pair-match wins, NPD, then total points scored.
+If teams remain mathematically tied after all four criteria and the group stage is complete, the existing organizer tiebreak override remains available. Cross-group wildcard comparison cannot use head-to-head, so it uses pair-match wins, NPD, then total points scored.
 
 ## History protection
 

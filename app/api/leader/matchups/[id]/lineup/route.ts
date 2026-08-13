@@ -6,6 +6,7 @@ import { requireTeamLeader } from "@/lib/permissions";
 import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { writeAudit } from "@/lib/audit";
 import { recalculateMatchup } from "@/lib/tournament/recalculate";
+import { categoriesForStage, categoryLabel } from "@/lib/tournament/rules";
 
 type LineupWithSlots = Prisma.LineupGetPayload<{ include: { slots: true } }>;
 type RequestedSlot = { playerAId: string; playerBId: string };
@@ -47,6 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         include: {
           games: { orderBy: { gameNumber: "asc" } },
           lineups: { include: { slots: true } },
+          division: true,
         },
       });
       if (!matchup || ![matchup.homeTeamId, matchup.awayTeamId].includes(teamId)) throw new Error("You cannot manage this team matchup.");
@@ -73,6 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         where: { id: { in: allPlayerIds } },
         include: { divisionEntries: { where: { divisionId: matchup.divisionId } } },
       });
+      const categoryRules = categoriesForStage(matchup.division, matchup.stage, required);
       if (players.length !== allPlayerIds.length) throw new Error("One or more selected players could not be found.");
       const playerById = new Map(players.map((player) => [player.id, player]));
 
@@ -92,6 +95,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             && player.participationStatus === "CONFIRMED"
             && player.divisionEntries.some((entry) => entry.status === "CONFIRMED");
           if (!eligible) throw new Error(`A selected player in Match ${slotNumber} is no longer eligible for this team/division.`);
+        }
+        const category = categoryRules[slotNumber - 1] ?? null;
+        if (category) {
+          const playerA = playerById.get(slot.playerAId)!;
+          const playerB = playerById.get(slot.playerBId)!;
+          const validCategory = category === "MENS"
+            ? playerA.sex === "MALE" && playerB.sex === "MALE"
+            : category === "WOMENS"
+              ? playerA.sex === "FEMALE" && playerB.sex === "FEMALE"
+              : playerA.sex !== playerB.sex;
+          if (!validCategory) throw new Error(`Match ${slotNumber} is configured as ${categoryLabel(category)}. Select a valid ${categoryLabel(category).toLowerCase()} pair.`);
         }
       }
 

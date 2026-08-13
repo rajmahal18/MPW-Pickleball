@@ -8,10 +8,13 @@ export type StandingMatchup = Matchup & { games?: StandingGame[] };
 
 export type StandingRow = {
   team: StandingTeam;
+  /** Total decided pair matches played. */
   played: number;
+  /** Total pair-match wins. */
   won: number;
+  /** Total pair-match losses. */
   lost: number;
-  /** Total pair-match wins. This is the first group-stage tiebreak after the team-matchup record. */
+  /** Legacy alias for pair-match wins; kept for qualifier/tiebreak compatibility. */
   gameWins: number;
   gameLosses: number;
   /** Legacy pair-win differential kept for compatibility; it is no longer a ranking criterion. */
@@ -42,8 +45,7 @@ export function areGroupMatchupsComplete(matchups: Array<Pick<Matchup, "status">
 }
 
 /**
- * Group ranking order:
- * 1) completed team-matchup record, then the official tiebreak sequence:
+ * Group ranking order uses the official pair-match tiebreak sequence:
  *    A. total pair-match wins
  *    B. net point differential (points scored - points conceded)
  *    C. head-to-head result among teams still tied after A/B
@@ -53,8 +55,6 @@ export function areGroupMatchupsComplete(matchups: Array<Pick<Matchup, "status">
  */
 export function compareStandingRows(a: StandingRow, b: StandingRow) {
   return (
-    b.won - a.won ||
-    a.lost - b.lost ||
     b.gameWins - a.gameWins ||
     b.points - a.points ||
     b.headToHeadPoints - a.headToHeadPoints ||
@@ -65,8 +65,6 @@ export function compareStandingRows(a: StandingRow, b: StandingRow) {
 /** Cross-group wildcard rows cannot have a meaningful head-to-head result. */
 export function compareCrossGroupRows(a: StandingRow, b: StandingRow) {
   return (
-    b.won - a.won ||
-    a.lost - b.lost ||
     b.gameWins - a.gameWins ||
     b.points - a.points ||
     b.totalPointsScored - a.totalPointsScored
@@ -74,15 +72,15 @@ export function compareCrossGroupRows(a: StandingRow, b: StandingRow) {
 }
 
 function standingTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}|${row.headToHeadPoints}|${row.totalPointsScored}`;
+  return `${row.gameWins}|${row.points}|${row.headToHeadPoints}|${row.totalPointsScored}`;
 }
 
 function crossGroupTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}|${row.totalPointsScored}`;
+  return `${row.gameWins}|${row.points}|${row.totalPointsScored}`;
 }
 
 function preHeadToHeadTieKey(row: StandingRow) {
-  return `${row.won}|${row.lost}|${row.gameWins}|${row.points}`;
+  return `${row.gameWins}|${row.points}`;
 }
 
 function stableTeamOrder(a: StandingRow, b: StandingRow) {
@@ -168,8 +166,7 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
   const assignedMatchups = matchups.filter((matchup) => matchup.homeTeamId && matchup.awayTeamId);
   const completed = assignedMatchups.filter((matchup) => isTerminalMatchupStatus(matchup.status));
 
-  // Decided pair matches immediately contribute to pair-match wins and scoring totals.
-  // P/W/L remain team-matchup results and therefore change only once the full matchup is terminal.
+  // Decided pair matches immediately contribute to Matches/W/L and scoring totals.
   for (const matchup of assignedMatchups) {
     const home = rowByTeam.get(matchup.homeTeamId!);
     const away = rowByTeam.get(matchup.awayTeamId!);
@@ -179,6 +176,14 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
     home.gameLosses += matchup.awayWins;
     away.gameWins += matchup.awayWins;
     away.gameLosses += matchup.homeWins;
+
+    const decidedCount = matchup.homeWins + matchup.awayWins;
+    home.played += decidedCount;
+    away.played += decidedCount;
+    home.won += matchup.homeWins;
+    home.lost += matchup.awayWins;
+    away.won += matchup.awayWins;
+    away.lost += matchup.homeWins;
 
     for (const game of matchup.games ?? []) {
       if (!isTerminalGameStatus(game.status)) continue;
@@ -191,23 +196,12 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
       away.totalPointsConceded += game.homeScore;
     }
 
-    if (!isTerminalMatchupStatus(matchup.status)) continue;
-    home.played += 1;
-    away.played += 1;
-
-    if (matchup.homeWins > matchup.awayWins) {
-      home.won += 1;
-      away.lost += 1;
-    } else if (matchup.awayWins > matchup.homeWins) {
-      away.won += 1;
-      home.lost += 1;
-    }
   }
 
   for (const row of rows) row.differential = row.gameWins - row.gameLosses;
 
   // Head-to-head is criterion C, so evaluate it only among teams still tied after
-  // team-matchup record, pair-match wins (A), and net point differential (B).
+  // pair-match wins (A) and net point differential (B).
   const tiedBeforeHeadToHead = new Map<string, StandingRow[]>();
   for (const row of rows) {
     const key = preHeadToHeadTieKey(row);

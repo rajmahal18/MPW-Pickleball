@@ -47,7 +47,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         games: { select: { id: true, gameNumber: true, status: true, homeScore: true, awayScore: true, homePairId: true, awayPairId: true }, orderBy: { gameNumber: "asc" } },
         lineups: { select: { teamId: true, slots: { select: { slot: true, pairId: true } } } },
       },
-      orderBy: [{ scheduledAt: "asc" }, { order: "asc" }],
+      orderBy: [{ queuePosition: { sort: "asc", nulls: "last" } }, { order: "asc" }],
     }),
     prisma.matchup.groupBy({ by: ["status"], where: { tournamentId: tournament.id, homeTeamId: { not: null }, awayTeamId: { not: null } }, _count: { _all: true } }),
     prisma.game.count({ where: { matchup: { tournamentId: tournament.id }, status: "LIVE" } }),
@@ -99,7 +99,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     </div>
     <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6"><Stat label="Ongoing matchups" value={liveMatchups} tone={liveMatchups ? "live" : "neutral"}/><Stat label="Live pair matches" value={liveGames} tone={liveGames ? "live" : "neutral"}/><Stat label="Pending lineups" value={pendingLineups} tone={pendingLineups ? "warn" : "neutral"}/><Stat label="Ready to play" value={readyMatchups} tone={readyMatchups ? "good" : "neutral"}/><Stat label="Completed pair matches" value={completedPairGames} tone="neutral"/><Stat label="Completed matchups" value={completedMatchups} tone="neutral"/></div>
     <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500"><span className="border border-line bg-white px-3 py-2"><strong className="text-ink">{votes}</strong> Fan Favorite votes</span><span className="border border-line bg-white px-3 py-2"><strong className="text-ink">{suspicious}</strong> rejected vote attempts</span></div>
-    <div className="mt-6 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4"><Quick href="#live-scoring" title="Live Scoring" text="Open active matches and encode points without page reloads."/><Quick href="/admin/tournament" title="Tournament Setup" text="Divisions, groups, placement, schedule, and match rules."/><Quick href="/admin/players" title="Player Pool" text="Attendance, team assignment, and division eligibility."/><Quick href="/admin/voting" title="Voting" text="Fan Favorite voting codes and controls."/></div>
+    <div className="mt-6 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4"><Quick href="#live-scoring" title="Live Scoring" text="Open active matches and encode points without page reloads."/><Quick href="/admin/tournament" title="Tournament Setup" text="Divisions, groups, placement, court queue, and match rules."/><Quick href="/admin/players" title="Player Pool" text="Attendance, team assignment, and division eligibility."/><Quick href="/admin/voting" title="Voting" text="Fan Favorite voting codes and controls."/></div>
     <section id="live-scoring" className="panel mt-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
         <div>

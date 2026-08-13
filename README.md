@@ -1,8 +1,8 @@
 # MPW Pickleball Tournament Platform
 
-A public-facing, live-first tournament platform for MPW Pickleball. The application is intentionally **format-flexible**: divisions, player attendance, team/pair assignment, matchup game counts, group structures, and future schedules can be changed by organizers without a code deployment.
+A public-facing, live-first tournament platform for MPW Pickleball. The application is intentionally **format-flexible**: divisions, player attendance, team/pair assignment, pair-match counts, group structures, and the tournament-day court queue can be changed by organizers without a code deployment.
 
-The original 2026 Open setup (3 groups, 12 teams, 7 pair games per team matchup) remains available as **sample/default data only**. It is not an architectural constraint.
+The original 2026 Open setup (3 groups, 12 teams, 7 pair matches per team matchup) remains available as **sample/default data only**. It is not an architectural constraint.
 
 ## Product rule
 
@@ -13,13 +13,13 @@ Tournament-day changes are expected. Future/unplayed structure is editable; reco
 ## Tournament model
 
 - One Tournament can contain multiple independent **Divisions** (Open, Executive Men, Executive Women, or future categories).
-- Each division controls its format, default games per matchup, groups, teams, qualification settings, visibility, and progression notes.
+- Each division controls its format, default pair matches per matchup, groups, teams, qualification settings, visibility, and progression notes.
 - Players begin in a tournament-level **Player Pool** and can be tentative, confirmed, unavailable, or withdrawn.
 - Division eligibility/confirmation is tracked separately through `DivisionPlayer`.
 - `Player.teamId` is optional. Team/pair assignment is late-bound and should happen only when attendance is known.
-- Matchups own `gamesPerMatchup`; there is no global seven-game assumption.
+- Matchups own `gamesPerMatchup` (legacy internal name for pair-match count); there is no global seven-match assumption.
 - Group round robins can be regenerated while unplayed. Custom future matchups can be created/edited/deleted directly by admins.
-- Started/completed matchups protect competitors, game structure, and history while still allowing safe metadata changes such as court/round/time.
+- Started/completed matchups protect competitors, pair-match structure, and history. Future ordering/court assignment is managed through the sequential Court Queue / Match Stack; fixed clock times are not part of the current admin workflow.
 - Group-knockout automatic progression currently supports 2, 4, or 8 qualifiers. Other structures remain organizer-controlled rather than being guessed by code.
 - Public `/format` content is generated from current database configuration.
 
@@ -30,11 +30,11 @@ The flexibility refactor does **not** remove unrelated tournament features:
 - Live scoring, score correction, forfeits, interruption state, audit history, and score-event undo
 - Team-leader lineup submission with server-side pair/player validation
 - Fan Favorite voting codes, rate limiting, printable cards, and live rankings
-- Male/Female MVP rankings based on completed games
+- Male/Female MVP rankings based on completed pair matches
 - Simulation Center
 - Checkpoints, restore, granular undo, and reset tooling
 - Player avatars
-- Public home, groups, standings, bracket, games, teams, players, Fan Favorite, and MVP pages
+- Public home, groups, standings, bracket, Matches directory, teams, players, Fan Favorite, and MVP pages
 
 ## Admin workflow for short-notice changes
 
@@ -43,7 +43,8 @@ The flexibility refactor does **not** remove unrelated tournament features:
 3. For Executive doubles, use **Quick Pair Unit** to create a team + two player assignments + active pair in one action.
 4. Configure or change the division under **Admin → Tournament Setup**.
 5. Generate a round robin or create/edit future matchups manually.
-6. Once scoring starts, preserve that history; change only future/unplayed records.
+6. Set active courts and stack ready team matchups in **Court Queue / Match Stack** order.
+7. Once scoring starts, preserve that history; change only future/unplayed records.
 
 ## Codex / future-agent handoff
 

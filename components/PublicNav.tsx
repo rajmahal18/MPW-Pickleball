@@ -26,7 +26,7 @@ export default function PublicNav() {
     navRef.current?.querySelector<HTMLElement>("[aria-current='page']")?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }, [pathname]);
 
-  return <nav ref={navRef} aria-label="Tournament" className="col-span-2 mt-2 flex min-w-0 items-center gap-1 overflow-x-auto border-t border-line pt-2 text-xs font-bold [scrollbar-width:none] md:col-span-1 md:mt-0 md:w-auto md:flex-1 md:justify-center md:border-t-0 md:pt-0 md:text-sm">
+  return <nav ref={navRef} aria-label="Tournament" className="order-3 col-span-2 mt-2 flex min-w-0 items-center gap-1 overflow-x-auto border-t border-line pt-2 text-xs font-bold [scrollbar-width:none] md:order-2 md:col-span-1 md:mt-0 md:w-auto md:flex-1 md:justify-center md:border-t-0 md:pt-0 md:text-sm">
     {items.map((item) => {
       const active = item.matches(pathname);
       const Icon = item.icon;

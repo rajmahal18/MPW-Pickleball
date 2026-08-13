@@ -2,6 +2,7 @@ import type { MatchupStage, Prisma } from "@prisma/client";
 import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers } from "@/lib/tournament/standings";
 import { writeAudit } from "@/lib/audit";
 import { gamesForStage } from "@/lib/tournament/rules";
+import { compactTournamentQueue } from "@/lib/tournament/queue";
 
 function matchupHasStarted(matchup: { games: Array<{ status: string; homeScore: number; awayScore: number }> }) {
   return matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0);
@@ -33,7 +34,12 @@ async function assignTeams(
 ) {
   const current = await db.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
   if (!current) return;
-  if (current.homeTeamId === homeTeamId && current.awayTeamId === awayTeamId) return;
+  if (current.homeTeamId === homeTeamId && current.awayTeamId === awayTeamId) {
+    if ((!homeTeamId || !awayTeamId) && current.queuePosition !== null) {
+      await db.matchup.update({ where: { id: matchupId }, data: { queuePosition: null, courtLabel: null, scheduledAt: null } });
+    }
+    return;
+  }
   if (matchupHasStarted(current) || current.status === "COMPLETED" || current.status === "FORFEITED") return;
   await clearFutureMatchup(db, matchupId);
   await db.matchup.update({
@@ -46,6 +52,7 @@ async function assignTeams(
       awayWins: 0,
       winnerTeamId: null,
       version: { increment: 1 },
+      ...(!homeTeamId || !awayTeamId ? { queuePosition: null, courtLabel: null, scheduledAt: null } : {}),
     },
   });
 }
@@ -213,10 +220,12 @@ export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId
     ? homeWins > awayWins ? matchup.homeTeamId : matchup.awayTeamId
     : null;
 
-  return db.matchup.update({
+  const updated = await db.matchup.update({
     where: { id: matchupId },
-    data: { homeWins, awayWins, status, winnerTeamId, version: { increment: 1 } },
+    data: { homeWins, awayWins, status, winnerTeamId, ...(complete ? { queuePosition: null } : {}), version: { increment: 1 } },
   });
+  if (complete && matchup.queuePosition !== null) await compactTournamentQueue(db, matchup.tournamentId);
+  return updated;
 }
 
 export async function recalculateTournament(
@@ -264,6 +273,8 @@ export async function recalculateTournament(
 
     results.push({ divisionId: division.id, allGroupComplete, qualifierIds, autoKnockoutSupported, unresolvedQualificationSlots });
   }
+
+  await compactTournamentQueue(db, tournamentId);
 
   if (audit) {
     await writeAudit(db, {

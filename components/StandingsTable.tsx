@@ -17,7 +17,7 @@ export default function StandingsTable({ rows }: { rows: StandingRow[] }) {
       <colgroup>
         <col className="w-7" />
         <col />
-        <col className="w-7" />
+        <col className="w-14 sm:w-16" />
         <col className="w-7" />
         <col className="w-7" />
         <col className="w-11 sm:w-14" />
@@ -27,9 +27,9 @@ export default function StandingsTable({ rows }: { rows: StandingRow[] }) {
         <tr>
           <th className="px-1.5 py-2">#</th>
           <th className="px-1.5 py-2">Team</th>
-          <th className="px-1 py-2 text-center" title="Team matchups played">P</th>
-          <th className="px-1 py-2 text-center" title="Team matchup wins">W</th>
-          <th className="px-1 py-2 text-center" title="Team matchup losses">L</th>
+          <th className="px-1 py-2 text-center" title="Total decided pair matches played">Matches</th>
+          <th className="px-1 py-2 text-center" title="Total pair-match wins">W</th>
+          <th className="px-1 py-2 text-center" title="Total pair-match losses">L</th>
           <th className="px-1 py-2 text-center" title="Net Point Differential: total points scored minus total points conceded across decided pair matches">NPD</th>
           <th className="px-1 py-2 text-center" title="Total points scored across decided pair matches">TP</th>
         </tr>
@@ -52,7 +52,7 @@ export default function StandingsTable({ rows }: { rows: StandingRow[] }) {
     </table>
     <div className="border-t border-line bg-gray-50 px-3 py-2 text-[9px] font-bold leading-relaxed text-gray-500 sm:text-[10px]">
       <span className="sm:hidden">TB: pair-match wins → NPD → H2H → total points.</span>
-      <span className="hidden sm:inline">Tiebreak order after the team-matchup record: total pair-match wins, Net Point Differential, head-to-head result, then total points scored.</span>
+      <span className="hidden sm:inline">Tiebreak order: total pair-match wins, Net Point Differential, head-to-head result, then total points scored.</span>
     </div>
   </div>;
 }

@@ -132,6 +132,7 @@ export default async function GamesPage({
         awayPair: { include: { playerA: true, playerB: true } },
       },
       orderBy: [
+        { matchup: { queuePosition: { sort: "asc", nulls: "last" } } },
         { matchup: { order: "asc" } },
         { gameNumber: "asc" },
         { id: "asc" },

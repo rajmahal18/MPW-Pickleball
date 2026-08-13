@@ -17,6 +17,12 @@ enum SexCategory {
   FEMALE
 }
 
+enum PairMatchCategory {
+  MENS
+  WOMENS
+  MIXED
+}
+
 enum MatchupStage {
   GROUP
   ROUND_ROBIN
@@ -109,6 +115,7 @@ model Tournament {
   votingDeadline          DateTime?
   simulationMode          Boolean   @default(false)
   destructiveToolsEnabled Boolean   @default(false)
+  activeCourtCount        Int       @default(0)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -136,6 +143,10 @@ model Division {
   entrantType            DivisionEntrantType @default(TEAM)
   defaultGamesPerMatchup  Int                 @default(1)
   knockoutGamesPerMatchup Int?
+  groupMatchCategories          PairMatchCategory[] @default([])
+  knockoutMatchCategories       PairMatchCategory[] @default([])
+  groupCategoryRulesEnabled     Boolean             @default(false)
+  knockoutCategoryRulesEnabled  Boolean             @default(false)
   qualifiersPerGroup      Int                 @default(1)
   wildcardCount           Int                 @default(0)
   autoProgression         Boolean             @default(false)
@@ -308,6 +319,7 @@ model Matchup {
   status          MatchupStatus @default(LINEUP_PENDING)
   scheduledAt     DateTime?
   courtLabel      String?
+  queuePosition   Int?
   winnerTeamId    String?
   winnerTeam      Team?         @relation("MatchupWinner", fields: [winnerTeamId], references: [id], onDelete: SetNull)
   homeWins        Int           @default(0)
@@ -321,6 +333,7 @@ model Matchup {
   @@unique([divisionId, stage, order])
   @@index([tournamentId, divisionId, stage, groupLabel, order])
   @@index([tournamentId, status, scheduledAt])
+  @@index([tournamentId, queuePosition])
 }
 
 model Lineup {

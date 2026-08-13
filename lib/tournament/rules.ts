@@ -1,8 +1,15 @@
-import type { MatchupStage } from "@prisma/client";
+import type { MatchupStage, PairMatchCategory } from "@prisma/client";
 
 export type StageGameRuleSource = {
   defaultGamesPerMatchup: number;
   knockoutGamesPerMatchup: number | null;
+};
+
+export type StageCategoryRuleSource = StageGameRuleSource & {
+  groupMatchCategories: PairMatchCategory[];
+  knockoutMatchCategories: PairMatchCategory[];
+  groupCategoryRulesEnabled: boolean;
+  knockoutCategoryRulesEnabled: boolean;
 };
 
 export const KNOCKOUT_STAGES: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"];
@@ -14,6 +21,33 @@ export function isKnockoutStage(stage: MatchupStage) {
 export function gamesForStage(division: StageGameRuleSource, stage: MatchupStage) {
   if (isKnockoutStage(stage)) return Math.max(1, division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup);
   return Math.max(1, division.defaultGamesPerMatchup);
+}
+
+
+export function defaultCategoryPattern(count: number, kind: "GROUP" | "KNOCKOUT") {
+  const safeCount = Math.max(1, count);
+  if (kind === "GROUP" && safeCount === 7) {
+    return ["MENS", "WOMENS", "MENS", "WOMENS", "MENS", "WOMENS", "MIXED"] satisfies PairMatchCategory[];
+  }
+  if (kind === "KNOCKOUT" && safeCount === 5) {
+    return ["MENS", "WOMENS", "MIXED", "WOMENS", "MENS"] satisfies PairMatchCategory[];
+  }
+  return Array.from({ length: safeCount }, (_, index) => index % 2 === 0 ? "MENS" : "WOMENS") satisfies PairMatchCategory[];
+}
+
+export function categoriesForStage(division: StageCategoryRuleSource, stage: MatchupStage, count = gamesForStage(division, stage)) {
+  const knockout = isKnockoutStage(stage);
+  const enabled = knockout ? division.knockoutCategoryRulesEnabled : division.groupCategoryRulesEnabled;
+  const configured = knockout ? division.knockoutMatchCategories : division.groupMatchCategories;
+  if (!enabled) return Array.from({ length: Math.max(1, count) }, () => null);
+  return Array.from({ length: Math.max(1, count) }, (_, index) => configured[index] ?? null);
+}
+
+export function categoryLabel(category: PairMatchCategory | null | undefined) {
+  if (category === "MENS") return "Men's";
+  if (category === "WOMENS") return "Women's";
+  if (category === "MIXED") return "Mixed";
+  return "Not set";
 }
 
 export function assertValidCompletedScore(homeScore: number, awayScore: number, suddenDeathAtTen: boolean) {

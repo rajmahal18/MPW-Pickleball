@@ -6,6 +6,7 @@ import FlashMessage from "@/components/FlashMessage";
 import LineupEditor from "@/components/LineupEditor";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import StatusBadge from "@/components/StatusBadge";
+import { categoriesForStage, categoryLabel } from "@/lib/tournament/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +34,13 @@ export default async function Lineup({ params, searchParams }: { params: Promise
   });
   const current = matchup.lineups.find((lineup) => lineup.teamId === user.teamId);
   const required = matchup.gamesPerMatchup;
+  const categories = categoriesForStage(matchup.division, matchup.stage, required);
   const lockedGames = new Map(matchup.games.filter((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0).map((game) => [game.gameNumber, game]));
 
   const players = teamPlayers.map((player) => ({
     id: player.id,
     name: formatPlayerDisplayName(player),
+    sex: player.sex,
     eligible: player.isActive
       && player.participationStatus === "CONFIRMED"
       && player.divisionEntries.some((entry) => entry.status === "CONFIRMED"),
@@ -67,7 +70,7 @@ export default async function Lineup({ params, searchParams }: { params: Promise
   return <main className="mx-auto max-w-5xl px-4 py-5 md:py-8">
     <FlashMessage {...query}/>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · lineup</span></div><h1 className="mt-2 text-3xl font-black uppercase">{matchup.homeTeam?.name} vs {matchup.awayTeam?.name}</h1><p className="mt-2 max-w-3xl text-sm text-gray-600">Choose the players who will play together in each of the {required} matches. You may change any future match slot until that specific match starts.</p></div>
+      <div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="label">{matchup.division.name} · lineup</span></div><h1 className="mt-2 text-3xl font-black uppercase">{matchup.homeTeam?.name} vs {matchup.awayTeam?.name}</h1><p className="mt-2 max-w-3xl text-sm text-gray-600">Choose the players who will play together in each of the {required} matches. Men's, Women's, and Mixed restrictions are enforced per match when configured by the admin. Future slots stay editable until that specific match starts.</p></div>
       <Link href="/leader" className="btn-ghost">Back to matchups</Link>
     </div>
 
@@ -78,9 +81,10 @@ export default async function Lineup({ params, searchParams }: { params: Promise
     </div>
 
     {eligibleForFuture < futurePlayersNeeded ? <div className="mt-6 border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-950">Only {eligibleForFuture} eligible unused team member{eligibleForFuture === 1 ? " is" : "s are"} available for {futurePlayersNeeded} open player slot{futurePlayersNeeded === 1 ? "" : "s"}. Ask the admin to confirm attendance/eligibility before saving.</div> : null}
+    <div className="mt-5 flex flex-wrap gap-2">{categories.map((category, index) => <span key={index} className="border border-line bg-white px-2.5 py-1.5 text-xs font-black uppercase">Match {index + 1}: {categoryLabel(category)}</span>)}</div>
     {lockedGames.size > 0 && <div className="mt-6 border border-line bg-gray-50 p-4 text-sm text-gray-700"><strong>Only played match slots are protected.</strong> Their player pair stays fixed for historical integrity. Unplayed matches remain editable even after another match in the same team matchup has started.</div>}
 
-    <LineupEditor matchupId={matchup.id} required={required} players={players} slots={slots}/>
+    <LineupEditor matchupId={matchup.id} required={required} players={players} slots={slots} categories={categories}/>
   </main>;
 }
 

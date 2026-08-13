@@ -188,9 +188,10 @@ function TeamMark({ team, winner }: { team: BracketMatchup["homeTeam"]; winner: 
   return <span className={`bracket-team-mark ${winner ? "bracket-team-mark-winner" : ""}`}>{initials}</span>;
 }
 
-function scheduleLabel(matchup: { scheduledAt: Date | null; courtLabel: string | null; stage: MatchupStage }) {
-  const date = matchup.scheduledAt
-    ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(matchup.scheduledAt)
-    : matchup.stage.replaceAll("_", " ");
-  return matchup.courtLabel ? `${date} - ${matchup.courtLabel}` : date;
+function scheduleLabel(matchup: { queuePosition: number | null; courtLabel: string | null; stage: MatchupStage }) {
+  if (matchup.queuePosition !== null) {
+    return `Next #${matchup.queuePosition}${matchup.courtLabel ? ` · Court ${matchup.courtLabel}` : ""}`;
+  }
+  if (matchup.courtLabel) return `Court ${matchup.courtLabel}`;
+  return matchup.stage.replaceAll("_", " ");
 }

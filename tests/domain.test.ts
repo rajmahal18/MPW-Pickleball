@@ -8,7 +8,7 @@ import { createSeededRandom } from "../lib/tournament/rng";
 import { qrMatrix } from "../lib/qr";
 import { normalizeVotingCode } from "../lib/tournament/voting";
 import { formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
-import { assertValidCompletedScore, gamesForStage } from "../lib/tournament/rules";
+import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
 
 function team(id: string, name: string, groupName: string) {
@@ -24,13 +24,13 @@ function matchup(
 ): Matchup & { games: Array<{ homeScore: number; awayScore: number; status: "COMPLETED" }> } {
   return {
     id, tournamentId: "t", divisionId: "d", stage: "GROUP", groupLabel: "Group A", roundLabel: id, roundNumber: 1, order: 1,
-    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, status: "COMPLETED", scheduledAt: null, courtLabel: null,
+    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, status: "COMPLETED", scheduledAt: null, courtLabel: null, queuePosition: null,
     winnerTeamId: homeWins === awayWins ? null : homeWins > awayWins ? homeTeamId : awayTeamId, homeWins, awayWins, version: 0, createdAt: new Date(), updatedAt: new Date(),
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
 }
 
-test("standings apply team record then pair-match wins, NPD, head-to-head, and total points", () => {
+test("standings apply pair-match wins, NPD, head-to-head, and total points", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A")];
   const rows = computeStandings(teams, [
     matchup("1", "A", "B", 4, 3, [[11, 7], [11, 7], [11, 7], [11, 7], [7, 11], [7, 11], [7, 11]]),
@@ -144,7 +144,12 @@ test("a finalized pair match updates live pair wins, NPD, and total points befor
   assert.equal(alpha.differential, 1);
   assert.equal(bravo.gameWins, 0);
   assert.equal(bravo.gameLosses, 1);
-  assert.equal(alpha.played, 0);
+  assert.equal(alpha.played, 1);
+  assert.equal(alpha.won, 1);
+  assert.equal(alpha.lost, 0);
+  assert.equal(bravo.played, 1);
+  assert.equal(bravo.won, 0);
+  assert.equal(bravo.lost, 1);
   assert.equal(alpha.points, 4);
   assert.equal(bravo.points, -4);
   assert.equal(alpha.totalPointsScored, 11);
@@ -176,7 +181,12 @@ test("NPD and total points use decided pair matches only and ignore an unfinishe
   assert.equal(ccdeo.totalPointsScored, 29);
   assert.equal(ccdeo.totalPointsConceded, 24);
   assert.equal(ro1.totalPointsScored, 24);
-  assert.ok(rows.every((row) => row.played === 0 && row.won === 0 && row.lost === 0));
+  assert.equal(ccdeo.played, 3);
+  assert.equal(ccdeo.won, 2);
+  assert.equal(ccdeo.lost, 1);
+  assert.equal(ro1.played, 3);
+  assert.equal(ro1.won, 1);
+  assert.equal(ro1.lost, 2);
 });
 
 test("scoring point differential breaks an otherwise equal completed group record", () => {
@@ -196,7 +206,9 @@ test("an even-game tied team matchup does not invent a standings winner", () => 
   const rows = computeStandings(teams, [matchup("tie", "A", "B", 2, 2)]);
   assert.equal(rows[0]!.points, 0);
   assert.equal(rows[1]!.points, 0);
-  assert.equal(rows[0]!.won + rows[1]!.won, 0);
+  assert.equal(rows[0]!.played, 4);
+  assert.equal(rows[1]!.played, 4);
+  assert.equal(rows[0]!.won + rows[1]!.won, 4);
   assert.equal(rows[0]!.rankLabel, "T1");
   assert.equal(rows[1]!.rankLabel, "T1");
   assert.equal(rows[0]!.rankStatus, "TIED");
@@ -291,6 +303,22 @@ test("stage game rules keep group play and knockout play independently configura
   assert.equal(gamesForStage(division, "SEMIFINAL"), 5);
   assert.equal(gamesForStage(division, "THIRD_PLACE"), 5);
   assert.equal(gamesForStage(division, "FINAL"), 5);
+});
+
+test("lineup match categories follow separate group and playoff patterns", () => {
+  assert.deepEqual(defaultCategoryPattern(7, "GROUP"), ["MENS", "WOMENS", "MENS", "WOMENS", "MENS", "WOMENS", "MIXED"]);
+  assert.deepEqual(defaultCategoryPattern(5, "KNOCKOUT"), ["MENS", "WOMENS", "MIXED", "WOMENS", "MENS"]);
+  const division = {
+    defaultGamesPerMatchup: 7,
+    knockoutGamesPerMatchup: 5,
+    groupMatchCategories: ["MENS", "WOMENS", "MENS", "WOMENS", "MENS", "WOMENS", "MIXED"],
+    knockoutMatchCategories: ["MENS", "WOMENS", "MIXED", "WOMENS", "MENS"],
+    groupCategoryRulesEnabled: true,
+    knockoutCategoryRulesEnabled: true,
+  };
+  assert.deepEqual(categoriesForStage(division as never, "GROUP"), ["MENS", "WOMENS", "MENS", "WOMENS", "MENS", "WOMENS", "MIXED"]);
+  assert.deepEqual(categoriesForStage(division as never, "SEMIFINAL"), ["MENS", "WOMENS", "MIXED", "WOMENS", "MENS"]);
+  assert.deepEqual(categoriesForStage({ ...division, groupCategoryRulesEnabled: false } as never, "GROUP"), [null, null, null, null, null, null, null]);
 });
 
 test("sudden death at 10-10 allows 11-10 while normal scoring still requires win by two", () => {

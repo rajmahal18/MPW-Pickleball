@@ -5,7 +5,7 @@
 - Live point controls save in place. Normal +1/-1 scoring must not navigate or refresh the page.
 - Point-by-point writes create `ScoreEvent` history, but a full tournament recalculation is reserved for result-changing actions such as finalization/reopen/forfeit/correction of a decided game.
 - Public live views poll compact JSON endpoints rather than refreshing the full React Server Component page.
-- A decided pair game immediately recalculates the parent team matchup series. Group standings consume the live `homeWins/awayWins` counters for Games/Diff and the decided game scores for `Pts` even before the full team matchup is terminal. `Pts` is scoring point differential (points scored minus points conceded), while P/W/L remain terminal-only.
+- A decided pair match immediately recalculates the parent team matchup series. Group standings consume the live `homeWins/awayWins` counters for Matches/W/L and decided-match scores for NPD/TP even before the full team matchup is terminal.
 - Standings tie labels remain provisional/hidden while any matchup in that group table is pending; exact ties become actionable only after the group table is complete.
 - Result-heavy pages use revision-triggered refreshes, so finalized games propagate across open standings/bracket/admin overview screens without returning to per-rally full-page refreshes.
 - The homepage uses one batched live-games poll, not one poll per court card.
@@ -40,6 +40,6 @@ Team leaders choose Player 1 + Player 2 for each required game directly from the
 4. Start Game 1, then edit Game 2+ lineup slots; Game 1 must remain protected while future slots save.
 5. Change an unplayed player's team/eligibility and confirm only affected future lineup usage is reopened.
 6. Confirm scorecards disappear when lineup/game references are stale and return after the lineup is completed again.
-7. Finalize Game 1 of an unfinished team matchup and confirm the parent series plus standings Games/Diff/Pts update on other open result pages. P/W/L must remain unchanged until the team matchup ends; Pts must equal the cumulative scoring margin of decided pair games only.
+7. Finalize Match 1 of an unfinished team matchup and confirm the parent series plus standings Matches/W/L/NPD/TP update on other open result pages. NPD and TP must use decided pair matches only.
 8. Confirm a fresh 0-0-0 group does not show `Tie`; exact `T#` ties should appear only after every matchup in that group table is terminal.
 9. Complete the team matchup and confirm full standings/qualification/bracket recalculation still occurs.
