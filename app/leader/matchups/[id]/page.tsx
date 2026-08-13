@@ -40,6 +40,11 @@ export default async function Lineup({ params, searchParams }: { params: Promise
   const players = teamPlayers.map((player) => ({
     id: player.id,
     name: formatPlayerDisplayName(player),
+    firstName: player.firstName,
+    middleInitial: player.middleInitial,
+    lastName: player.lastName,
+    displayName: player.displayName,
+    avatarUrl: player.avatarUrl,
     sex: player.sex,
     eligible: player.isActive
       && player.participationStatus === "CONFIRMED"

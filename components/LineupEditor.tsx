@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import PlayerAvatar from "@/components/PlayerAvatar";
+import AvatarPlayerSelect, { type AvatarPlayerOption } from "@/components/AvatarPlayerSelect";
 
 type Category = "MENS" | "WOMENS" | "MIXED" | null;
-type PlayerOption = { id: string; name: string; sex: "MALE" | "FEMALE"; eligible: boolean };
+type PlayerOption = { id: string; name: string; firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: "MALE" | "FEMALE"; eligible: boolean };
 type Slot = { slot: number; playerAId: string; playerBId: string; locked: boolean; gameStatus?: string | null };
 type ApiPayload = { ok: true; message: string } | { ok: false; error: string };
 type Selection = { playerAId: string; playerBId: string };
@@ -161,7 +163,7 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
     setError(null);
   }
 
-  return <div className="panel mt-6 overflow-hidden">
+  return <div className="panel mt-6 overflow-visible">
     <div className="border-b border-line bg-court/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -206,8 +208,8 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
                   ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                   : "border-red-200 bg-red-50 text-red-700";
           const status = duplicate ? "Duplicate" : locked ? `M${usage[0]!.match} · played` : selectedNow ? `M${usage[0]!.match} · selected` : player.eligible ? "Available" : "Unavailable";
-          return <div key={player.id} className={`flex shrink-0 items-center gap-2 border px-3 py-2 text-xs ${style}`}>
-            <span className="font-bold">{player.name}</span><span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
+          return <div key={player.id} className={`flex shrink-0 items-center gap-2 border px-2.5 py-2 text-xs ${style}`}>
+            <PlayerAvatar {...player} size="sm"/><span className="font-bold">{player.name}</span><span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
           </div>;
         })}
       </div>
@@ -265,18 +267,28 @@ function PlayerSelect({ label, value, otherValue, slotNumber, disabled, players,
   const selected = players.find((player) => player.id === value);
   const partner = players.find((player) => player.id === otherValue);
   const selectedInvalid = selected ? !playerAllowedByCategory(selected, category, partner) || duplicateIds.has(selected.id) || !selected.eligible : false;
-  return <label className="block"><span className="label lg:hidden">{label}</span><select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className={`w-full border p-3 font-bold disabled:bg-gray-50 disabled:text-gray-600 ${selectedInvalid ? "border-red-300 bg-red-50 text-red-800" : value ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}>
-    <option value="">{label}…</option>
-    {players.map((player) => {
-      const rows = usage.get(player.id) ?? [];
-      const usedElsewhere = rows.some((row) => row.match !== slotNumber) || (rows.filter((row) => row.match === slotNumber).length > 1 && player.id !== value);
-      const categoryAllowed = playerAllowedByCategory(player, category, partner);
-      const allowed = player.eligible && categoryAllowed && !usedElsewhere && player.id !== otherValue;
-      const categoryReason = category === "MENS" ? "men's only" : category === "WOMENS" ? "women's only" : category === "MIXED" && partner ? "mixed requires opposite sex" : "category restriction";
-      const suffix = !player.eligible ? " (unavailable)" : player.id === otherValue ? " (already in this pair)" : usedElsewhere ? ` (used in M${rows.find((row) => row.match !== slotNumber)?.match ?? rows[0]?.match})` : !categoryAllowed ? ` (${categoryReason})` : "";
-      const displayAllowed = (allowed || player.id === value) && player.eligible && categoryAllowed && !duplicateIds.has(player.id) && player.id !== otherValue;
-      return <option className={displayAllowed ? "bg-emerald-100 text-emerald-950" : "bg-red-100 text-red-800"} key={player.id} value={player.id} disabled={!allowed && player.id !== value}>{player.name}{suffix}</option>;
-    })}
-    {value && !selected && <option value={value}>Recorded player</option>}
-  </select></label>;
+  const options: AvatarPlayerOption[] = players.map((player) => {
+    const rows = usage.get(player.id) ?? [];
+    const usedElsewhere = rows.some((row) => row.match !== slotNumber) || (rows.filter((row) => row.match === slotNumber).length > 1 && player.id !== value);
+    const categoryAllowed = playerAllowedByCategory(player, category, partner);
+    const allowed = player.eligible && categoryAllowed && !usedElsewhere && player.id !== otherValue;
+    const categoryReason = category === "MENS" ? "Men's only" : category === "WOMENS" ? "Women's only" : category === "MIXED" && partner ? "Mixed requires opposite sex" : "Category restriction";
+    const meta = !player.eligible ? "Unavailable" : player.id === otherValue ? "Already in this pair" : usedElsewhere ? `Used in Match ${rows.find((row) => row.match !== slotNumber)?.match ?? rows[0]?.match}` : !categoryAllowed ? categoryReason : "Available";
+    return {
+      id: player.id,
+      label: player.name,
+      meta,
+      disabled: !allowed && player.id !== value,
+      tone: allowed && !duplicateIds.has(player.id) ? "available" : "blocked",
+      avatar: player,
+    };
+  });
+  return <div><span className="label lg:hidden">{label}</span><AvatarPlayerSelect
+    value={value}
+    disabled={disabled}
+    options={options}
+    placeholder={`${label}…`}
+    onValueChange={onChange}
+    triggerTone={selectedInvalid ? "blocked" : value ? "available" : "warning"}
+  /></div>;
 }

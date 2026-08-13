@@ -25,7 +25,7 @@ export async function GET() {
       homePair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
       awayPair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
     },
-    orderBy: [{ startedAt: "asc" }, { gameNumber: "asc" }],
+    orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { gameNumber: "asc" }],
   });
   return NextResponse.json(games);
 }

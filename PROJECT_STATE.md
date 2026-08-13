@@ -220,3 +220,12 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - MVP surfaces now present the current male/female leaders as a live **Mythical Pair** poster whenever completed-match data exists. The treatment is explicitly marked live/not final so it does not imply the official award has already been decided.
 - Fan Favorite's “Who owns the crowd today?” hero now displays the current male and female crowd leaders as poster-style cards with live vote totals/shares.
 - The public bracket no longer generates a separate Champion column. The winner of the Grand Final is crowned directly inside the Grand Final matchup card.
+
+## Champion-state homepage + recency/avatar pass — 2026-08-13
+
+- Grand Final winners remain inside the Grand Final bracket card; the champion team name is always visible and the crown/Champion badge is rendered as secondary metadata instead of consuming the team-name line.
+- Public result/history surfaces use newest activity first and oldest last. This does **not** reverse structural/operational ordering: Matches inside one team matchup remain Match 1 → N, Upcoming Matchups remain court-queue order, and bracket stages retain progression order.
+- Public live-match feeds use most recently started matches first.
+- Player selectors that benefit from visual identity use avatar-aware pickers instead of relying on native `<select>` options, which cannot render headshots consistently. Public Matches player filtering, Team Manager lineup selection, and the advanced Executive pair entrant flow use the shared picker.
+- Homepage information hierarchy is now Standings before Tournament Bracket during group-stage browsing.
+- Once a public division's Grand Final is officially decided, the homepage live-courts slot becomes a championship celebration poster for that division. The poster is data-driven from the actual champion team roster and also surfaces the current/final Mythical Pair and Fan Favorite leaders. Multiple completed public divisions can render separate champion posters without hardcoding one tournament format.

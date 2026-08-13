@@ -11,6 +11,7 @@ import SubmitButton from "@/components/SubmitButton";
 import PlayerBulkToolbar from "@/components/PlayerBulkToolbar";
 import SelectAllPlayers from "@/components/SelectAllPlayers";
 import { formatPlayerDisplayName } from "@/lib/player-name";
+import AvatarPlayerSelect from "@/components/AvatarPlayerSelect";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     prisma.player.count({ where: { tournamentId: tournament.id, teamId: { not: null } } }),
     prisma.player.findMany({
       where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED", teamId: null },
-      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true },
+      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, office: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       take: 250,
     }),
@@ -212,7 +213,7 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     {unassignedConfirmed.length >= 2 && <details className="mt-5 border border-line bg-white">
       <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase text-gray-600">Advanced · create Executive pair entrant</summary>
       <div className="border-t border-line bg-paper px-4 py-3 text-xs text-gray-600">Use this only when a division's entrant itself is a fixed pair. Team Event playing pairs are submitted per matchup by the team manager and do not need to be created here.</div>
-      <form action="/api/admin/master-data" method="post" className="grid gap-3 border-t border-line p-4 md:grid-cols-2 lg:grid-cols-6 lg:items-end"><input type="hidden" name="action" value="create-pair-unit"/><label><span className="label">Division</span><select name="divisionId" className="mt-1 w-full border border-line p-2 text-sm font-bold">{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label><Field label="Pair/team name" name="name" required/><Field label="Short name" name="shortName" required/><Field label="Pair label" name="label"/><label><span className="label">Player A</span><select name="playerAId" className="mt-1 w-full border border-line p-2 text-sm font-bold">{unassignedConfirmed.map((player) => <option key={player.id} value={player.id}>{formatPlayerDisplayName(player)}</option>)}</select></label><label><span className="label">Player B</span><select name="playerBId" className="mt-1 w-full border border-line p-2 text-sm font-bold">{unassignedConfirmed.map((player) => <option key={player.id} value={player.id}>{formatPlayerDisplayName(player)}</option>)}</select></label><SubmitButton className="btn-primary md:col-span-2 lg:col-span-6" pendingLabel="Creating pair…">Create Executive pair entrant</SubmitButton></form>
+      <form action="/api/admin/master-data" method="post" className="grid gap-3 border-t border-line p-4 md:grid-cols-2 lg:grid-cols-6 lg:items-end"><input type="hidden" name="action" value="create-pair-unit"/><label><span className="label">Division</span><select name="divisionId" className="mt-1 w-full border border-line p-2 text-sm font-bold">{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label><Field label="Pair/team name" name="name" required/><Field label="Short name" name="shortName" required/><Field label="Pair label" name="label"/><div><span className="label">Player A</span><div className="mt-1"><AvatarPlayerSelect name="playerAId" value="" placeholder="Select player A…" options={unassignedConfirmed.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed · unassigned", avatar: player }))}/></div></div><div><span className="label">Player B</span><div className="mt-1"><AvatarPlayerSelect name="playerBId" value="" placeholder="Select player B…" options={unassignedConfirmed.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed · unassigned", avatar: player }))}/></div></div><SubmitButton className="btn-primary md:col-span-2 lg:col-span-6" pendingLabel="Creating pair…">Create Executive pair entrant</SubmitButton></form>
     </details>}
 
     <section className="mt-5 border border-line bg-white">

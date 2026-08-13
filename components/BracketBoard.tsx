@@ -148,8 +148,10 @@ function TeamRow({ team, wins, winner, champion = false }: { team: BracketMatchu
   return <div className={`bracket-team-row ${winner ? "bracket-team-row-winner" : ""} ${champion ? "bracket-team-row-champion" : ""}`}>
     <div className="bracket-team-line">
       <TeamMark team={team} winner={winner} />
-      <span className="bracket-team-name">{team?.name || "TBD"}</span>
-      {champion && <span className="bracket-champion-crown" title="Tournament champion"><Crown className="h-4 w-4" fill="currentColor"/><span>Champion</span></span>}
+      <span className="bracket-team-copy">
+        <span className="bracket-team-name" title={team?.name || "TBD"}>{team?.name || "TBD"}</span>
+        {champion && <span className="bracket-champion-crown" title="Tournament champion"><Crown className="h-4 w-4" fill="currentColor"/><span>Champion</span></span>}
+      </span>
     </div>
     <span className="bracket-score">{wins}</span>
   </div>;

@@ -88,3 +88,10 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Verify started/completed pair-match history cannot be silently rewritten.
 - Verify Fan Favorite and MVP still work.
 - Update `PROJECT_STATE.md` when architecture/constraints materially change.
+
+## Champion/public presentation rules — 2026-08-13
+
+- On public history/result lists, prefer newest tournament activity first. Do not apply this rule to operational queue order, bracket progression order, or Match 1..N ordering inside a team matchup.
+- Player identity controls should use actual avatars when a custom picker is practical; do not attempt to place images inside native `<option>` elements.
+- A decided Grand Final crowns the winner inside the Grand Final card. Keep the champion team name visible; the crown is supplementary, not a replacement label.
+- The homepage championship celebration is derived from real winner/roster/MVP/Fan Favorite data. Do not replace it with a hardcoded static roster or assume a fixed 14-player team.
