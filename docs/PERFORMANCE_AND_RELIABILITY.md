@@ -1,6 +1,6 @@
 # Performance and Reliability Notes
 
-Last updated: 2026-08-10
+Last updated: 2026-08-13
 
 ## Objective
 
@@ -172,3 +172,18 @@ Changes:
 - Auth lookup is memoized per server render and uses a narrow Prisma select.
 
 These changes target both database time and React Server Component/HTML payload size, which were causing clicks to feel unresponsive even when links were technically working.
+
+## Peak voting + public motion pass (2026-08-13)
+
+This pass is intentionally surgical: it improves public responsiveness and peak-hour voting capacity without changing tournament rules or introducing new infrastructure.
+
+- Fan Favorite ranking snapshots are micro-cached for a very short window and concurrent requests share the same in-flight computation. This collapses spectator bursts into a small number of `groupBy`/player reads while keeping results near-live.
+- Fan Favorite polling is sequential, pauses in hidden tabs, uses jitter to avoid synchronized request spikes, and slows down substantially when voting is closed. A successful ballot confirms immediately without forcing an extra rankings query.
+- Public tournament-revision and live-game polling also use jitter. The revision endpoint has a sub-second read cache; live-game JSON has a one-second micro-cache. These are read-pressure controls only and do not cache score mutations.
+- The published tournament id is briefly memoized for high-frequency public API endpoints so every poll does not repeat the same tournament lookup.
+- Venue/shared-network voting is protected with layered limits: a generous shared-IP ceiling, a tighter exact-code ceiling, and a process-level flood ceiling. This avoids the old 12-attempt-per-IP bottleneck that could block legitimate voters behind one venue NAT. One-time voting-code consumption remains transactional.
+- Avatar/champion media responses stream from disk instead of buffering the complete file in Node memory and use one-year immutable browser caching because uploaded filenames are UUID-based.
+- The homepage event banner has a WebP source with PNG fallback, reducing its transfer size substantially without changing the design.
+- Public scroll motion is limited to major sections and short state feedback. It uses `IntersectionObserver`, runs once per section, and is disabled when `prefers-reduced-motion: reduce` is set.
+
+The caches above are deliberately short-lived and process-local because production currently runs one Next.js application process. They are not a replacement for Redis/CDN infrastructure and should remain easy to remove if deployment architecture changes.

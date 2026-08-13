@@ -2,14 +2,16 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { PUBLIC_POLL_INTERVAL_MS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
 
-export default function TournamentSync({ initialRevision, interval = 2500 }: { initialRevision: string; interval?: number }) {
+export default function TournamentSync({ initialRevision, interval = PUBLIC_POLL_INTERVAL_MS }: { initialRevision: string; interval?: number }) {
   const router = useRouter();
   const revisionRef = useRef(initialRevision);
 
   useEffect(() => {
     revisionRef.current = initialRevision;
     let stopped = false;
+    let checking = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const clearTimer = () => {
@@ -17,19 +19,21 @@ export default function TournamentSync({ initialRevision, interval = 2500 }: { i
       timer = null;
     };
 
-    const schedule = (delay = interval) => {
+    const schedule = (baseDelay = interval) => {
       if (stopped) return;
       clearTimer();
-      timer = setTimeout(check, delay);
+      const jitter = baseDelay * PUBLIC_POLL_JITTER_RATIO * (Math.random() * 2 - 1);
+      timer = setTimeout(check, Math.max(1500, Math.round(baseDelay + jitter)));
     };
 
     const check = async () => {
-      if (stopped) return;
+      if (stopped || checking) return;
       clearTimer();
       if (document.visibilityState !== "visible") {
-        schedule();
+        schedule(interval * 2);
         return;
       }
+      checking = true;
       try {
         const response = await fetch("/api/public/tournament-revision", { cache: "no-store" });
         if (!response.ok) throw new Error("Tournament revision refresh failed.");
@@ -41,6 +45,7 @@ export default function TournamentSync({ initialRevision, interval = 2500 }: { i
       } catch {
         // Keep the current screen usable. The next poll/focus event retries automatically.
       } finally {
+        checking = false;
         schedule();
       }
     };

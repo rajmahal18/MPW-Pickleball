@@ -110,3 +110,11 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Do not hardcode public group qualification coloring to `rank <= 2`. Derive qualified/eliminated state from the configured division qualifier rules only after the full group stage is terminal; unresolved cutoff ties stay pending instead of being colored as final.
 - Keep public outcome colors semantically consistent: green = winner/qualified/ready/positive, red = loss/eliminated/danger, orange = live action. Blue remains the brand/navigation color.
 - QF qualification-source selectors should prevent accidental duplicate source choices in the UI, while the API continues to enforce uniqueness server-side.
+
+## Public performance + motion rules — 2026-08-13
+
+- Keep high-frequency public polling sequential, visibility-aware, and jittered. Do not restore synchronized `setInterval` polling across spectators.
+- Fan Favorite rankings use a deliberately short process-local read cache/request deduplication to absorb peak voting traffic. Do not invalidate that cache on every successful vote; brief near-live staleness is intentional to protect the database during bursts.
+- Venue voters may share one NAT/public IP. Do not restore a very low per-IP Fan Favorite limit that blocks legitimate crowd traffic; preserve layered flood/code protections.
+- Public motion is restrained and one-shot. Respect `prefers-reduced-motion`; do not add blanket entrance animation to every row/card or animation that delays tournament information.
+- UUID avatar/champion media URLs are immutable and should keep long browser caching. Stream large media rather than buffering the whole file in Node memory.

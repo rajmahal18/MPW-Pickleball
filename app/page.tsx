@@ -13,6 +13,7 @@ import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
 import MythicalPairPoster from "@/components/MythicalPairPoster";
 import ChampionCelebrationPoster from "@/components/ChampionCelebrationPoster";
 import { Crown, Heart } from "lucide-react";
+import { getFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function Home() {
     .map((matchup) => ({ division, matchup })));
   const championTeamIds = championFinals.map(({ matchup }) => matchup.winnerTeamId!).filter(Boolean);
 
-  const [live, upcoming, voteGroups, mvpGames, championPlayers, revision] = await Promise.all([
+  const [live, upcoming, fanSnapshot, mvpGames, championPlayers, revision] = await Promise.all([
     prisma.game.findMany({
       where: { status: { in: ["LIVE", "INTERRUPTED"] }, matchup: { tournamentId: tournament.id, division: { isPublic: true } } },
       select: {
@@ -65,7 +66,7 @@ export default async function Home() {
       orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { gameNumber: "asc" }],
     }),
     prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: true, awayTeam: true }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
-    prisma.fanVote.groupBy({ by: ["playerId"], where: { tournamentId: tournament.id, player: { isActive: true, participationStatus: "CONFIRMED", team: { division: { isPublic: true } } } }, _count: { _all: true }, orderBy: { _count: { playerId: "desc" } } }),
+    getFanFavoriteSnapshot(tournament.id),
     prisma.game.findMany({
       where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } }, status: { in: ["COMPLETED", "FORFEITED"] } },
       include: {
@@ -81,12 +82,11 @@ export default async function Home() {
     getPublicTournamentRevision(tournament.id),
   ]);
 
-  const fanPlayers = await prisma.player.findMany({ where: { id: { in: voteGroups.map((row) => row.playerId) } }, include: { team: true } });
-  const fanById = new Map(fanPlayers.map((player) => [player.id, player]));
-  const fanLeaderboard = voteGroups.flatMap((row) => { const player = fanById.get(row.playerId); return player ? [{ row, player }] : []; });
-  const maleFanLeader = fanLeaderboard.find((entry) => entry.player.sex === "MALE");
-  const femaleFanLeader = fanLeaderboard.find((entry) => entry.player.sex === "FEMALE");
-  const totalFanVotes = voteGroups.reduce((sum, row) => sum + row._count._all, 0);
+  const maleFanRanking = fanSnapshot.rankingsBySex.male[0];
+  const femaleFanRanking = fanSnapshot.rankingsBySex.female[0];
+  const maleFanLeader = maleFanRanking?.player ? { row: { playerId: maleFanRanking.player.id, _count: { _all: maleFanRanking.votes } }, player: maleFanRanking.player } : undefined;
+  const femaleFanLeader = femaleFanRanking?.player ? { row: { playerId: femaleFanRanking.player.id, _count: { _all: femaleFanRanking.votes } }, player: femaleFanRanking.player } : undefined;
+  const totalFanVotes = fanSnapshot.totalVotes;
 
   const groupCards = tournament.divisions.flatMap((division) => {
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
@@ -109,7 +109,7 @@ export default async function Home() {
 
   return <main className="public-page"><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
     <div className="relative">
-      <img src="/finalbanner.png" alt="MPW Dink and Dash 2026 event banner" className="block h-auto w-full" />
+      <picture><source srcSet="/finalbanner.webp" type="image/webp"/><img src="/finalbanner.png" width={2428} height={648} fetchPriority="high" decoding="async" alt="MPW Dink and Dash 2026 event banner" className="block h-auto w-full" /></picture>
       <div className="absolute inset-0 hidden md:block"><div className="mx-auto flex h-full max-w-7xl items-end justify-end px-4 pb-5 lg:pb-6"><HeroActions desktop /></div></div>
     </div>
     <div className="mx-auto max-w-7xl px-3 py-3 md:hidden"><HeroActions /></div>

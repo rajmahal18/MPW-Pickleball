@@ -5,6 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { requestData, requestIp } from "@/lib/request";
 import { hashNetworkIdentifier, hashVotingCode, normalizeVotingCode, votingCodeHint } from "@/lib/tournament/voting";
 import { writeAudit } from "@/lib/audit";
+import { invalidateFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
 
 export async function POST(request: Request) {
   const input = await requestData(request);
@@ -12,11 +13,14 @@ export async function POST(request: Request) {
   const femalePlayerId = String(input.femalePlayerId || "");
   const code = normalizeVotingCode(String(input.code || ""));
   const ipHash = hashNetworkIdentifier(requestIp(request));
-  const limiter = checkRateLimit(`fan-vote:${ipHash}`, 12, 60_000);
-  if (!limiter.allowed) {
+  const globalLimiter = checkRateLimit("fan-vote:global", 1200, 60_000);
+  const ipLimiter = checkRateLimit(`fan-vote:ip:${ipHash}`, 180, 60_000);
+  const codeLimiter = code.length >= 8 ? checkRateLimit(`fan-vote:code:${hashVotingCode(code)}`, 8, 60_000) : { allowed: true, retryAfterSeconds: 0 };
+  const blockedLimiter = !globalLimiter.allowed ? globalLimiter : !ipLimiter.allowed ? ipLimiter : !codeLimiter.allowed ? codeLimiter : null;
+  if (blockedLimiter) {
     return NextResponse.json(
-      { error: "Too many attempts. Please try again shortly." },
-      { status: 429, headers: { "Retry-After": String(limiter.retryAfterSeconds) } },
+      { error: "Voting is busy or this code has been tried too many times. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": String(blockedLimiter.retryAfterSeconds) } },
     );
   }
   if (!malePlayerId || !femalePlayerId || code.length < 8) {
@@ -33,12 +37,19 @@ export async function POST(request: Request) {
   try {
     result = await prisma.$transaction(
     async (tx) => {
-      const player = await tx.player.findFirst({
-        where: { id: malePlayerId, tournamentId: tournament.id, sex: "MALE", isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { isPublic: true } } },
+      const eligiblePlayers = await tx.player.findMany({
+        where: {
+          id: { in: [malePlayerId, femalePlayerId] },
+          tournamentId: tournament.id,
+          isActive: true,
+          participationStatus: "CONFIRMED",
+          teamId: { not: null },
+          team: { division: { isPublic: true } },
+        },
+        select: { id: true, sex: true },
       });
-      const femalePlayer = await tx.player.findFirst({
-        where: { id: femalePlayerId, tournamentId: tournament.id, sex: "FEMALE", isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { isPublic: true } } },
-      });
+      const player = eligiblePlayers.find((candidate) => candidate.id === malePlayerId && candidate.sex === "MALE");
+      const femalePlayer = eligiblePlayers.find((candidate) => candidate.id === femalePlayerId && candidate.sex === "FEMALE");
       const votingCode = await tx.votingCode.findFirst({
         where: { tournamentId: tournament.id, codeHash: hashVotingCode(code) },
       });
@@ -130,5 +141,6 @@ export async function POST(request: Request) {
     };
     return NextResponse.json({ error: messageByReason[result.reason] || "Vote rejected." }, { status: 409 });
   }
+  invalidateFanFavoriteSnapshot(tournament.id);
   return NextResponse.json({ ok: true, message: "Vote recorded successfully." }, { status: 201 });
 }

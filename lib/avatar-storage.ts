@@ -1,4 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -10,6 +12,14 @@ const allowed = new Map([
 
 function storageRoot() {
   return process.env.AVATAR_STORAGE_DIR || (process.env.NODE_ENV === "production" ? "" : "/tmp/mpw-pickleball-avatars");
+}
+
+function imagePath(filename: string) {
+  const root = storageRoot();
+  if (!root || !/^[a-f0-9-]+\.(jpg|png|webp)$/.test(filename)) throw new Error("Invalid avatar path.");
+  const extension = filename.split(".").pop();
+  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+  return { fullPath: path.join(root, filename), contentType };
 }
 
 async function saveImage(file: File, label: string, maxBytes: number) {
@@ -34,10 +44,10 @@ export async function saveChampionImage(file: File) {
   return saveImage(file, "Champion image", 10 * 1024 * 1024);
 }
 
-export async function readAvatar(filename: string) {
-  const root = storageRoot();
-  if (!root || !/^[a-f0-9-]+\.(jpg|png|webp)$/.test(filename)) throw new Error("Invalid avatar path.");
-  const extension = filename.split(".").pop();
-  const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
-  return { bytes: await readFile(path.join(root, filename)), contentType };
+export async function openAvatar(filename: string) {
+  const { fullPath, contentType } = imagePath(filename);
+  const info = await stat(fullPath);
+  if (!info.isFile()) throw new Error("Avatar not found.");
+  const stream = Readable.toWeb(createReadStream(fullPath)) as ReadableStream<Uint8Array>;
+  return { stream, contentType, size: info.size };
 }

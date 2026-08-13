@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LiveGameCard, { type LiveGame } from "@/components/LiveGameCard";
+import { PUBLIC_POLL_INTERVAL_MS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
 
 export default function LiveGamesGrid({ initial }: { initial: LiveGame[] }) {
   const [games, setGames] = useState(initial);
@@ -9,13 +10,25 @@ export default function LiveGamesGrid({ initial }: { initial: LiveGame[] }) {
 
   useEffect(() => {
     let stopped = false;
+    let loading = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const load = async () => {
+
+    const schedule = (baseDelay = PUBLIC_POLL_INTERVAL_MS) => {
       if (stopped) return;
+      if (timer) clearTimeout(timer);
+      const jitter = baseDelay * PUBLIC_POLL_JITTER_RATIO * (Math.random() * 2 - 1);
+      timer = setTimeout(load, Math.max(1500, Math.round(baseDelay + jitter)));
+    };
+
+    const load = async () => {
+      if (stopped || loading) return;
+      if (timer) clearTimeout(timer);
+      timer = null;
       if (document.visibilityState !== "visible") {
-        timer = setTimeout(load, 3000);
+        schedule(PUBLIC_POLL_INTERVAL_MS * 2);
         return;
       }
+      loading = true;
       try {
         const response = await fetch("/api/public/live-games", { cache: "no-store" });
         if (!response.ok) throw new Error("Live matches refresh failed.");
@@ -27,10 +40,12 @@ export default function LiveGamesGrid({ initial }: { initial: LiveGame[] }) {
       } catch {
         if (!stopped) setStale(true);
       } finally {
-        if (!stopped) timer = setTimeout(load, 3000);
+        loading = false;
+        schedule();
       }
     };
-    timer = setTimeout(load, 3000);
+
+    schedule();
     const onFocus = () => void load();
     window.addEventListener("focus", onFocus);
     return () => {

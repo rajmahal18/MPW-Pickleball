@@ -28,8 +28,9 @@ export default function PlayerAvatar({
       : size === "sm"
         ? "h-10 w-10 text-xs"
         : "h-14 w-14 text-base";
+  const pixels = size === "xl" ? 112 : size === "lg" ? 80 : size === "sm" ? 40 : 56;
   const shared = `${classes} shrink-0 rounded-full border-2 border-white ring-1 ring-court/20 shadow-panel`;
   return avatarUrl && !imageFailed
-    ? <img className={`${shared} object-cover`} src={avatarUrl} alt={name} loading="lazy" onError={() => setImageFailed(true)} />
+    ? <img className={`${shared} object-cover`} src={avatarUrl} alt={name} width={pixels} height={pixels} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
     : <span className={`${shared} grid place-items-center bg-court/10 font-black text-court`} aria-label={`${name} initials avatar`}>{initials || "?"}</span>;
 }

@@ -2,7 +2,7 @@
 
 Last architecture update: 2026-08-13
 
-Latest performance/reliability update: 2026-08-11
+Latest performance/reliability update: 2026-08-13
 
 Latest UI/UX update: 2026-08-13
 
@@ -247,3 +247,12 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Tournament Setup Quarterfinal seed-source pickers are now mutually exclusive in the UI. Once a Group/Wildcard seed source is chosen for one QF box, it disappears from the remaining boxes while staying visible in its own selector. Server-side uniqueness validation remains authoritative.
 - Public result language now uses stronger consistent semantics: green for winners/qualified/ready/completed-positive outcomes, red for losses/elimination, orange for live action, while blue remains the primary brand/navigation color.
 - Shared score/status/bracket/standings components use these cues so viewers can identify the winner, eliminated side, qualification state, and live state at a glance. Public Group, Bracket, Matchup, Team, and Player-history surfaces received the same clearer hierarchy without changing tournament logic.
+
+## Public performance + motion — 2026-08-13
+
+- Public polling is staggered/jittered instead of synchronized. Fan Favorite uses a slower adaptive interval when voting is closed.
+- Fan Favorite rankings, live-game JSON, current public tournament id, and the public matchup revision use short process-local read caches/request deduplication to absorb spectator bursts without changing result correctness.
+- Fan Favorite voting keeps transactional one-time-code consumption but uses shared-network-safe layered rate limits so venue NAT traffic is not blocked by the previous low per-IP ceiling.
+- Avatar/champion images stream from disk and are immutable-cached by UUID filename. Homepage hero prefers a compressed WebP source with PNG fallback.
+- Public pages use restrained one-time scroll reveals and vote/progress transitions; `prefers-reduced-motion` disables motion.
+- No tournament format/scoring/advancement logic changed in this pass.

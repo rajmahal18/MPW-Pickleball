@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Crown, Heart, ScanLine, Trophy, Vote } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { PUBLIC_POLL_INTERVAL_MS } from "@/lib/tournament/config";
+import { FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS, FAN_FAVORITE_POLL_INTERVAL_MS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 
 export type FanFavoritePlayer = {
@@ -45,19 +45,53 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
   const videoRef = useRef<HTMLVideoElement>(null);
   const [scanning, setScanning] = useState(false);
 
-  async function refresh() {
-    const response = await fetch("/api/public/fan-favorite/rankings", { cache: "no-store" });
+  async function refresh(signal?: AbortSignal) {
+    const response = await fetch("/api/public/fan-favorite/rankings", { cache: "no-store", signal });
     if (response.ok) setSnapshot(await response.json());
   }
 
   useEffect(() => {
-    void refresh();
     let stopped = false;
-    const guardedRefresh = () => { if (!stopped && document.visibilityState === "visible") void refresh(); };
-    const timer = window.setInterval(guardedRefresh, PUBLIC_POLL_INTERVAL_MS);
-    window.addEventListener("focus", guardedRefresh);
-    return () => { stopped = true; window.clearInterval(timer); window.removeEventListener("focus", guardedRefresh); };
-  }, []);
+    let timer: number | null = null;
+    let controller: AbortController | null = null;
+
+    const schedule = (baseDelay: number) => {
+      if (stopped) return;
+      if (timer) window.clearTimeout(timer);
+      const jitter = baseDelay * PUBLIC_POLL_JITTER_RATIO * (Math.random() * 2 - 1);
+      timer = window.setTimeout(run, Math.max(1500, Math.round(baseDelay + jitter)));
+    };
+
+    const run = async () => {
+      if (stopped) return;
+      if (document.visibilityState !== "visible") {
+        schedule(FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS);
+        return;
+      }
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        await refresh(controller.signal);
+      } catch (caught) {
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
+          // Keep the current standings visible; the next poll/focus retries.
+        }
+      } finally {
+        controller = null;
+        schedule(snapshot.votingOpen ? FAN_FAVORITE_POLL_INTERVAL_MS : FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS);
+      }
+    };
+
+    schedule(FAN_FAVORITE_POLL_INTERVAL_MS);
+    const onFocus = () => void run();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      if (timer) window.clearTimeout(timer);
+      controller?.abort();
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [snapshot.votingOpen]);
 
   function filterPlayers(list: Player[], search: string) {
     const query = search.trim().toLowerCase();
@@ -85,7 +119,12 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
       if (!response.ok) throw new Error(payload.error || "Vote failed.");
       setMessage(payload.message || "Your Fan Favorite picks are in!");
       setCode("");
-      await refresh();
+      setSnapshot((current) => ({
+        ...current,
+        totalVotes: current.totalVotes + 2,
+        totalsBySex: { male: current.totalsBySex.male + 1, female: current.totalsBySex.female + 1 },
+        updatedAt: new Date().toISOString(),
+      }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Vote failed.");
     } finally {
@@ -145,7 +184,7 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
     </section>
 
     <div className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
-      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+      <section data-motion-reveal className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-4">
           <div><div className="public-kicker">Ballot</div><h2 className="text-2xl font-black tracking-tight">Cast your votes</h2></div>
           <div className="grid h-11 w-11 place-items-center rounded-full bg-gold/15 text-flame"><Vote className="h-5 w-5"/></div>
@@ -160,13 +199,13 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
             <label className="block"><span className="filter-label">Your voting code</span><div className="flex flex-col gap-2 sm:flex-row"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="filter-control min-w-0 flex-1 bg-white font-mono font-black tracking-[.16em]" placeholder="ABCDE-23456" autoComplete="off"/><button type="button" onClick={() => void scanCode()} className="btn-ghost min-h-11 w-full rounded-lg sm:w-auto"><ScanLine className="h-4 w-4"/>{scanning ? "Scanning..." : "Scan QR"}</button></div></label>
             {scanning && <video ref={videoRef} className="mt-3 aspect-video w-full rounded-xl bg-black" muted playsInline/>}
           </div>
-          {message && <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
+          {message && <div className="vote-confirmation rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
           {error && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
           <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Submitting..." : "Submit votes"}</button>
         </form>
       </section>
 
-      <section className="space-y-4">
+      <section data-motion-reveal className="space-y-4">
         <div className="flex items-end justify-between gap-3 px-1"><div><div className="public-kicker">Standings</div><h2 className="text-2xl font-black tracking-tight">Fan Favorite Leaders</h2></div><div className="text-right text-xs font-semibold text-gray-400">Updated<br/>{new Date(snapshot.updatedAt).toLocaleTimeString()}</div></div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
           <Leaderboard title="Male" totalVotes={snapshot.totalsBySex.male} rankings={snapshot.rankingsBySex.male} tone="male"/>
@@ -220,7 +259,7 @@ function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; tot
         <div className="min-w-0"><div className="truncate font-black group-hover:text-court">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs font-semibold text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div>
         <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-[10px] font-bold text-gray-400">{ranking.percentage}%</div></div>
       </div>
-      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className={`h-full rounded-full bg-gradient-to-r ${accent}`} style={{ width: `${Math.max(4, ranking.percentage)}%` }}/></div>
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className={`h-full rounded-full bg-gradient-to-r ${accent} transition-[width] duration-500 ease-out`} style={{ width: `${Math.max(4, ranking.percentage)}%` }}/></div>
     </Link>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet.</div>}</div>
   </div>;
 }

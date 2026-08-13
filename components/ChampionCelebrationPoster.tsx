@@ -57,7 +57,7 @@ export default function ChampionCelebrationPoster({
 
     <div className="p-4 md:p-6">
       {championImageUrl && <section className="overflow-hidden rounded-xl border border-line bg-paper">
-        <img src={championImageUrl} alt={`${team.name} champion team`} className="aspect-[16/7] min-h-56 w-full object-cover md:min-h-80"/>
+        <img src={championImageUrl} alt={`${team.name} champion team`} width={1600} height={700} loading="lazy" decoding="async" className="aspect-[16/7] min-h-56 w-full object-cover md:min-h-80"/>
       </section>}
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.85fr)]">
