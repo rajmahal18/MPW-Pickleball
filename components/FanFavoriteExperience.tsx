@@ -6,6 +6,7 @@ import { Crown, Heart, ScanLine, Trophy, Vote } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS, FAN_FAVORITE_POLL_INTERVAL_MS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
+import { PickleballPosterDecor, TournamentPosterBrand } from "@/components/TournamentPosterBrand";
 
 export type FanFavoritePlayer = {
   id: string;
@@ -15,7 +16,7 @@ export type FanFavoritePlayer = {
   displayName: string | null;
   avatarUrl: string | null;
   sex: "MALE" | "FEMALE";
-  team: { name: string; shortName: string } | null;
+  team: { id: string; name: string; shortName: string } | null;
 };
 
 type Player = FanFavoritePlayer;
@@ -166,8 +167,10 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
   return <div className="space-y-6">
     <section className="fan-arena overflow-hidden rounded-2xl border border-ink/10 shadow-panel">
       <div className="relative grid gap-5 p-5 text-white md:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
+        <PickleballPosterDecor side="left"/>
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em]">Fan Favorite voting</div>
+          <TournamentPosterBrand compact/>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[.18em]">Fan Favorite voting</div>
           <h2 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">Fan Favorite</h2>
         </div>
         <div className="relative z-10 flex items-center gap-3 lg:justify-end">
@@ -219,10 +222,10 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
 function CrowdLeaderPoster({ ranking, label, tone }: { ranking?: Ranking; label: string; tone: "male" | "female" }) {
   if (!ranking?.player) return <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-4"><div className="text-[9px] font-black uppercase tracking-[.18em] text-white/55">{label}</div><div className="mt-2 text-lg font-black">No votes yet</div></div>;
   const player = ranking.player;
-  return <Link href={`/players/${player.id}`} className="group relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15">
+  return <article className="group relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15">
     <div className={`absolute inset-y-0 ${tone === "male" ? "left-0 bg-court/25" : "right-0 bg-gold/20"} w-1/2 blur-3xl`}/>
-    <div className="relative flex items-center gap-4"><div className="relative"><div className="absolute inset-0 scale-110 rounded-full bg-gold/25 blur-xl"/><div className="relative"><PlayerAvatar {...player} size="lg"/></div><span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-gold text-ink shadow"><Crown className="h-3.5 w-3.5" fill="currentColor"/></span></div><div className="min-w-0 flex-1"><div className="text-[9px] font-black uppercase tracking-[.18em] text-gold">{label}</div><div className="mt-1 truncate text-xl font-black tracking-tight group-hover:text-gold">{formatPlayerDisplayName(player)}</div><div className="mt-1 truncate text-xs font-bold text-white/60">{player.team?.shortName ?? "Player pool"}</div><div className="mt-3 flex items-end gap-2"><strong className="text-2xl font-black">{ranking.votes}</strong><span className="pb-1 text-[9px] font-black uppercase tracking-widest text-white/45">votes · {ranking.percentage}%</span></div></div></div>
-  </Link>;
+    <div className="relative flex items-center gap-4"><Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="relative shrink-0"><div className="absolute inset-0 scale-110 rounded-full bg-gold/25 blur-xl"/><div className="relative"><PlayerAvatar {...player} size="lg"/></div><span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-gold text-ink shadow"><Crown className="h-3.5 w-3.5" fill="currentColor"/></span></Link><div className="min-w-0 flex-1"><div className="text-[9px] font-black uppercase tracking-[.18em] text-gold">{label}</div><Link href={`/players/${player.id}`} className="mt-1 block truncate text-xl font-black tracking-tight hover:text-gold">{formatPlayerDisplayName(player)}</Link><div className="mt-1 truncate text-xs font-bold text-white/60">{player.team ? <Link href={`/teams/${player.team.id}`} className="hover:text-gold hover:underline">{player.team.shortName}</Link> : "Player pool"}</div><div className="mt-3 flex items-end gap-2"><strong className="text-2xl font-black">{ranking.votes}</strong><span className="pb-1 text-[9px] font-black uppercase tracking-widest text-white/45">votes · {ranking.percentage}%</span></div></div></div>
+  </article>;
 }
 
 function PlayerPicker({ title, tone, players, search, setSearch, selectedPlayerId, setSelectedPlayerId }: {
@@ -252,14 +255,14 @@ function Leaderboard({ title, totalVotes, rankings, tone }: { title: string; tot
   const accent = tone === "male" ? "from-court to-ink" : "from-flame to-gold";
   return <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
     <div className={`bg-gradient-to-br ${accent} p-4 text-white`}><div className="flex items-end justify-between gap-3"><div><div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/70"><Trophy className="h-3.5 w-3.5"/> Top 5</div><h3 className="mt-1 text-xl font-black tracking-tight">{title} Fan Favorite</h3></div><div className="text-right"><div className="text-2xl font-black">{totalVotes}</div><div className="text-[10px] font-black uppercase tracking-widest text-white/70">votes</div></div></div></div>
-    <div className="divide-y divide-line">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <Link href={`/players/${ranking.player.id}`} key={ranking.player.id} className={`group block p-3.5 transition hover:bg-paper ${ranking.rank === 1 ? "bg-gold/5" : ""}`}>
+    <div className="divide-y divide-line">{rankings.length ? rankings.slice(0, 5).map((ranking) => ranking.player && <article key={ranking.player.id} className={`group p-3.5 transition hover:bg-paper ${ranking.rank === 1 ? "bg-gold/5" : ""}`}>
       <div className="grid grid-cols-[36px_auto_minmax(0,1fr)_auto] items-center gap-3">
         <div className={`grid h-9 w-9 place-items-center rounded-full font-black ${ranking.rank === 1 ? "bg-gold text-ink shadow-sm" : "bg-gray-100 text-gray-600"}`}>{ranking.rank === 1 ? <Crown className="h-4 w-4" fill="currentColor"/> : ranking.rank}</div>
-        <PlayerAvatar {...ranking.player} size={ranking.rank === 1 ? "lg" : "md"}/>
-        <div className="min-w-0"><div className="truncate font-black group-hover:text-court">{formatPlayerDisplayName(ranking.player)}</div><div className="text-xs font-semibold text-gray-500">{ranking.player.team?.shortName ?? "Unassigned"}</div></div>
+        <Link href={`/players/${ranking.player.id}`} aria-label={`View ${formatPlayerDisplayName(ranking.player)}`}><PlayerAvatar {...ranking.player} size={ranking.rank === 1 ? "lg" : "md"}/></Link>
+        <div className="min-w-0"><Link href={`/players/${ranking.player.id}`} className="block truncate font-black hover:text-court">{formatPlayerDisplayName(ranking.player)}</Link><div className="text-xs font-semibold text-gray-500">{ranking.player.team ? <Link href={`/teams/${ranking.player.team.id}`} className="hover:text-court hover:underline">{ranking.player.team.shortName}</Link> : "Unassigned"}</div></div>
         <div className="text-right"><div className="text-lg font-black">{ranking.votes}</div><div className="text-[10px] font-bold text-gray-400">{ranking.percentage}%</div></div>
       </div>
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className={`h-full rounded-full bg-gradient-to-r ${accent} transition-[width] duration-500 ease-out`} style={{ width: `${Math.max(4, ranking.percentage)}%` }}/></div>
-    </Link>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet.</div>}</div>
+    </article>) : <div className="p-8 text-center text-sm font-semibold text-gray-500">No valid votes yet.</div>}</div>
   </div>;
 }

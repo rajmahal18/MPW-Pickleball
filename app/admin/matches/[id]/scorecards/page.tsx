@@ -114,7 +114,7 @@ export default async function MatchScorecardsPage({ params, searchParams }: { pa
         <div>
           <div className="label text-court">Official paper scorecards</div>
           <h1 className="text-2xl font-black uppercase md:text-3xl">{matchup.homeTeam?.name || "TBD"} vs {matchup.awayTeam?.name || "TBD"}</h1>
-          <p className="mt-1 text-sm text-gray-600">{matchup.division.name} - {matchup.gamesPerMatchup} pair match{matchup.gamesPerMatchup === 1 ? "" : "es"}. Two portrait scorecards print side by side on each A4 landscape sheet.</p>
+          <p className="mt-1 text-sm text-gray-600">{matchup.division.name} - {matchup.gamesPerMatchup} pair match{matchup.gamesPerMatchup === 1 ? "" : "es"}. Two landscape scorecards print top-and-bottom on each A4 portrait sheet, ready for a crosswise cut.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin" className="btn-ghost">Back to admin</Link>

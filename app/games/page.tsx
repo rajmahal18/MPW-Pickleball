@@ -31,17 +31,6 @@ function isStatusTab(value: unknown): value is StatusTab {
   return typeof value === "string" && STATUS_TABS.some((tab) => tab.value === value);
 }
 
-function playerName(player: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null }) {
-  return formatPlayerCompactName(player);
-}
-
-function pairName(pair: {
-  playerA: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null };
-  playerB: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null };
-}) {
-  return `${playerName(pair.playerA)} / ${playerName(pair.playerB)}`;
-}
-
 function groupKey(game: {
   matchup: {
     id: string;
@@ -75,9 +64,9 @@ function ScoreCell({ home, away, status }: { home: number; away: number; status:
   </div>;
 }
 
-function TeamChip({ label, side }: { label: string; side: "home" | "away" }) {
+function TeamChip({ team, side }: { team: { id: string; shortName: string }; side: "home" | "away" }) {
   const styles = side === "home" ? "border-court bg-court text-white" : "border-gold bg-gold/25 text-ink";
-  return <span className={`inline-flex min-w-10 items-center justify-center border px-2 py-1 text-[10px] font-black uppercase ${styles}`}>{label}</span>;
+  return <Link href={`/teams/${team.id}`} className={`inline-flex min-w-10 items-center justify-center border px-2 py-1 text-[10px] font-black uppercase transition hover:ring-2 hover:ring-court/20 ${styles}`}>{team.shortName}</Link>;
 }
 
 function PairIdentity({ pair, team, side }: {
@@ -85,13 +74,14 @@ function PairIdentity({ pair, team, side }: {
     playerA: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
     playerB: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
   };
-  team: string;
+  team: { id: string; shortName: string };
   side: "home" | "away";
 }) {
   const right = side === "away";
+  const players = [pair.playerA, pair.playerB];
   return <div className={`flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-2 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
-    <div className="flex shrink-0 -space-x-2" aria-hidden="true"><PlayerAvatar {...pair.playerA} size="sm"/><PlayerAvatar {...pair.playerB} size="sm"/></div>
-    <div className="min-w-0"><TeamChip label={team} side={side}/><div className="mt-1 line-clamp-2 text-xs font-bold leading-snug text-ink md:truncate md:font-black">{pairName(pair)}</div></div>
+    <div className="flex shrink-0 -space-x-2">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} size="sm"/></Link>)}</div>
+    <div className="min-w-0"><TeamChip team={team} side={side}/><div className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs font-bold leading-snug text-ink md:font-black ${right ? "justify-end" : "justify-start"}`}>{players.map((player, index) => <span key={player.id} className="contents">{index > 0 && <span className="text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link></span>)}</div></div>
   </div>;
 }
 
@@ -279,16 +269,16 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         return <section key={key} className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
           <div className="bg-gradient-to-r from-court/10 via-white to-gold/10">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div><div className="label text-court">{label.division} · {label.context} · {label.court}</div><h2 className="mt-1 text-lg font-black text-ink">{firstGame.homeTeam.name} vs {firstGame.awayTeam.name}</h2></div>
+              <div><div className="label text-court">{label.division} · {label.context} · {label.court}</div><h2 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-lg font-black text-ink"><Link href={`/teams/${firstGame.homeTeam.id}`} className="hover:text-court">{firstGame.homeTeam.name}</Link><span className="text-gray-400">vs</span><Link href={`/teams/${firstGame.awayTeam.id}`} className="hover:text-court">{firstGame.awayTeam.name}</Link></h2></div>
               <div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status} compact/><div className="flex items-center border border-line bg-white text-sm font-black tabular-nums"><span className="bg-court px-3 py-2 text-white">{homeWins}</span><span className="px-2 text-gray-400">-</span><span className="bg-gold/30 px-3 py-2 text-ink">{awayWins}</span></div><Link href={`/matches/${matchup.id}`} className="btn-ghost px-3 py-2 text-xs">Open matchup</Link></div>
             </div>
           </div>
           <div className="hidden grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] border-b border-line bg-ink px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white md:grid"><div>Match</div><div>Blue side</div><div className="text-center">Score</div><div className="text-right">Gold side</div><div className="text-right">Status</div></div>
           <div className="divide-y divide-line">
-            {rows.map((game) => <Link key={game.id} href={`/matches/${game.matchupId}`} className={`block hover:bg-court/5 ${game.status === "LIVE" ? "bg-flame/5" : ""}`}>
-              <div className="p-3 md:hidden"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center border border-court/30 bg-court/10 text-sm font-black text-court">M{game.gameNumber}</span><StatusBadge status={game.status} compact/></div><span className="text-[10px] font-bold uppercase text-gray-400">Tap for matchup</span></div><div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/></div></div>
-              <div className="hidden gap-3 px-4 py-3 md:grid md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center"><div className="grid h-10 w-10 place-items-center border border-court/30 bg-court/10 text-xl font-black text-court">{game.gameNumber}</div><div className="min-w-0"><PairIdentity pair={game.homePair} team={game.homeTeam.shortName} side="home"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><div className="min-w-0 text-right"><PairIdentity pair={game.awayPair} team={game.awayTeam.shortName} side="away"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><div className="text-right"><StatusBadge status={game.status}/></div></div>
-            </Link>)}
+            {rows.map((game) => <div key={game.id} className={`block hover:bg-court/5 ${game.status === "LIVE" ? "bg-flame/5" : ""}`}>
+              <div className="p-3 md:hidden"><div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center border border-court/30 bg-court/10 text-sm font-black text-court">M{game.gameNumber}</span><StatusBadge status={game.status} compact/></div><Link href={`/matches/${game.matchupId}`} className="text-[10px] font-bold uppercase text-court hover:text-ink">Open matchup →</Link></div><div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"><PairIdentity pair={game.homePair} team={game.homeTeam} side="home"/><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><PairIdentity pair={game.awayPair} team={game.awayTeam} side="away"/></div></div>
+              <div className="hidden gap-3 px-4 py-3 md:grid md:grid-cols-[70px_minmax(0,1fr)_120px_minmax(0,1fr)_110px] md:items-center"><Link href={`/matches/${game.matchupId}`} aria-label={`Open match ${game.gameNumber}`} className="grid h-10 w-10 place-items-center border border-court/30 bg-court/10 text-xl font-black text-court hover:border-court hover:bg-court hover:text-white">{game.gameNumber}</Link><div className="min-w-0"><PairIdentity pair={game.homePair} team={game.homeTeam} side="home"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.homeScore > game.awayScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><ScoreCell home={game.homeScore} away={game.awayScore} status={game.status}/><div className="min-w-0 text-right"><PairIdentity pair={game.awayPair} team={game.awayTeam} side="away"/>{(game.status === "COMPLETED" || game.status === "FORFEITED") && game.awayScore > game.homeScore && <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-emerald-700">Winner</span>}</div><div className="text-right"><StatusBadge status={game.status}/></div></div>
+            </div>)}
           </div>
         </section>;
       })}

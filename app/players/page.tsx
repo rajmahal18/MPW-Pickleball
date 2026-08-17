@@ -136,11 +136,11 @@ export default async function Players({ searchParams }: { searchParams: Promise<
     {players.length ? <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {players.map((player) => {
         const teamIsPublic = Boolean(player.team?.division.isPublic);
-        return <Link key={player.id} href={`/players/${player.id}`} className="public-card group block focus:outline-none focus:ring-2 focus:ring-court/30">
+        return <article key={player.id} className="public-card group block focus-within:ring-2 focus-within:ring-court/30">
           <div className="flex items-center gap-3.5">
-            <PlayerAvatar {...player} size="lg"/>
+            <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} size="lg"/></Link>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg">{formatPlayerDisplayName(player)}</h2>
+              <h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg"><Link href={`/players/${player.id}`} className="hover:text-court">{formatPlayerDisplayName(player)}</Link></h2>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-gray-500">
                 <span>{player.sex === "MALE" ? "Men" : "Women"}</span>
                 <span aria-hidden="true">·</span>
@@ -150,11 +150,11 @@ export default async function Players({ searchParams }: { searchParams: Promise<
           </div>
           <div className="mt-4 border-t border-line/80 pt-3">
             {teamIsPublic && player.team
-              ? <><div className="text-sm font-extrabold text-ink">{player.team.name}</div><div className="mt-1 text-xs font-medium text-gray-500">{player.team.division.name}{player.team.group ? ` · ${player.team.group.name}` : ""}</div></>
+              ? <><Link href={`/teams/${player.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{player.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">{player.team.division.name}{player.team.group ? <> · <Link href={`/groups/${player.team.group.slug}`} className="hover:text-court hover:underline">{player.team.group.name}</Link></> : null}</div></>
               : <div className="text-sm font-semibold text-gray-500">Team assignment pending</div>}
-            <div className="mt-3 text-[10px] font-extrabold uppercase tracking-widest text-court opacity-70 transition group-hover:opacity-100">View player & match history →</div>
+            <Link href={`/players/${player.id}`} className="mt-3 inline-block text-[10px] font-extrabold uppercase tracking-widest text-court opacity-70 transition group-hover:opacity-100 hover:underline">View player & match history →</Link>
           </div>
-        </Link>;
+        </article>;
       })}
     </div> : <div className="public-empty mt-6">No confirmed players match these filters.</div>}
 

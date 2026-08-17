@@ -11,7 +11,7 @@ This pass focused on tournament-day usability and reliability without changing t
 - Added an admin scorecard preview route at `/admin/matches/[id]/scorecards`.
 - Scorecards become printable when both teams have submitted complete lineups and the expected games have been generated.
 - Uses the generated game/pair records, so the printed Player 1 / Player 2 names match the latest submitted lineup.
-- A4 landscape print layout, two scorecards per sheet. Seven games produce four sheets; a final single card is centered.
+- A4 portrait print layout, two landscape scorecards stacked top-and-bottom per sheet. Seven matches produce four sheets; a final single card stays in the upper half instead of expanding to a full page.
 - Group/bracket, round, and court can be adjusted for the print preview without mutating tournament records.
 - Supports printing the whole matchup or one game only for replacement/reprint needs.
 - Team/player names are allowed to wrap rather than being silently truncated on paper.

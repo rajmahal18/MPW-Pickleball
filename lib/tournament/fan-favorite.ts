@@ -9,7 +9,7 @@ export type FanFavoritePublicPlayer = {
   displayName: string | null;
   avatarUrl: string | null;
   sex: SexCategory;
-  team: { name: string; shortName: string } | null;
+  team: { id: string; name: string; shortName: string } | null;
 };
 
 export type FanFavoritePublicRanking = {
@@ -40,7 +40,7 @@ const playerSelect = {
   displayName: true,
   avatarUrl: true,
   sex: true,
-  team: { select: { name: true, shortName: true } },
+  team: { select: { id: true, name: true, shortName: true } },
 } as const;
 
 async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavoritePublicSnapshot> {

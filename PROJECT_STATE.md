@@ -124,7 +124,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Divisions can enable Battle for 3rd. Supported automatic brackets create it and populate it from the two semifinal losers.
 - Legacy `suddenDeathAtTen` remains only for CUSTOM-stage compatibility. Current GROUP/ROUND_ROBIN and playoff scoring is stage-driven; see the latest scoring section below.
 - Public bracket connectors now derive from actual feeder winners/assigned downstream teams rather than row-parity CSS, preventing misleading connector directions. Battle for 3rd is rendered separately beneath the championship progression.
-- Official scorecards use A4 landscape with two portrait scorecards side-by-side per sheet. Each card now uses the printable height, the separate Group input was removed because group identity comes from the configured round/matchup, and the umpire band is deliberately compact so player/score/signature space is maximized.
+- Official scorecards use A4 portrait with two landscape half-sheet scorecards stacked top-and-bottom for a crosswise cut. The separate Group input remains removed because group identity comes from the configured round/matchup, and signature bands are compact so the half-sheet remains writable.
 
 - Current Team Event semifinal feed follows the supplied organizer schedule: QF1 winner vs QF3 winner, and QF2 winner vs QF4 winner. Public bracket display may reorder feeder cards visually after results resolve to avoid crossing/misdirected connectors without changing matchup identity.
 
@@ -162,7 +162,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Standardized user-facing tournament language on **Match / Matches**. Internal Prisma `Game` records, API identifiers, and the existing `/games` route remain unchanged intentionally to avoid an unnecessary schema/URL migration.
 - Group ranking uses the organizer-approved order directly: **A. Total Pair Match Wins, B. Net Point Differential, C. Head-to-head among teams still tied after A/B, D. Total Points Scored**. Exact ties still require organizer resolution only after the group stage is terminal.
 - Public group standings display **Matches / W / L / NPD / TP**, all based on decided pair matches.
-- Official paper scorecards now print as **two portrait cards side-by-side on one A4 landscape sheet**. The standalone Group field was removed; labels derive group context from the configured round/matchup (for example, `Group A Match 3`). The umpire signature band is fixed/compact and the rest of the printable height is used for match details, handwritten scores, and signatures.
+- Official paper scorecards now print as **two landscape half-sheet cards stacked on one A4 portrait sheet**, separated by a crosswise cut guide. The standalone Group field is removed; labels derive group context from the configured round/matchup (for example, `Group A Match 3`).
 - Mobile navigation is now action-first: the public header keeps a compact sticky identity row plus a horizontally scrollable active-page nav strip. Admin navigation accounts for the taller mobile header.
 - Authentication is persistent and predictable: Sign in / Sign out always occupies the top-right header slot. Signed-in users also get a two-item mobile bottom navigation for Home and their role-appropriate Dashboard; duplicate page-level logout buttons were removed.
 - Wide operational tables were replaced or supplemented with purpose-focused mobile cards on Control, Player Pool, Audit, Checkpoints, and Voting. Tournament Setup uses the same responsive court queue on mobile and desktop instead of a fixed-time bulk schedule grid.
@@ -256,3 +256,20 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Avatar/champion images stream from disk and are immutable-cached by UUID filename. Homepage hero prefers a compressed WebP source with PNG fallback.
 - Public pages use restrained one-time scroll reveals and vote/progress transitions; `prefers-reduced-motion` disables motion.
 - No tournament format/scoring/advancement logic changed in this pass.
+
+## Pre-launch public gate + public entity navigation + Teams — 2026-08-17
+
+- Public access is gated until `TOURNAMENT_PUBLIC_LAUNCH_AT`; guests see only a countdown/login screen before launch, while signed sessions retain normal access. Public APIs are gated too, and the site opens automatically when server launch time is reached.
+- Default launch fallback matches the announced tournament start date (`2026-08-20T00:00:00+08:00`); production may override the exact opening time through environment configuration.
+- Public navigation now exposes a first-class **Teams** page and keeps literal primary labels (`Matches`, `Groups`, `Teams`, `Players`, `Bracket`), moving only secondary destinations (`Format`, `Fan Favorite`, `MVP`) under **More**.
+- Public match/bracket/history surfaces no longer rely on one giant nested card link where that blocks entity navigation. Player names/avatars and team names link to their canonical public pages when the surrounding control is not a form/action.
+- Official scorecard printing is A4 portrait with two landscape half-sheet cards stacked top-and-bottom and a crosswise cut guide.
+
+## Draw board + team profile + poster/print polish — 2026-08-17
+
+- Tournament Setup keeps one primary group-placement workflow: a Group Assignment Board inside **Teams & Groups**. Organizers can drag teams between groups on desktop or tap a team and choose a destination on touch devices, then save the full draw once.
+- Bulk group reassignment is history-safe. Recorded play locks the draw; changing a draw with only unplayed group fixtures requires explicit confirmation and clears those future group fixtures/standing overrides for regeneration. No schema change was introduced.
+- Public Team profiles stay deliberately lean: team/group identity, current group rank and pair-match W-L when available, confirmed roster, and that team's relevant matchup list.
+- MVP Mythical Pair and Fan Favorite hero/poster surfaces carry MPW Dink & Dash branding plus subtle pickleball court/ball visual cues using existing lightweight assets.
+- Mobile bracket progression renders Battle for 3rd before the Grand Final so the Grand Final is the last playoff card in the vertical flow; desktop progression remains unchanged.
+- Print media hides mobile sticky navigation and removes its body bottom padding so official scorecard sheets contain scorecard content only.

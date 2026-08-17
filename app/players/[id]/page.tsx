@@ -61,8 +61,9 @@ function sideFor(game: HistoryGame, playerId: string) {
   };
 }
 
-function pairCompact(pair: HistoryGame["homePair"]) {
-  return `${formatPlayerCompactName(pair.playerA)} / ${formatPlayerCompactName(pair.playerB)}`;
+function PairLinks({ pair }: { pair: HistoryGame["homePair"] }) {
+  const players = [pair.playerA, pair.playerB];
+  return <span className="inline-flex flex-wrap items-center gap-x-1">{players.map((player, index) => <span key={player.id} className="contents">{index > 0 && <span className="text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="font-bold text-ink hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link></span>)}</span>;
 }
 
 export default async function PublicPlayerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -114,7 +115,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
             <h1 className="mt-1 text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/80">
               <span>{player.sex === "MALE" ? "Men" : "Women"}</span>
-              {teamIsPublic && player.team && <><span>·</span><span>{player.team.name}</span></>}
+              {teamIsPublic && player.team && <><span>·</span><Link href={`/teams/${player.team.id}`} className="hover:text-gold hover:underline">{player.team.name}</Link></>}
             </div>
             {divisionNames && <div className="mt-2 text-xs font-semibold text-white/65">{divisionNames}{teamIsPublic && player.team?.group ? ` · ${player.team.group.name}` : ""}</div>}
           </div>
@@ -132,19 +133,19 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
       <div className="mb-4"><div className="public-kicker">On-court record</div><h2 className="text-2xl font-black tracking-tight md:text-3xl">Match history</h2><p className="mt-1 text-sm text-gray-500">Completed appearances plus any match currently in progress.</p></div>
       {history.length ? <div className="space-y-3">{history.map((game) => {
         const side = sideFor(game, player.id);
-        return <Link href={`/matches/${game.matchupId}`} key={game.id} className={`group block rounded-xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${side.result === "W" ? "border-emerald-200 hover:border-emerald-400" : side.result === "L" ? "border-red-200 hover:border-red-300" : "border-line hover:border-court/40"}`}>
+        return <article key={game.id} className={`group rounded-xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${side.result === "W" ? "border-emerald-200 hover:border-emerald-400" : side.result === "L" ? "border-red-200 hover:border-red-300" : "border-line hover:border-court/40"}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-extrabold uppercase tracking-widest text-court">{game.matchup.division.name} · {matchupContext(game.matchup)} · Match {game.gameNumber}</span>{game.matchup.courtLabel && <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Court {game.matchup.courtLabel}</span>}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black"><span>{side.team.shortName}</span><span className="text-gray-300">vs</span><span>{side.opponentTeam.shortName}</span></div>
-              <div className="mt-1 text-xs text-gray-500">With <strong className="text-ink">{formatPlayerCompactName(side.partner)}</strong> · Opponents {pairCompact(side.opponentPair)}</div>
+              <div className="flex flex-wrap items-center gap-2"><Link href={`/matches/${game.matchupId}`} className="text-[10px] font-extrabold uppercase tracking-widest text-court hover:text-ink">{game.matchup.division.name} · {matchupContext(game.matchup)} · Match {game.gameNumber}</Link>{game.matchup.courtLabel && <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Court {game.matchup.courtLabel}</span>}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black"><Link href={`/teams/${side.team.id}`} className="hover:text-court">{side.team.shortName}</Link><span className="text-gray-300">vs</span><Link href={`/teams/${side.opponentTeam.id}`} className="hover:text-court">{side.opponentTeam.shortName}</Link></div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">With <Link href={`/players/${side.partner.id}`} className="font-bold text-ink hover:text-court hover:underline">{formatPlayerCompactName(side.partner)}</Link><span>· Opponents</span><PairLinks pair={side.opponentPair}/></div>
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={game.status} compact/>
-              <div className="text-right"><div className={`text-2xl font-black tabular-nums ${side.result === "W" ? "text-emerald-700" : side.result === "L" ? "text-red-700" : "text-ink"}`}>{side.score}–{side.opponentScore}</div>{side.result && <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{side.result === "W" ? "Win" : "Loss"}</div>}</div>
+              <Link href={`/matches/${game.matchupId}`} aria-label={`Open match ${game.gameNumber}`} className="rounded-lg text-right hover:bg-paper"><div className={`text-2xl font-black tabular-nums ${side.result === "W" ? "text-emerald-700" : side.result === "L" ? "text-red-700" : "text-ink"}`}>{side.score}–{side.opponentScore}</div>{side.result && <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{side.result === "W" ? "Win" : "Loss"}</div>}</Link>
             </div>
           </div>
-        </Link>;
+        </article>;
       })}</div> : <div className="public-empty">No recorded match appearances yet.</div>}
     </section>
   </main>;

@@ -10,7 +10,7 @@ export default function MobileBottomNav({ dashboardHref }: { dashboardHref: "/ad
 
   return <nav
     aria-label="Signed-in quick navigation"
-    className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-white/95 px-3 pt-2 shadow-2xl backdrop-blur md:hidden"
+    className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-line bg-white/95 px-3 pt-2 shadow-2xl backdrop-blur md:hidden"
     style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
   >
     <div className="mx-auto grid max-w-sm grid-cols-2 gap-2">

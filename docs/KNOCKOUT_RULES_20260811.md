@@ -44,7 +44,7 @@ Normal mode requires at least 11 points and a two-point winning margin. With sud
 
 ## Printing
 
-Official scorecards use A4 landscape with two portrait scorecards side-by-side per physical sheet. Each card uses the available printable height, while the umpire band is deliberately kept compact so handwriting space is concentrated on player, score, and representative-signature fields. Group identity is derived from the configured round/matchup rather than entered as a separate scorecard field.
+Official scorecards use A4 portrait with two landscape half-sheet scorecards stacked top-and-bottom per physical sheet for a crosswise cut. The umpire band is deliberately compact so handwriting space remains usable within each half-sheet card. Group identity is derived from the configured round/matchup rather than entered as a separate scorecard field.
 
 ## Team Event semifinal feed
 

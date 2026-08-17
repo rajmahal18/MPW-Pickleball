@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LiveMatchBoard from "@/components/LiveMatchBoard";
@@ -58,7 +59,7 @@ export default async function MatchupPage({ params }: { params: Promise<{ id: st
   const context = matchup.roundLabel.toLowerCase().includes(scope.toLowerCase()) ? matchup.roundLabel : `${scope} · ${matchup.roundLabel}`;
 
   return <main className="public-page mx-auto max-w-6xl px-4 py-5 md:py-8">
-    <section className="public-hero"><div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="public-kicker">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div><h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">{matchup.homeTeam?.name || "TBD"} <span className="text-gray-300">vs</span> {matchup.awayTeam?.name || "TBD"}</h1></div></section>
+    <section className="public-hero"><div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={matchup.status}/><span className="public-kicker">{matchup.division.name} · {context} · Court {matchup.courtLabel || "TBA"}</span></div><h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 text-3xl font-black tracking-tight md:text-5xl">{matchup.homeTeam ? <Link href={`/teams/${matchup.homeTeam.id}`} className="hover:text-court">{matchup.homeTeam.name}</Link> : <span>TBD</span>} <span className="text-gray-300">vs</span> {matchup.awayTeam ? <Link href={`/teams/${matchup.awayTeam.id}`} className="hover:text-court">{matchup.awayTeam.name}</Link> : <span>TBD</span>}</h1></div></section>
     <LiveMatchBoard initial={initial}/>
   </main>;
 }

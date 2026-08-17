@@ -47,7 +47,7 @@ export default function ChampionCelebrationPoster({
             : <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-gold/50 bg-white/10 text-sm font-black text-gold md:h-20 md:w-20">{team.shortName.slice(0, 3)}</div>}
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[.2em] text-gold">{divisionName} champion</div>
-            <h2 className="mt-2 text-3xl font-black uppercase leading-tight text-white md:text-5xl">{team.name}</h2>
+            <h2 className="mt-2 text-3xl font-black uppercase leading-tight text-white md:text-5xl"><Link href={`/teams/${team.id}`} className="hover:text-gold">{team.name}</Link></h2>
             <div className="mt-2 text-xs font-black uppercase tracking-[.18em] text-white/65">Dink & Dash 2026</div>
           </div>
         </div>

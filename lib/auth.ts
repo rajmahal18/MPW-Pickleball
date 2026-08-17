@@ -2,32 +2,24 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { jwtVerify, SignJWT } from "jose";
 import { prisma } from "@/lib/prisma";
-
-const COOKIE = "mpw_session";
-
-function sessionSecret() {
-  const value = process.env.SESSION_SECRET;
-  if (value && value.length >= 32) return new TextEncoder().encode(value);
-  if (process.env.NODE_ENV === "production") throw new Error("SESSION_SECRET must contain at least 32 characters in production.");
-  return new TextEncoder().encode("local-development-secret-change-me-32-chars");
-}
+import { SESSION_COOKIE, sessionSecretBytes } from "@/lib/session-config";
 
 export async function createSession(userId: string, secureCookie = process.env.NODE_ENV === "production") {
-  const token = await new SignJWT({ userId }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("7d").sign(sessionSecret());
+  const token = await new SignJWT({ userId }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("7d").sign(sessionSecretBytes());
   const store = await cookies();
-  store.set(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: secureCookie, path: "/", maxAge: 60 * 60 * 24 * 7 });
+  store.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: secureCookie, path: "/", maxAge: 60 * 60 * 24 * 7 });
 }
 
 export async function clearSession() {
   const store = await cookies();
-  store.delete(COOKIE);
+  store.delete(SESSION_COOKIE);
 }
 
 export const getCurrentUser = cache(async function getCurrentUser() {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, sessionSecret());
+    const { payload } = await jwtVerify(token, sessionSecretBytes());
     if (typeof payload.userId !== "string") return null;
     return prisma.user.findUnique({
       where: { id: payload.userId },

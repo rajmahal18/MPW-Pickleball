@@ -568,6 +568,96 @@ export async function POST(request: Request) {
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${next.name} updated.` }), 303);
     }
 
+    if (action === "bulk-assign-team-groups") {
+      const divisionId = text(data.divisionId, "Division ID");
+      const division = await prisma.division.findUnique({
+        where: { id: divisionId },
+        include: { groups: { select: { id: true, name: true } }, teams: { select: { id: true, name: true, shortName: true, groupId: true, groupPosition: true } } },
+      });
+      if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
+      if (!Array.isArray(data.assignments)) throw new Error("Group assignments are missing or invalid.");
+
+      const assignments = data.assignments.map((value, index) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Assignment ${index + 1} is invalid.`);
+        const record = value as Record<string, unknown>;
+        const teamId = text(record.teamId, `Assignment ${index + 1} team ID`);
+        const groupId = optionalText(record.groupId, 120);
+        const groupPosition = groupId ? number(record.groupPosition, `Assignment ${index + 1} position`, 1, 99) : null;
+        return { teamId, groupId, groupPosition };
+      });
+
+      const currentTeamIds = new Set(division.teams.map((team) => team.id));
+      const submittedTeamIds = new Set(assignments.map((assignment) => assignment.teamId));
+      if (assignments.length !== division.teams.length || submittedTeamIds.size !== assignments.length || [...currentTeamIds].some((teamId) => !submittedTeamIds.has(teamId))) {
+        throw new Error("The team list changed while you were arranging groups. Refresh Tournament Setup and try again.");
+      }
+      const allowedGroupIds = new Set(division.groups.map((group) => group.id));
+      if (assignments.some((assignment) => assignment.groupId && !allowedGroupIds.has(assignment.groupId))) throw new Error("One or more destination groups is invalid.");
+
+      for (const group of division.groups) {
+        const positions = assignments.filter((assignment) => assignment.groupId === group.id).map((assignment) => assignment.groupPosition).sort((a, b) => (a ?? 0) - (b ?? 0));
+        if (positions.some((position, index) => position !== index + 1)) throw new Error(`${group.name} positions are invalid. Refresh and try again.`);
+      }
+
+      const changed = assignments.some((assignment) => {
+        const current = division.teams.find((team) => team.id === assignment.teamId)!;
+        return current.groupId !== assignment.groupId || current.groupPosition !== assignment.groupPosition;
+      });
+      if (!changed) {
+        const message = "Group assignments are already up to date.";
+        if (request.headers.get("x-group-assignment") === "1") return NextResponse.json({ ok: true, message });
+        return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: message }), 303);
+      }
+
+      const divisionMatchups = await prisma.matchup.findMany({
+        where: { tournamentId: tournament.id, divisionId },
+        include: { games: true },
+      });
+      const hasRecordedDivisionPlay = divisionMatchups.some((matchup) =>
+        ["LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"].includes(matchup.status) || matchupHasRecordedPlay(matchup),
+      );
+      if (hasRecordedDivisionPlay) throw new Error("Group assignment is locked because recorded play already exists in this division.");
+      const groupMatchups = divisionMatchups.filter((matchup) => matchup.stage === "GROUP");
+
+      const shouldResetUnplayedGroupMatchups = data.resetUnplayedGroupMatchups === true || String(data.resetUnplayedGroupMatchups || "").toLowerCase() === "true";
+      if (groupMatchups.length && !shouldResetUnplayedGroupMatchups) throw new Error("Generated group matchups must be cleared before changing the draw.");
+
+      const beforePlacements = division.teams.map((team) => ({ teamId: team.id, groupId: team.groupId, groupPosition: team.groupPosition }));
+      const groupIds = division.groups.map((group) => group.id);
+      const matchupIds = groupMatchups.map((matchup) => matchup.id);
+      await prisma.$transaction(async (tx) => {
+        if (matchupIds.length) {
+          await tx.game.deleteMany({ where: { matchupId: { in: matchupIds } } });
+          await tx.lineup.deleteMany({ where: { matchupId: { in: matchupIds } } });
+          await tx.matchup.deleteMany({ where: { id: { in: matchupIds } } });
+        }
+        if (groupIds.length) await tx.groupStandingOverride.deleteMany({ where: { groupId: { in: groupIds } } });
+
+        // Clear positions first so the unique group-slot constraint cannot collide while teams move around.
+        await tx.team.updateMany({ where: { divisionId }, data: { groupPosition: null } });
+        for (const assignment of assignments) {
+          await tx.team.update({
+            where: { id: assignment.teamId },
+            data: { groupId: assignment.groupId, groupPosition: assignment.groupPosition },
+          });
+        }
+        await compactTournamentQueue(tx, tournament.id);
+        await writeAudit(tx, {
+          tournamentId: tournament.id,
+          actorId: user.id,
+          action: "GROUP_ASSIGNMENTS_BULK_UPDATED",
+          entityType: "Division",
+          entityId: divisionId,
+          beforeState: { placements: beforePlacements, clearedUnplayedGroupMatchups: matchupIds.length },
+          afterState: { placements: assignments },
+        });
+      }, TOURNAMENT_TRANSACTION_OPTIONS);
+
+      const message = `Group assignments saved${matchupIds.length ? `; ${matchupIds.length} unplayed group matchup${matchupIds.length === 1 ? " was" : "s were"} cleared for regeneration` : ""}.`;
+      if (request.headers.get("x-group-assignment") === "1") return NextResponse.json({ ok: true, message });
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: message }), 303);
+    }
+
     if (action === "update-team-structure") {
       const teamId = text(data.teamId, "Team ID");
       const before = await prisma.team.findUnique({ where: { id: teamId }, include: { division: true } });
@@ -1114,7 +1204,7 @@ export async function POST(request: Request) {
     throw new Error("Unsupported tournament structure action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Tournament update failed.";
-    if (request.headers.get("x-tournament-queue") === "1") {
+    if (request.headers.get("x-tournament-queue") === "1" || request.headers.get("x-group-assignment") === "1") {
       return NextResponse.json({ ok: false, message }, { status: 400 });
     }
     return NextResponse.redirect(redirectBack(request, "/admin/tournament", { error: message }), 303);

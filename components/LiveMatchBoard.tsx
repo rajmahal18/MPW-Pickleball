@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import ScoreBadge from "@/components/ScoreBadge";
 import { formatPlayerCompactName, type PlayerNameParts } from "@/lib/player-name";
@@ -81,9 +82,9 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
 
   return <>
     <div className="panel mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-4 text-center md:hidden">
-      <div className="min-w-0"><div className="label">{matchup.homeTeam?.shortName || "TBD"}</div><div className="truncate text-sm font-black">{matchup.homeTeam?.name || "TBD"}</div></div>
+      <div className="min-w-0"><div className="label">{matchup.homeTeam?.shortName || "TBD"}</div>{matchup.homeTeam ? <Link href={`/teams/${matchup.homeTeam.id}`} className="block truncate text-sm font-black hover:text-court">{matchup.homeTeam.name}</Link> : <div className="truncate text-sm font-black">TBD</div>}</div>
       <div><div className="text-4xl font-black tabular-nums">{matchup.homeWins}-{matchup.awayWins}</div><div className={`text-[9px] font-black uppercase tracking-widest ${connection === "live" ? "text-court" : "text-amber-700"}`}>{connection === "live" ? "Live updates" : "Reconnecting"}</div></div>
-      <div className="min-w-0"><div className="label">{matchup.awayTeam?.shortName || "TBD"}</div><div className="truncate text-sm font-black">{matchup.awayTeam?.name || "TBD"}</div></div>
+      <div className="min-w-0"><div className="label">{matchup.awayTeam?.shortName || "TBD"}</div>{matchup.awayTeam ? <Link href={`/teams/${matchup.awayTeam.id}`} className="block truncate text-sm font-black hover:text-court">{matchup.awayTeam.name}</Link> : <div className="truncate text-sm font-black">TBD</div>}</div>
     </div>
     <div className="mt-5 hidden gap-4 md:grid md:grid-cols-[1fr_auto_1fr]">
       <TeamPanel team={matchup.homeTeam} wins={matchup.homeWins} winner={matchup.winnerTeamId === matchup.homeTeamId}/>
@@ -97,9 +98,9 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
         return <article key={game.id} className={`panel p-3 md:grid md:grid-cols-[92px_1fr_auto_1fr] md:items-center md:gap-4 md:p-4 ${notNeeded ? "bg-gray-50 opacity-65" : game.status === "LIVE" ? "border-flame bg-flame/5" : game.status === "COMPLETED" || game.status === "FORFEITED" ? "bg-gray-50/60" : ""}`}>
         <div className="mb-3 flex items-center justify-between md:mb-0 md:block"><div className="label">Match {game.gameNumber}</div><div className="md:mt-1">{notNeeded ? <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Not needed</span> : <StatusBadge status={game.status} compact/>}</div></div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:contents">
-          <div className="min-w-0"><PairView players={[game.homePair.playerA, game.homePair.playerB]} team={game.homeTeam.shortName}/></div>
+          <div className="min-w-0"><PairView players={[game.homePair.playerA, game.homePair.playerB]} team={game.homeTeam}/></div>
           <div className="justify-self-center">{notNeeded ? <span className="grid h-11 min-w-20 place-items-center rounded-lg border border-line bg-white text-lg font-black text-gray-300">—</span> : <ScoreBadge home={game.homeScore} away={game.awayScore} status={game.status}/>}</div>
-          <div className="min-w-0"><PairView players={[game.awayPair.playerA, game.awayPair.playerB]} team={game.awayTeam.shortName} right/></div>
+          <div className="min-w-0"><PairView players={[game.awayPair.playerA, game.awayPair.playerB]} team={game.awayTeam} right/></div>
         </div>
       </article>;
       })}</div> : <div className="panel mt-4 p-8 text-center text-sm text-gray-500">Matches appear after both sides submit complete lineups.</div>}
@@ -108,11 +109,11 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
 }
 
 function TeamPanel({ team, wins, winner }: { team: Matchup["homeTeam"]; wins: number; winner: boolean }) {
-  return <div className={`panel p-5 text-center ${winner ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200" : ""}`}><div className={`label ${winner ? "text-emerald-700" : ""}`}>{winner ? "✓ Winner" : "Team"}</div><div className={`mt-1 text-2xl font-black ${winner ? "text-emerald-900" : ""}`}>{team?.name || "TBD"}</div><div className={`mt-3 text-5xl font-black tabular-nums ${winner ? "text-emerald-700" : ""}`}>{wins}</div></div>;
+  return <div className={`panel p-5 text-center ${winner ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200" : ""}`}><div className={`label ${winner ? "text-emerald-700" : ""}`}>{winner ? "✓ Winner" : "Team"}</div>{team ? <Link href={`/teams/${team.id}`} className={`mt-1 block text-2xl font-black hover:text-court ${winner ? "text-emerald-900" : ""}`}>{team.name}</Link> : <div className="mt-1 text-2xl font-black">TBD</div>}<div className={`mt-3 text-5xl font-black tabular-nums ${winner ? "text-emerald-700" : ""}`}>{wins}</div></div>;
 }
-function PairView({ players, team, right }: { players: Player[]; team: string; right?: boolean }) {
+function PairView({ players, team, right }: { players: Player[]; team: Team; right?: boolean }) {
   return <div className={`flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-3 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
-    <div className="flex -space-x-3">{players.map((player) => <PlayerAvatar key={player.id} {...player} size="md"/>)}</div>
-    <div className="min-w-0"><div className="label">{team}</div><div className="line-clamp-2 text-xs font-black leading-snug md:text-base">{players.map((player) => formatPlayerCompactName(player)).join(" / ")}</div></div>
+    <div className="flex -space-x-3">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} size="md"/></Link>)}</div>
+    <div className="min-w-0"><Link href={`/teams/${team.id}`} className="label hover:text-court">{team.shortName}</Link><div className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs font-black leading-snug md:text-base ${right ? "justify-end" : "justify-start"}`}>{players.map((player, index) => <span key={player.id} className="contents">{index > 0 && <span className="text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link></span>)}</div></div>
   </div>;
 }

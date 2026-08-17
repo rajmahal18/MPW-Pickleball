@@ -39,6 +39,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .mythical-pair-glow { position: absolute; width: 18rem; height: 18rem; border-radius: 9999px; filter: blur(54px); opacity: .16; pointer-events: none; }
 .mythical-pair-glow-left { left: -7rem; bottom: -8rem; background: #49a4e8; }
 .mythical-pair-glow-right { right: -7rem; top: -8rem; background: #f4b11f; }
+.poster-court-lines { position: absolute; width: 20rem; height: 12rem; border: 1px solid rgba(255,255,255,.12); opacity: .65; transform: rotate(-8deg); }
+.poster-court-lines::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px solid rgba(255,255,255,.12); }
+.poster-court-lines::after { content: ""; position: absolute; left: 0; right: 0; top: 48%; border-top: 1px solid rgba(255,255,255,.12); box-shadow: 0 1.9rem 0 rgba(255,255,255,.08), 0 -1.9rem 0 rgba(255,255,255,.08); }
+.poster-court-lines-right { right: -4rem; bottom: -1.5rem; }
+.poster-court-lines-left { left: -4rem; bottom: -1.5rem; transform: rotate(8deg); }
+.poster-pickleball-ball { position: absolute; width: 5.25rem; height: 5.25rem; border-radius: 9999px; background-color: rgba(244,177,31,.16); background-image: radial-gradient(circle at 28% 28%, rgba(5,5,5,.48) 0 4px, transparent 4.8px), radial-gradient(circle at 62% 25%, rgba(5,5,5,.4) 0 3.5px, transparent 4.3px), radial-gradient(circle at 42% 55%, rgba(5,5,5,.42) 0 4px, transparent 4.8px), radial-gradient(circle at 72% 62%, rgba(5,5,5,.35) 0 3.5px, transparent 4.3px), radial-gradient(circle at 27% 75%, rgba(5,5,5,.36) 0 3.5px, transparent 4.3px); border: 1px solid rgba(244,177,31,.22); box-shadow: 0 0 40px rgba(244,177,31,.12); opacity: .8; }
+.poster-pickleball-ball-right { right: 1rem; bottom: .75rem; transform: rotate(10deg); }
+.poster-pickleball-ball-left { left: 1rem; bottom: .75rem; transform: rotate(-10deg); }
 .mythical-player-card { box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
 .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
 
@@ -82,7 +90,7 @@ html { scroll-behavior: smooth; }
 }
 
 @media print {
-  body { background: white !important; }
+  body { background: white !important; padding-bottom: 0 !important; }
   header, footer, .no-print { display: none !important; }
   main { max-width: none !important; padding: 0 !important; }
   .print-sheet { margin: 0 !important; }
@@ -140,62 +148,65 @@ html { scroll-behavior: smooth; }
   .bracket-progression-grid { min-width: 900px; }
 }
 
-/* Official matchup scorecard preview + print layout. Two portrait scorecards side by side on each A4 landscape sheet. */
-.scorecard-preview-shell { width: min(calc(100% - 2rem), 1500px); margin-inline: auto; padding-block: 1.5rem; }
+/* Official matchup scorecard preview + print layout. A4 portrait, cut crosswise: two landscape scorecards stacked per sheet. */
+.scorecard-preview-shell { width: min(calc(100% - 2rem), 1200px); margin-inline: auto; padding-block: 1.5rem; }
 .scorecard-print-root { display: grid; gap: 1rem; }
-.scorecard-print-page { box-sizing: border-box; width: min(100%, 297mm); min-height: 198mm; margin-inline: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 5mm; background: #fff; }
-.scorecard-print-page-single .scorecard-card { grid-column: 1 / -1; width: calc(50% - 2.5mm); justify-self: center; }
-.scorecard-card { box-sizing: border-box; min-width: 0; width: 100%; height: 198mm; border: 1.25px solid #111; background: #fff; color: #111; display: flex; flex-direction: column; font-family: Arial, Helvetica, sans-serif; font-size: 9px; line-height: 1.15; overflow: hidden; }
-.scorecard-card-header { padding: 2.5mm 3mm 2mm; border-bottom: 1px solid #111; }
-.scorecard-tournament { text-align: center; font-size: 8px; font-weight: 700; }
-.scorecard-title { margin-top: .7mm; text-align: center; font-size: 13px; font-weight: 800; letter-spacing: .01em; }
-.scorecard-meta-grid { margin-top: 2.2mm; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: 2mm; row-gap: 1.6mm; }
+.scorecard-print-page { position: relative; box-sizing: border-box; width: min(100%, 210mm); min-height: 297mm; margin-inline: auto; padding: 6mm; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 5mm; background: #fff; box-shadow: 0 8px 28px rgba(15,23,42,.08); }
+.scorecard-print-page::after { content: ""; position: absolute; left: 6mm; right: 6mm; top: 50%; border-top: 1px dashed #aaa; pointer-events: none; }
+.scorecard-print-page-single .scorecard-card { grid-row: 1; }
+.scorecard-card { box-sizing: border-box; min-width: 0; width: 100%; height: 140mm; border: 1.25px solid #111; background: #fff; color: #111; display: flex; flex-direction: column; font-family: Arial, Helvetica, sans-serif; font-size: 8.5px; line-height: 1.12; overflow: hidden; }
+.scorecard-card-header { padding: 1.7mm 3mm 1.4mm; border-bottom: 1px solid #111; }
+.scorecard-tournament { text-align: center; font-size: 7.5px; font-weight: 700; }
+.scorecard-title { margin-top: .4mm; text-align: center; font-size: 11px; font-weight: 800; letter-spacing: .01em; }
+.scorecard-meta-grid { margin-top: 1.3mm; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: 2mm; row-gap: 1mm; }
 .scorecard-meta { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: 1mm; white-space: nowrap; }
 .scorecard-meta:nth-child(1) { grid-column: span 3; }
 .scorecard-meta:nth-child(2) { grid-column: span 1; }
 .scorecard-meta:nth-child(3) { grid-column: span 2; }
 .scorecard-meta:nth-child(4), .scorecard-meta:nth-child(5) { grid-column: span 3; }
-.scorecard-meta strong { min-width: 0; min-height: 3.4mm; padding-inline: .7mm; border-bottom: 1px solid #222; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+.scorecard-meta strong { min-width: 0; min-height: 2.8mm; padding-inline: .7mm; border-bottom: 1px solid #222; text-align: center; overflow: hidden; text-overflow: ellipsis; }
 .scorecard-teams { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #111; }
-.scorecard-team-box { min-width: 0; padding: 4mm 3.5mm; display: flex; flex-direction: column; justify-content: center; }
+.scorecard-team-box { min-width: 0; padding: 2.1mm 3.5mm; display: flex; flex-direction: column; justify-content: center; }
 .scorecard-team-box + .scorecard-team-box { border-left: 1px solid #111; }
 .scorecard-team-name { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1mm; align-items: end; }
-.scorecard-team-name strong { min-width: 0; padding-bottom: .5mm; border-bottom: 1px solid #555; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.12; }
-.scorecard-pair-note { margin-top: 2mm; min-height: 3mm; color: #555; font-size: 7px; font-weight: 700; text-align: right; }
-.scorecard-line { margin-top: 4mm; min-width: 0; display: grid; grid-template-columns: 14mm minmax(0, 1fr); gap: 1mm; align-items: end; }
-.scorecard-line strong { min-width: 0; min-height: 5mm; padding: 0 .7mm .5mm; border-bottom: 1px solid #555; font-weight: 600; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.12; }
-.scorecard-forfeit { margin-top: 5mm; display: flex; align-items: center; gap: 1.5mm; font-size: 7.5px; }
-.scorecard-checkbox { width: 3.5mm; height: 3.5mm; border: 1px solid #111; display: inline-grid; place-items: center; font-size: 8px; font-weight: 800; }
+.scorecard-team-name strong { min-width: 0; padding-bottom: .4mm; border-bottom: 1px solid #555; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.08; }
+.scorecard-pair-note { margin-top: 1mm; min-height: 2.5mm; color: #555; font-size: 6.5px; font-weight: 700; text-align: right; }
+.scorecard-line { margin-top: 2mm; min-width: 0; display: grid; grid-template-columns: 14mm minmax(0, 1fr); gap: 1mm; align-items: end; }
+.scorecard-line strong { min-width: 0; min-height: 4mm; padding: 0 .7mm .4mm; border-bottom: 1px solid #555; font-weight: 600; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.08; }
+.scorecard-forfeit { margin-top: 2.4mm; display: flex; align-items: center; gap: 1.5mm; font-size: 7px; }
+.scorecard-checkbox { width: 3.2mm; height: 3.2mm; border: 1px solid #111; display: inline-grid; place-items: center; font-size: 7px; font-weight: 800; }
 .scorecard-muted { color: #555; }
-.scorecard-final-score { margin-top: 5mm; display: flex; align-items: center; justify-content: center; gap: 3mm; font-size: 13px; }
-.scorecard-final-score span { width: 28mm; height: 11mm; border: 1.25px solid #111; display: grid; place-items: center; font-size: 20px; font-weight: 800; }
-.scorecard-signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #111; min-height: 24mm; }
+.scorecard-final-score { margin-top: 2.4mm; display: flex; align-items: center; justify-content: center; gap: 3mm; font-size: 11px; }
+.scorecard-final-score span { width: 25mm; height: 8mm; border: 1.25px solid #111; display: grid; place-items: center; font-size: 17px; font-weight: 800; }
+.scorecard-signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #111; min-height: 16mm; }
 .scorecard-signatures .scorecard-signature + .scorecard-signature { border-left: 1px solid #111; }
-.scorecard-signature { min-width: 0; display: flex; flex-direction: column; justify-content: end; align-items: center; padding: 2mm 3mm; text-align: center; }
-.scorecard-signature-line { width: min(86%, 48mm); border-top: 1px solid #333; margin-bottom: .8mm; }
-.scorecard-signature em { margin-top: .3mm; font-size: 7px; }
-.scorecard-umpire { flex: 0 0 17mm; min-height: 17mm; display: flex; align-items: end; justify-content: center; }
-.scorecard-umpire .scorecard-signature { width: 58%; padding-block: 1.5mm; }
-.scorecard-reference { display: flex; justify-content: space-between; gap: 3mm; padding: 1.2mm 2.5mm; border-top: 1px solid #bbb; color: #555; font-size: 6.5px; }
+.scorecard-signature { min-width: 0; display: flex; flex-direction: column; justify-content: end; align-items: center; padding: 1.3mm 3mm; text-align: center; }
+.scorecard-signature-line { width: min(86%, 60mm); border-top: 1px solid #333; margin-bottom: .5mm; }
+.scorecard-signature em { margin-top: .2mm; font-size: 6px; }
+.scorecard-umpire { flex: 0 0 11mm; min-height: 11mm; display: flex; align-items: end; justify-content: center; }
+.scorecard-umpire .scorecard-signature { width: 58%; padding-block: 1mm; }
+.scorecard-reference { display: flex; justify-content: space-between; gap: 3mm; padding: .8mm 2.5mm; border-top: 1px solid #bbb; color: #555; font-size: 5.8px; }
 
 @media screen and (max-width: 900px) {
-  .scorecard-print-page { width: 100%; min-height: auto; grid-template-columns: 1fr; gap: 1rem; }
-  .scorecard-print-page-single .scorecard-card { grid-column: auto; width: 100%; }
-  .scorecard-card { height: auto; min-height: 165mm; }
+  .scorecard-print-page { width: 100%; min-height: auto; padding: 0; grid-template-rows: none; grid-template-columns: 1fr; gap: 1rem; box-shadow: none; }
+  .scorecard-print-page::after { display: none; }
+  .scorecard-print-page-single .scorecard-card { grid-row: auto; }
+  .scorecard-card { height: auto; min-height: 140mm; }
   .scorecard-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scorecard-meta:nth-child(n) { grid-column: span 1; }
   .scorecard-meta:first-child { grid-column: 1 / -1; }
 }
 
 @media print {
-  @page { size: A4 landscape; margin: 6mm; }
+  @page { size: A4 portrait; margin: 6mm; }
   html, body { width: auto !important; max-width: none !important; overflow: visible !important; }
   .scorecard-preview-shell { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
   .scorecard-print-root { display: block !important; }
-  .scorecard-print-page { width: 100% !important; height: 198mm !important; min-height: 198mm !important; margin: 0 !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; align-items: stretch !important; gap: 5mm !important; break-after: page; page-break-after: always; }
+  .scorecard-print-page { width: 198mm !important; height: 285mm !important; min-height: 285mm !important; padding: 0 !important; margin: 0 !important; display: grid !important; grid-template-rows: repeat(2, 140mm) !important; grid-template-columns: 1fr !important; align-items: stretch !important; gap: 5mm !important; box-shadow: none !important; break-after: page; page-break-after: always; }
+  .scorecard-print-page::after { left: 0 !important; right: 0 !important; top: 142.5mm !important; display: block !important; }
   .scorecard-print-page:last-child { break-after: auto; page-break-after: auto; }
-  .scorecard-print-page-single .scorecard-card { grid-column: 1 / -1 !important; width: calc(50% - 2.5mm) !important; justify-self: center !important; }
-  .scorecard-card { width: 100% !important; height: 198mm !important; min-height: 198mm !important; break-inside: avoid; page-break-inside: avoid; }
+  .scorecard-print-page-single .scorecard-card { grid-row: 1 !important; }
+  .scorecard-card { width: 100% !important; height: 140mm !important; min-height: 140mm !important; break-inside: avoid; page-break-inside: avoid; }
   /* The global print rule hides site <header>/<footer>; keep the scorecard's own semantic header/footer visible. */
   .scorecard-card-header { display: block !important; }
   .scorecard-reference { display: flex !important; }
