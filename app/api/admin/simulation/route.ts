@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/permissions";
 import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { executeSimulation, type SimulationOptions } from "@/lib/tournament/simulation";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 function jsonSafe(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -86,6 +87,13 @@ export async function POST(request: Request) {
       where: { id: run.id },
       data: { status: "COMPLETED", result: jsonSafe({ ...result, checkpointId: checkpoint.id }), completedAt: new Date() },
     });
+    if (
+      options.kind === "FAN_VOTING" ||
+      options.kind === "RESET_VOTING" ||
+      (options.kind === "QUICK_SCENARIO" && ["FAN_CLOSE_RACE", "FAN_TIED_RANKINGS"].includes(options.targetId ?? ""))
+    ) {
+      invalidatePublicVotingCodeSnapshot(tournament.id);
+    }
     return NextResponse.redirect(redirectBack(request, "/admin/simulation", { success: `Simulation completed (${run.id.slice(-6)}).` }), 303);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Simulation failed.";

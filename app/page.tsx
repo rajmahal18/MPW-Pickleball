@@ -70,6 +70,7 @@ export default async function Home() {
     prisma.game.findMany({
       where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } }, status: { in: ["COMPLETED", "FORFEITED"] } },
       include: {
+        matchup: { select: { stage: true } },
         homePair: { include: { playerA: { include: { team: true } }, playerB: { include: { team: true } } } },
         awayPair: { include: { playerA: { include: { team: true } }, playerB: { include: { team: true } } } },
       },
@@ -105,7 +106,14 @@ export default async function Home() {
     division,
     matchups: division.matchups.filter((matchup) => KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
   })).filter(({ division, matchups }) => division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION" || matchups.length > 0);
-  const mvp = calculateMvpRankings(mvpGames);
+  const mvpMatchups = tournament.divisions.flatMap((division) => division.matchups.map((matchup) => ({
+    stage: matchup.stage,
+    homeTeamId: matchup.homeTeamId,
+    awayTeamId: matchup.awayTeamId,
+    winnerTeamId: matchup.winnerTeamId,
+    status: matchup.status,
+  })));
+  const mvp = calculateMvpRankings(mvpGames, mvpMatchups);
 
   return <main className="public-page"><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
     <div className="relative">

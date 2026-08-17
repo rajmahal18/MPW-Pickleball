@@ -76,7 +76,7 @@ export default function ChampionCelebrationPoster({
         </section>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <AwardPair title="Mythical Pair" icon={<Crown className="h-4 w-4" fill="currentColor"/>} left={maleMvp ? { player: maleMvp.player, meta: `Male - ${maleMvp.mvpIndex} index` } : undefined} right={femaleMvp ? { player: femaleMvp.player, meta: `Female - ${femaleMvp.mvpIndex} index` } : undefined}/>
+          <AwardPair title="Mythical Pair" icon={<Crown className="h-4 w-4" fill="currentColor"/>} left={maleMvp ? { player: maleMvp.player, meta: `Male - ${maleMvp.mvpIndex} pts` } : undefined} right={femaleMvp ? { player: femaleMvp.player, meta: `Female - ${femaleMvp.mvpIndex} pts` } : undefined}/>
           <AwardPair title="Fan Favorites" icon={<Heart className="h-4 w-4" fill="currentColor"/>} left={maleFan ? { player: maleFan.player, meta: `Male - ${maleFan.row._count._all} votes` } : undefined} right={femaleFan ? { player: femaleFan.player, meta: `Female - ${femaleFan.row._count._all} votes` } : undefined}/>
         </div>
       </div>

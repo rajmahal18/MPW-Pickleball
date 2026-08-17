@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Prisma, SexCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import GenderIndicator from "@/components/GenderIndicator";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 
@@ -141,8 +142,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
           <div className="flex items-center gap-3.5">
             <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} size="lg"/></Link>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg"><Link href={`/players/${player.id}`} className="hover:text-court">{formatPlayerDisplayName(player)}</Link></h2>
-              <div className="mt-1 text-xs font-semibold text-gray-500">{player.sex === "MALE" ? "Men" : "Women"}</div>
+              <div className="flex min-w-0 items-center gap-1.5"><h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg"><Link href={`/players/${player.id}`} className="hover:text-court">{formatPlayerDisplayName(player)}</Link></h2><GenderIndicator sex={player.sex} className="text-lg"/></div>
             </div>
           </div>
           <div className="mt-4 border-t border-line/80 pt-3">

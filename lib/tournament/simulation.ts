@@ -651,6 +651,7 @@ export async function executeSimulation(
   } else if (options.kind === "RESET_VOTING") {
     await db.fanVote.deleteMany({ where: { tournamentId } });
     await db.votingCode.deleteMany({ where: { tournamentId } });
+    await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
     result.votingReset = true;
   } else if (options.kind === "QUICK_SCENARIO") {
     const scenario = options.targetId || "MID_GROUP_STAGE";
@@ -708,6 +709,7 @@ export async function executeSimulation(
     } else if (["FAN_CLOSE_RACE", "FAN_TIED_RANKINGS"].includes(scenario)) {
       await db.fanVote.deleteMany({ where: { tournamentId } });
       await db.votingCode.deleteMany({ where: { tournamentId } });
+      await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
       await db.voteAttempt.deleteMany({ where: { tournamentId } });
       await db.tournament.update({ where: { id: tournamentId }, data: { votingOpen: true } });
       const eligible = await db.player.findMany({ where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } }, take: 3, select: { id: true } });

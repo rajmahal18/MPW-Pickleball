@@ -48,7 +48,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     prisma.matchup.findMany({
       where: { tournamentId: tournament.id, status: { in: ["LIVE", "READY", "LINEUP_PENDING", "SCHEDULED", "COMPLETED", "FORFEITED"] }, homeTeamId: { not: null }, awayTeamId: { not: null } },
       select: {
-        id: true, status: true, stage: true, groupLabel: true, roundLabel: true, courtLabel: true, gamesPerMatchup: true, homeWins: true, awayWins: true, homeTeamId: true, awayTeamId: true,
+        id: true, status: true, stage: true, groupLabel: true, roundLabel: true, courtLabel: true, queuePosition: true, gamesPerMatchup: true, homeWins: true, awayWins: true, homeTeamId: true, awayTeamId: true,
         division: { select: { name: true } },
         homeTeam: { select: { shortName: true } },
         awayTeam: { select: { shortName: true } },
@@ -82,19 +82,42 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const statusCount = (status: string) => matchupStatusGroups.find((row) => row.status === status)?._count._all ?? 0;
   const liveMatchups = statusCount("LIVE");
   const readyMatchups = statusCount("READY");
+  const terminalStatuses = new Set(["COMPLETED", "FORFEITED"]);
+  const remainingSequence = new Map<string, number>();
+  const byCourt = new Map<string, typeof matchups>();
+  for (const matchup of matchups) {
+    if (terminalStatuses.has(matchup.status) || matchup.queuePosition === null || !matchup.courtLabel) continue;
+    const rows = byCourt.get(matchup.courtLabel) || [];
+    rows.push(matchup);
+    byCourt.set(matchup.courtLabel, rows);
+  }
+  for (const rows of byCourt.values()) {
+    rows.sort((a, b) => {
+      const activeDiff = (a.status === "LIVE" ? 0 : 1) - (b.status === "LIVE" ? 0 : 1);
+      return activeDiff || (a.queuePosition ?? Number.MAX_SAFE_INTEGER) - (b.queuePosition ?? Number.MAX_SAFE_INTEGER);
+    });
+    rows.forEach((matchup, index) => remainingSequence.set(matchup.id, index + 1));
+  }
+  const courtOrder = (label: string | null) => {
+    if (!label) return Number.MAX_SAFE_INTEGER;
+    const numeric = Number(label);
+    return Number.isFinite(numeric) ? numeric : Number.MAX_SAFE_INTEGER - 1;
+  };
   const operationalMatchups = [...matchups].sort((first, second) => {
-    const priority = (matchup: typeof first) => {
-      // A team matchup remains operationally LIVE between pair games after at least one game is decided.
-      // Keep the whole ongoing series above every ready/pending/scheduled matchup for facilitators.
-      if (matchup.status === "LIVE") return 0;
-      if (matchup.status === "READY") return 1;
-      if (matchup.status === "LINEUP_PENDING") return 2;
-      if (matchup.status === "SCHEDULED") return 3;
-      if (matchup.status === "COMPLETED") return 4;
-      if (matchup.status === "FORFEITED") return 5;
-      return 6;
-    };
-    return priority(first) - priority(second);
+    const firstTerminal = terminalStatuses.has(first.status);
+    const secondTerminal = terminalStatuses.has(second.status);
+    if (firstTerminal !== secondTerminal) return firstTerminal ? 1 : -1;
+
+    if (!firstTerminal) {
+      const waveDiff = (remainingSequence.get(first.id) ?? Number.MAX_SAFE_INTEGER) - (remainingSequence.get(second.id) ?? Number.MAX_SAFE_INTEGER);
+      if (waveDiff) return waveDiff;
+      const courtDiff = courtOrder(first.courtLabel) - courtOrder(second.courtLabel);
+      if (courtDiff) return courtDiff;
+      const courtLabelDiff = (first.courtLabel || "").localeCompare(second.courtLabel || "");
+      if (courtLabelDiff) return courtLabelDiff;
+    }
+
+    return (first.queuePosition ?? Number.MAX_SAFE_INTEGER) - (second.queuePosition ?? Number.MAX_SAFE_INTEGER);
   });
 
   return <main className="admin-shell">
@@ -113,7 +136,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <div>
           <div className="label text-court">Operate</div>
           <h2 className="text-xl font-black uppercase">Live scoring & match controls</h2>
-          <p className="mt-1 hidden text-sm text-gray-500 sm:block">Ordered by urgency: ongoing first, then ready, pending lineup, scheduled, and completed. Match chips show their own state.</p>
+          <p className="mt-1 hidden text-sm text-gray-500 sm:block">Ordered by court wave: each court’s next unfinished matchup first, then the second matchup on each court, and so on. Completed matchups stay below active work.</p>
           <div className="mt-2 hidden flex-wrap gap-2 sm:flex"><StatusBadge status="LIVE" compact/><StatusBadge status="READY" compact/><StatusBadge status="LINEUP_PENDING" compact/><StatusBadge status="SCHEDULED" compact/><StatusBadge status="COMPLETED" compact/><StatusBadge status="FORFEITED" compact/></div>
         </div>
         <form action="/api/admin/generate-knockout" method="post"><SubmitButton className="btn-ghost px-3 py-2 text-xs" pendingLabel="Recalculating…">Recalculate bracket</SubmitButton></form>

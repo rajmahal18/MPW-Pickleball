@@ -9,6 +9,7 @@ import StatusBadge from "@/components/StatusBadge";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 import AvatarPlayerSelect from "@/components/AvatarPlayerSelect";
+import GenderIndicator from "@/components/GenderIndicator";
 
 export const dynamic = "force-dynamic";
 
@@ -71,8 +72,8 @@ function TeamChip({ team, side }: { team: { id: string; shortName: string }; sid
 
 function PairIdentity({ pair, team, side }: {
   pair: {
-    playerA: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
-    playerB: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null };
+    playerA: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null; sex: "MALE" | "FEMALE" };
+    playerB: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null; sex: "MALE" | "FEMALE" };
   };
   team: { id: string; shortName: string };
   side: "home" | "away";
@@ -81,7 +82,7 @@ function PairIdentity({ pair, team, side }: {
   const players = [pair.playerA, pair.playerB];
   return <div className={`flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-2 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
     <div className="flex shrink-0 -space-x-2">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} size="sm"/></Link>)}</div>
-    <div className="min-w-0"><TeamChip team={team} side={side}/><div className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs font-bold leading-snug text-ink md:font-black ${right ? "justify-end" : "justify-start"}`}>{players.map((player, index) => <span key={player.id} className="contents">{index > 0 && <span className="text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link></span>)}</div></div>
+    <div className="min-w-0"><TeamChip team={team} side={side}/><div className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs font-bold leading-snug text-ink md:font-black ${right ? "justify-end" : "justify-start"}`}>{players.map((player, index) => <span key={player.id} className="inline-flex items-center gap-0.5">{index > 0 && <span className="mr-0.5 text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link><GenderIndicator sex={player.sex} className="text-[11px]"/></span>)}</div></div>
   </div>;
 }
 
@@ -117,12 +118,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         participationStatus: "CONFIRMED",
         team: { division: { isPublic: true } },
       },
-      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, team: { select: { id: true, shortName: true } } },
+      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, sex: true, team: { select: { id: true, shortName: true } } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.matchup.findMany({
       where: { tournamentId: tournament.id, division: { isPublic: true }, homeTeamId: { not: null }, awayTeamId: { not: null } },
-      select: { id: true, stage: true, groupLabel: true, roundLabel: true, order: true, homeTeamId: true, awayTeamId: true, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, division: { select: { name: true, sortOrder: true } } },
+      select: { id: true, divisionId: true, stage: true, groupLabel: true, roundLabel: true, order: true, homeTeamId: true, awayTeamId: true, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, division: { select: { name: true, sortOrder: true } } },
       orderBy: [{ division: { sortOrder: "asc" } }, { order: "asc" }],
     }),
   ]);
@@ -170,7 +171,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
     } : {}),
   };
 
-  const [games, totalGames, revision] = await Promise.all([
+  const [allGames, revision] = await Promise.all([
     prisma.game.findMany({
       where,
       include: {
@@ -180,20 +181,53 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         homePair: { include: { playerA: true, playerB: true } },
         awayPair: { include: { playerA: true, playerB: true } },
       },
-      orderBy: [
-        { matchup: { updatedAt: "desc" } },
-        { gameNumber: "asc" },
-        { id: "desc" },
-      ],
-      skip: (currentPage - 1) * pageSize,
-      take: pageSize,
     }),
-    prisma.game.count({ where }),
     getPublicTournamentRevision(tournament.id),
   ]);
 
+  const groupSeries = new Map<string, number>();
+  const groupedMatchups = new Map<string, typeof allMatchups>();
+  for (const matchup of allMatchups.filter((item) => item.stage === "GROUP" || item.stage === "ROUND_ROBIN")) {
+    const key = `${matchup.divisionId}::${matchup.groupLabel || "ROUND_ROBIN"}`;
+    const rows = groupedMatchups.get(key) || [];
+    rows.push(matchup);
+    groupedMatchups.set(key, rows);
+  }
+  for (const rows of groupedMatchups.values()) {
+    rows.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    rows.forEach((matchup, index) => groupSeries.set(matchup.id, index + 1));
+  }
+
+  const stagePriority = (stage: string) => {
+    if (stage === "FINAL") return 0;
+    if (stage === "THIRD_PLACE") return 1;
+    if (stage === "SEMIFINAL") return 2;
+    if (stage === "QUARTERFINAL") return 3;
+    if (stage === "GROUP" || stage === "ROUND_ROBIN") return 4;
+    return 5;
+  };
+  allGames.sort((a, b) => {
+    const stageDiff = stagePriority(a.matchup.stage) - stagePriority(b.matchup.stage);
+    if (stageDiff) return stageDiff;
+    const groupLike = a.matchup.stage === "GROUP" || a.matchup.stage === "ROUND_ROBIN";
+    if (groupLike) {
+      const seriesDiff = (groupSeries.get(b.matchupId) ?? 0) - (groupSeries.get(a.matchupId) ?? 0);
+      if (seriesDiff) return seriesDiff;
+      const divisionDiff = a.matchup.division.sortOrder - b.matchup.division.sortOrder;
+      if (divisionDiff) return divisionDiff;
+      const groupDiff = (a.matchup.groupLabel || "").localeCompare(b.matchup.groupLabel || "");
+      if (groupDiff) return groupDiff;
+    } else {
+      const divisionDiff = a.matchup.division.sortOrder - b.matchup.division.sortOrder;
+      if (divisionDiff) return divisionDiff;
+    }
+    return a.matchup.order - b.matchup.order || a.gameNumber - b.gameNumber || a.id.localeCompare(b.id);
+  });
+
+  const totalGames = allGames.length;
   const totalPages = Math.max(1, Math.ceil(totalGames / pageSize));
   const safePage = Math.min(currentPage, totalPages);
+  const games = allGames.slice((safePage - 1) * pageSize, safePage * pageSize);
   const filters = { status: activeTab, team: teamId, player: playerId, matchup: matchupId };
 
   const buildHref = (overrides: Partial<typeof filters> = {}, page = 1) => {

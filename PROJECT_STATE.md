@@ -73,7 +73,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 
 - Granular round/stage undo is now division-aware.
 - Reset/rebuild no longer silently replaces the organizer's current structure with the original sample group format.
-- Checkpoint activity snapshots are version 4 and also preserve the tournament-day active-court count plus matchup queue positions.
+- Checkpoint activity snapshots are version 6 and preserve tournament-day activity state including active-court count, matchup queue positions, champion media metadata, voting code batches, and public-code metadata; older supported snapshots remain restorable.
 - Old v1/v2 snapshots fall back to the first configured division when restoring legacy matchups.
 - Restore stops safely if a checkpoint references a team that has since moved to a different division, instead of recreating a cross-division mismatch.
 
@@ -281,3 +281,16 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - The public Teams page is group-first rather than a flat directory. Team rows are fully clickable and prioritize team identity, confirmed roster preview, and current group rank/W-L when results exist; redundant View Team actions and detached KPI-style count cards were removed.
 - Public Teams, Players, and Matches use compact inline counts/context instead of floating total-count boxes. Mobile public headers, filters, cards, and page spacing prioritize useful content/actions in the first viewport and reduce unnecessary scrolling without changing tournament logic.
 - The desktop More menu is anchored directly to its trigger. Existing mobile More-menu behavior is preserved.
+
+## Stage-weighted MVP + live Fan Favorite code drops — 2026-08-17
+
+- Public player-centric surfaces now use lightweight sex indicators where they improve scanning: a plain blue `♂` for male players and plain pink `♀` for female players. The symbols have no badge/background and are intentionally limited to useful identity/selection contexts such as Players, Team rosters, lineups, MVP, and Fan Favorite.
+- Public Matches are ordered as a results-first archive: Grand Final → Battle for 3rd → Semifinal → Quarterfinal → newest group/round-robin series → oldest series. Filtering and pagination preserve that progression ordering.
+- The Admin Dashboard live-scoring overview is organized by court wave rather than exhausting one court at a time: each court's next unfinished matchup appears before the second unfinished matchup on any court, then the next wave follows. Completed/forfeited work remains below active operations.
+- MVP is now stage-weighted and contribution-first. Group wins provide the baseline; knockout appearances carry a smaller participation value because playoff lineup slots are limited; knockout wins become progressively more valuable through QF, SF, Battle for 3rd, and Grand Final. Team progression contributes only a small cumulative bonus, with an additional small champion bonus, so actual individual playoff participation and wins dominate the ranking. Ties prefer higher-stage wins before total wins, match volume, and point differential.
+- Fan Favorite supports scheduled **public code drops** through `VotingCodeBatch`. Existing manual/printable voting codes remain hash-only. Only codes intentionally generated for a public drop retain plaintext in `VotingCode.publicCode`, linked to their batch; future batch codes are hidden and rejected by the vote API until their server-side release time.
+- The public Fan Favorite page has separate **Vote** and **Codes** tabs. Released unused codes appear automatically, support one-tap copy/use, and disappear within the short visibility-aware polling interval after successful consumption. Released leftovers remain visible until actually used even when a newer batch is released.
+- Public code consumption remains transactionally one-time and serializable. The existing atomic status update protects against two spectators consuming the same code concurrently; scheduled/cancelled batch state is also checked server-side.
+- Admin Voting is now an operational **Voting & Code Drops** workspace: schedule a 1–500 code batch at a Philippine-local release time, release a future batch immediately, cancel an unreleased batch, view current depletion, and keep legacy manual/printable codes in a collapsed secondary section.
+- Live admin code-drop metrics include used/remaining codes, codes per minute, elapsed/sell-out time, time to 50% consumption, and simple fast/slow guidance for sizing the next batch. A compact team-distribution horizontal bar view shows Fan Favorite vote share for every tournament team, including teams currently at zero.
+- `VotingCodeBatch` and public-code metadata participate in snapshots, restore, activity/factory resets, and voting simulation cleanup. Migration `20260817170000_fan_favorite_code_batches` is additive and preserves all existing voting codes/votes.

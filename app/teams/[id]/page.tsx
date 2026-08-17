@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import { computeStandings } from "@/lib/tournament/standings";
@@ -123,5 +124,5 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 }
 
 function Player({ player }: { player: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: string } }) {
-  return <div className="text-center"><div className="mx-auto w-fit"><PlayerAvatar {...player} size="lg"/></div><div className="mt-3 font-black leading-tight">{formatPlayerDisplayName(player)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">{player.sex}</div></div>;
+  return <div className="text-center"><div className="mx-auto w-fit"><PlayerAvatar {...player} size="lg"/></div><div className="mt-3 flex items-center justify-center gap-1.5 font-black leading-tight"><span>{formatPlayerDisplayName(player)}</span><GenderIndicator sex={player.sex as "MALE" | "FEMALE"} className="text-base"/></div></div>;
 }

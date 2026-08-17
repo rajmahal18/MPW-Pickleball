@@ -102,6 +102,7 @@ export async function clearTournamentActivity(db: Prisma.TransactionClient, tour
   await db.matchup.deleteMany({ where: { tournamentId } });
   await db.fanVote.deleteMany({ where: { tournamentId } });
   await db.votingCode.deleteMany({ where: { tournamentId } });
+  await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
   await db.voteAttempt.deleteMany({ where: { tournamentId } });
 }
 
@@ -166,6 +167,7 @@ export async function rebuildActivityPreservingMasterData(db: Prisma.Transaction
   }
   await db.fanVote.deleteMany({ where: { tournamentId } });
   await db.votingCode.deleteMany({ where: { tournamentId } });
+  await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
   await db.voteAttempt.deleteMany({ where: { tournamentId } });
   await db.tournament.update({
     where: { id: tournamentId },
@@ -181,6 +183,7 @@ export async function factorySeed(db: Prisma.TransactionClient) {
   await db.voteAttempt.deleteMany();
   await db.fanVote.deleteMany();
   await db.votingCode.deleteMany();
+  await db.votingCodeBatch.deleteMany();
   await db.game.deleteMany();
   await db.lineup.deleteMany();
   await db.matchup.deleteMany();

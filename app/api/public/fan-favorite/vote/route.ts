@@ -6,6 +6,7 @@ import { requestData, requestIp } from "@/lib/request";
 import { hashNetworkIdentifier, hashVotingCode, normalizeVotingCode, votingCodeHint } from "@/lib/tournament/voting";
 import { writeAudit } from "@/lib/audit";
 import { invalidateFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 export async function POST(request: Request) {
   const input = await requestData(request);
@@ -52,11 +53,15 @@ export async function POST(request: Request) {
       const femalePlayer = eligiblePlayers.find((candidate) => candidate.id === femalePlayerId && candidate.sex === "FEMALE");
       const votingCode = await tx.votingCode.findFirst({
         where: { tournamentId: tournament.id, codeHash: hashVotingCode(code) },
+        include: { batch: { select: { releaseAt: true, cancelledAt: true } } },
       });
+      const now = new Date();
       let reason: string | null = null;
       if (!player) reason = "INELIGIBLE_MALE_PLAYER";
       else if (!femalePlayer) reason = "INELIGIBLE_FEMALE_PLAYER";
       else if (!votingCode) reason = "INVALID_CODE";
+      else if (votingCode.batch?.cancelledAt) reason = "CANCELLED_BATCH";
+      else if (votingCode.batch && votingCode.batch.releaseAt > now) reason = "CODE_NOT_RELEASED";
       else if (!(votingCode.status === "UNUSED" || votingCode.status === "ISSUED")) {
         reason = votingCode.status === "USED" ? "REUSED_CODE" : `${votingCode.status}_CODE`;
       }
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
 
       const consumed = await tx.votingCode.updateMany({
         where: { id: votingCode!.id, status: { in: ["UNUSED", "ISSUED"] } },
-        data: { status: "USED", usedAt: new Date() },
+        data: { status: "USED", usedAt: now },
       });
       if (consumed.count !== 1) {
         await tx.voteAttempt.create({
@@ -138,9 +143,12 @@ export async function POST(request: Request) {
       INELIGIBLE_FEMALE_PLAYER: "Select an eligible female player.",
       CODE_ALREADY_CONSUMED: "This voting code was already consumed.",
       RACE_REJECTED: "This voting code was already consumed.",
+      CODE_NOT_RELEASED: "This voting code has not been released yet.",
+      CANCELLED_BATCH: "This voting-code batch was cancelled.",
     };
     return NextResponse.json({ error: messageByReason[result.reason] || "Vote rejected." }, { status: 409 });
   }
   invalidateFanFavoriteSnapshot(tournament.id);
+  invalidatePublicVotingCodeSnapshot(tournament.id);
   return NextResponse.json({ ok: true, message: "Vote recorded successfully." }, { status: 201 });
 }

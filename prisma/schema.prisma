@@ -124,6 +124,7 @@ model Tournament {
   players        Player[]
   matchups       Matchup[]
   votingCodes    VotingCode[]
+  votingCodeBatches VotingCodeBatch[]
   fanVotes       FanVote[]
   voteAttempts   VoteAttempt[]
   simulationRuns SimulationRun[]
@@ -410,10 +411,28 @@ model ScoreEvent {
   @@index([simulationRunId])
 }
 
+model VotingCodeBatch {
+  id           String       @id @default(cuid())
+  tournamentId String
+  tournament   Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  quantity     Int
+  releaseAt    DateTime
+  cancelledAt  DateTime?
+  codes        VotingCode[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([tournamentId, releaseAt])
+  @@index([tournamentId, cancelledAt])
+}
+
 model VotingCode {
   id                String           @id @default(cuid())
   tournamentId      String
   tournament        Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  batchId           String?
+  batch             VotingCodeBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  publicCode        String?
   codeHash          String           @unique
   codeHint          String
   status            VotingCodeStatus @default(UNUSED)
@@ -429,6 +448,7 @@ model VotingCode {
   updatedAt         DateTime         @updatedAt
 
   @@index([tournamentId, status])
+  @@index([batchId, status])
 }
 
 model FanVote {

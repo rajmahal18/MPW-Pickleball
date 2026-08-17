@@ -6,6 +6,7 @@ import { captureTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { rebuildActivityPreservingMasterData, factorySeed } from "@/lib/tournament/seed";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 const confirmationByScope: Record<string, string> = {
   SCORES: "RESET SCORES",
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
         await rebuildActivityPreservingMasterData(tx, tournament.id);
         await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.votingCode.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.votingCodeBatch.deleteMany({ where: { tournamentId: tournament.id } });
       } else if (scope === "MASTER_DATA") {
         await tx.division.updateMany({ where: { tournamentId: tournament.id }, data: { championImageUrl: null, championImageTeamId: null } });
         await tx.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId: tournament.id } } } });
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
         await tx.matchup.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.fanVote.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.votingCode.deleteMany({ where: { tournamentId: tournament.id } });
+        await tx.votingCodeBatch.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.voteAttempt.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.simulationRun.deleteMany({ where: { tournamentId: tournament.id } });
         await tx.checkpoint.deleteMany({ where: { tournamentId: tournament.id } });
@@ -152,6 +155,9 @@ export async function POST(request: Request) {
         afterState: { scope },
       });
     }, RESET_TRANSACTION_OPTIONS);
+    if (["EVENT", "MASTER_DATA", "EXCEPT_USERS", "VOTING", "FACTORY"].includes(scope)) {
+      invalidatePublicVotingCodeSnapshot(tournament.id);
+    }
     const success = scope === "FACTORY"
       ? "Factory reset completed. The previous database state cannot be restored from an in-database checkpoint."
       : scope === "MASTER_DATA"

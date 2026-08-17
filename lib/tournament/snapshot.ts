@@ -6,7 +6,7 @@ function jsonSafe<T>(value: T) {
 }
 
 export async function captureTournamentSnapshot(db: Prisma.TransactionClient, tournamentId: string) {
-  const [tournament, divisions, matchups, lineups, lineupSlots, games, scoreEvents, votingCodes, fanVotes, voteAttempts] = await Promise.all([
+  const [tournament, divisions, matchups, lineups, lineupSlots, games, scoreEvents, votingCodeBatches, votingCodes, fanVotes, voteAttempts] = await Promise.all([
     db.tournament.findUniqueOrThrow({ where: { id: tournamentId } }),
     db.division.findMany({ where: { tournamentId }, select: { id: true, championImageUrl: true, championImageTeamId: true } }),
     db.matchup.findMany({ where: { tournamentId }, orderBy: { order: "asc" } }),
@@ -14,13 +14,14 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
     db.lineupSlot.findMany({ where: { lineup: { matchup: { tournamentId } } } }),
     db.game.findMany({ where: { matchup: { tournamentId } } }),
     db.scoreEvent.findMany({ where: { game: { matchup: { tournamentId } } }, orderBy: { createdAt: "asc" } }),
+    db.votingCodeBatch.findMany({ where: { tournamentId }, orderBy: { releaseAt: "asc" } }),
     db.votingCode.findMany({ where: { tournamentId } }),
     db.fanVote.findMany({ where: { tournamentId } }),
     db.voteAttempt.findMany({ where: { tournamentId }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return jsonSafe({
-    version: 5,
+    version: 6,
     capturedAt: new Date().toISOString(),
     tournament: {
       id: tournament.id,
@@ -36,6 +37,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
     lineupSlots,
     games,
     scoreEvents,
+    votingCodeBatches,
     votingCodes,
     fanVotes,
     voteAttempts,
@@ -58,6 +60,7 @@ type Snapshot = {
   lineupSlots: Array<Record<string, unknown>>;
   games: Array<Record<string, unknown>>;
   scoreEvents?: Array<Record<string, unknown>>;
+  votingCodeBatches?: Array<Record<string, unknown>>;
   votingCodes: Array<Record<string, unknown>>;
   fanVotes: Array<Record<string, unknown>>;
   voteAttempts?: Array<Record<string, unknown>>;
@@ -86,7 +89,7 @@ export async function restoreTournamentSnapshot(
   rawSnapshot: Prisma.JsonValue,
 ) {
   const snapshot = rawSnapshot as unknown as Snapshot;
-  if (!snapshot || ![1, 2, 3, 4, 5].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
+  if (!snapshot || ![1, 2, 3, 4, 5, 6].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
     throw new Error("Checkpoint is incompatible with this tournament.");
   }
 
@@ -96,6 +99,7 @@ export async function restoreTournamentSnapshot(
   await db.matchup.deleteMany({ where: { tournamentId } });
   await db.fanVote.deleteMany({ where: { tournamentId } });
   await db.votingCode.deleteMany({ where: { tournamentId } });
+  await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
   await db.voteAttempt.deleteMany({ where: { tournamentId } });
 
   await db.tournament.update({
@@ -219,12 +223,27 @@ export async function restoreTournamentSnapshot(
       },
     });
   }
+  for (const raw of snapshot.votingCodeBatches ?? []) {
+    const value = raw as Record<string, unknown>;
+    await db.votingCodeBatch.create({
+      data: {
+        id: String(value.id),
+        tournamentId,
+        quantity: Number(value.quantity),
+        releaseAt: asDate(value.releaseAt) ?? new Date(),
+        cancelledAt: asDate(value.cancelledAt),
+        createdAt: asDate(value.createdAt) ?? new Date(),
+      },
+    });
+  }
   for (const raw of snapshot.votingCodes) {
     const value = raw as Record<string, unknown>;
     await db.votingCode.create({
       data: {
         id: String(value.id),
         tournamentId,
+        batchId: (value.batchId as string | null) ?? null,
+        publicCode: (value.publicCode as string | null) ?? null,
         codeHash: String(value.codeHash),
         codeHint: String(value.codeHint),
         status: enumValue(value.status, VOTING_CODE_STATUSES, "voting code status"),

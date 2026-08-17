@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import GenderIndicator from "@/components/GenderIndicator";
 import AvatarPlayerSelect, { type AvatarPlayerOption } from "@/components/AvatarPlayerSelect";
 
 type Category = "MENS" | "WOMENS" | "MIXED" | null;
@@ -209,7 +210,7 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
                   : "border-red-200 bg-red-50 text-red-700";
           const status = duplicate ? "Duplicate" : locked ? `M${usage[0]!.match} · played` : selectedNow ? `M${usage[0]!.match} · selected` : player.eligible ? "Available" : "Unavailable";
           return <div key={player.id} className={`flex shrink-0 items-center gap-2 border px-2.5 py-2 text-xs ${style}`}>
-            <PlayerAvatar {...player} size="sm"/><span className="font-bold">{player.name}</span><span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
+            <PlayerAvatar {...player} size="sm"/><span className="flex items-center gap-1 font-bold">{player.name}<GenderIndicator sex={player.sex} className="text-sm"/></span><span className="whitespace-nowrap font-black uppercase tracking-wide">{status}</span>
           </div>;
         })}
       </div>

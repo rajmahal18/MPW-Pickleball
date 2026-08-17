@@ -38,3 +38,13 @@ export function hashNetworkIdentifier(value: string) {
     .update(`${secret("VOTE_ATTEMPT_SALT", "local-attempt-salt")}:${value}`)
     .digest("hex");
 }
+
+export function parsePhilippineLocalDateTime(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) throw new Error("Set a release date and time.");
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const withSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw) ? `${raw}:00` : raw;
+  const date = new Date(hasZone ? withSeconds : `${withSeconds}+08:00`);
+  if (Number.isNaN(date.valueOf())) throw new Error("Set a valid release date and time.");
+  return date;
+}

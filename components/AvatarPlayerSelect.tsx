@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, UserRound } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import GenderIndicator from "@/components/GenderIndicator";
 
 export type AvatarPlayerOption = {
   id: string;
@@ -16,6 +17,7 @@ export type AvatarPlayerOption = {
     lastName: string;
     displayName?: string | null;
     avatarUrl?: string | null;
+    sex?: "MALE" | "FEMALE";
   };
 };
 
@@ -90,7 +92,7 @@ export default function AvatarPlayerSelect({
     >
       {selected ? <PlayerAvatar {...selected.avatar} size="sm"/> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-paper text-gray-400"><UserRound className="h-4 w-4"/></span>}
       <span className="min-w-0 flex-1">
-        <span className="block truncate">{selected?.label || placeholder}</span>
+        <span className="flex min-w-0 items-center gap-1"><span className="truncate">{selected?.label || placeholder}</span>{selected?.avatar.sex && <GenderIndicator sex={selected.avatar.sex} className="text-sm"/>}</span>
         {selected?.meta && <span className="mt-0.5 block truncate text-[10px] font-semibold text-gray-500">{selected.meta}</span>}
       </span>
       <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition ${open ? "rotate-180" : ""}`}/>
@@ -114,7 +116,7 @@ export default function AvatarPlayerSelect({
           className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition ${tone} ${blocked ? "cursor-not-allowed opacity-55" : ""} ${internalValue === option.id ? "ring-1 ring-inset ring-court/30" : ""}`}
         >
           <PlayerAvatar {...option.avatar} size="sm"/>
-          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-black">{option.label}</span>{option.meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-70">{option.meta}</span>}</span>
+          <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1"><span className="truncate text-sm font-black">{option.label}</span>{option.avatar.sex && <GenderIndicator sex={option.avatar.sex} className="text-sm"/>}</span>{option.meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-70">{option.meta}</span>}</span>
         </button>;
       })}
     </div>}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName, formatPlayerCompactName } from "@/lib/player-name";
 
@@ -112,9 +113,8 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
           {player.avatarUrl ? <a href={player.avatarUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${formatPlayerDisplayName(player)} profile photo`} className="rounded-full bg-white/10 p-1 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2 focus:ring-offset-ink"><PlayerAvatar {...player} size="xl"/></a> : <div className="rounded-full bg-white/10 p-1"><PlayerAvatar {...player} size="xl"/></div>}
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-extrabold uppercase tracking-[.18em] text-gold">Player profile</div>
-            <h1 className="mt-1 text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1>
+            <div className="mt-1 flex items-center gap-2"><h1 className="text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1><GenderIndicator sex={player.sex} className="text-3xl md:text-4xl"/></div>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/80">
-              <span>{player.sex === "MALE" ? "Men" : "Women"}</span>
               {teamIsPublic && player.team && <><span>·</span><Link href={`/teams/${player.team.id}`} className="hover:text-gold hover:underline">{player.team.name}</Link></>}
             </div>
             {divisionNames && <div className="mt-2 text-xs font-semibold text-white/65">{divisionNames}{teamIsPublic && player.team?.group ? ` · ${player.team.group.name}` : ""}</div>}

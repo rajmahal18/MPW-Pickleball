@@ -5,6 +5,7 @@ import { requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { writeAudit } from "@/lib/audit";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
 
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
           reason: checkpoint.name,
         });
       }, LONG_TRANSACTION_OPTIONS);
+      invalidatePublicVotingCodeSnapshot(tournament.id);
       return NextResponse.redirect(redirectBack(request, "/admin/checkpoints", { success: "Checkpoint restored and dependencies recalculated." }), 303);
     }
 

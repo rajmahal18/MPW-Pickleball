@@ -1,4 +1,5 @@
-import { MVP_WEIGHTS } from "@/lib/tournament/config";
+import type { MatchupStage } from "@prisma/client";
+import { MVP_STAGE_POINTS, MVP_TEAM_STAGE_BONUS } from "@/lib/tournament/config";
 import { formatPlayerFullName } from "@/lib/player-name";
 
 type MvpPlayer = {
@@ -26,9 +27,20 @@ export type MvpGame = {
   homeTeamId: string;
   awayTeamId: string;
   status: string;
+  matchup: { stage: MatchupStage };
   homePair: MvpPair;
   awayPair: MvpPair;
 };
+
+export type MvpMatchup = {
+  stage: MatchupStage;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  winnerTeamId: string | null;
+  status: string;
+};
+
+type StageBreakdown = Record<MatchupStage, { played: number; wins: number; points: number }>;
 
 export type MvpRow = {
   rank: number;
@@ -41,43 +53,64 @@ export type MvpRow = {
   winPercentage: number;
   pointDifferential: number;
   averagePointDifferential: number;
-  strengthOfSchedule: number;
-  qualityWins: number;
-  consistency: number;
-  confidence: number;
-  components: {
-    winRate: number;
-    pointDifferential: number;
-    strengthOfSchedule: number;
-    qualityWins: number;
-    consistency: number;
-  };
+  playoffAppearances: number;
+  playoffWins: number;
+  highestStageWin: MatchupStage | null;
+  stagePoints: number;
+  teamStageBonus: number;
+  championBonus: number;
+  stageBreakdown: StageBreakdown;
   mvpIndex: number;
 };
 
 type MutablePlayerStats = {
   player: MvpPlayer;
   pairIds: Set<string>;
+  partnerIds: Set<string>;
   gamesPlayed: number;
   wins: number;
   losses: number;
   pointDifferential: number;
-  margins: number[];
-  opponents: string[];
-  winsAgainst: string[];
-  partnerIds: Set<string>;
+  stagePoints: number;
+  stageBreakdown: StageBreakdown;
 };
+
+const STAGES: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL", "CUSTOM"];
+const PLAYOFF_STAGES = new Set<MatchupStage>(["QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"]);
+const WIN_TIEBREAK_ORDER: MatchupStage[] = ["FINAL", "THIRD_PLACE", "SEMIFINAL", "QUARTERFINAL", "ROUND_ROBIN", "GROUP", "CUSTOM"];
+
+function blankBreakdown(): StageBreakdown {
+  return Object.fromEntries(STAGES.map((stage) => [stage, { played: 0, wins: 0, points: 0 }])) as StageBreakdown;
+}
 
 function round(value: number, decimals = 1) {
   const multiplier = 10 ** decimals;
   return Math.round(value * multiplier) / multiplier;
 }
 
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
+function stagePoints(stage: MatchupStage, won: boolean) {
+  const rule = MVP_STAGE_POINTS[stage as keyof typeof MVP_STAGE_POINTS] ?? MVP_STAGE_POINTS.CUSTOM;
+  return rule.participation + (won ? rule.win : 0);
 }
 
-export function calculateMvpRankings(games: MvpGame[]) {
+function teamProgressBonus(teamId: string | null | undefined, matchups: MvpMatchup[]) {
+  if (!teamId) return { stageBonus: 0, championBonus: 0 };
+  const reached = new Set<MatchupStage>();
+  let champion = false;
+  for (const matchup of matchups) {
+    if (matchup.homeTeamId !== teamId && matchup.awayTeamId !== teamId) continue;
+    reached.add(matchup.stage);
+    if (matchup.stage === "FINAL" && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED") && matchup.winnerTeamId === teamId) champion = true;
+  }
+  const stageBonus =
+    (reached.has("QUARTERFINAL") ? MVP_TEAM_STAGE_BONUS.QUARTERFINAL : 0) +
+    (reached.has("SEMIFINAL") ? MVP_TEAM_STAGE_BONUS.SEMIFINAL : 0) +
+    (reached.has("THIRD_PLACE") ? MVP_TEAM_STAGE_BONUS.THIRD_PLACE : 0) +
+    (reached.has("FINAL") ? MVP_TEAM_STAGE_BONUS.FINAL : 0);
+  return { stageBonus, championBonus: champion ? MVP_TEAM_STAGE_BONUS.CHAMPION : 0 };
+}
+
+export function calculateMvpRankings(games: MvpGame[], matchups: MvpMatchup[] = []) {
   const completed = games.filter(
     (game) => (game.status === "COMPLETED" || game.status === "FORFEITED") && game.winnerTeamId,
   );
@@ -89,14 +122,13 @@ export function calculateMvpRankings(games: MvpGame[]) {
     const created: MutablePlayerStats = {
       player,
       pairIds: new Set(),
+      partnerIds: new Set(),
       gamesPlayed: 0,
       wins: 0,
       losses: 0,
       pointDifferential: 0,
-      margins: [],
-      opponents: [],
-      winsAgainst: [],
-      partnerIds: new Set(),
+      stagePoints: 0,
+      stageBreakdown: blankBreakdown(),
     };
     stats.set(player.id, created);
     return created;
@@ -107,59 +139,38 @@ export function calculateMvpRankings(games: MvpGame[]) {
     const awayPlayers = [game.awayPair.playerA, game.awayPair.playerB];
     const homeWon = game.winnerTeamId === game.homeTeamId;
     const homeMargin = game.homeScore - game.awayScore;
+    const stage = game.matchup.stage;
 
-    for (const [players, opponents, pairId, margin, won] of [
-      [homePlayers, awayPlayers, game.homePair.id, homeMargin, homeWon],
-      [awayPlayers, homePlayers, game.awayPair.id, -homeMargin, !homeWon],
+    for (const [players, pairId, margin, won] of [
+      [homePlayers, game.homePair.id, homeMargin, homeWon],
+      [awayPlayers, game.awayPair.id, -homeMargin, !homeWon],
     ] as const) {
       for (const player of players) {
         const row = ensure(player);
+        const earned = stagePoints(stage, won);
         row.pairIds.add(pairId);
         row.gamesPlayed += 1;
         row.wins += won ? 1 : 0;
         row.losses += won ? 0 : 1;
         row.pointDifferential += margin;
-        row.margins.push(margin);
-        row.partnerIds.add(players.find((candidate) => candidate.id !== player.id)!.id);
-        for (const opponent of opponents) row.opponents.push(opponent.id);
-        if (won) for (const opponent of opponents) row.winsAgainst.push(opponent.id);
+        row.stagePoints += earned;
+        row.stageBreakdown[stage].played += 1;
+        row.stageBreakdown[stage].wins += won ? 1 : 0;
+        row.stageBreakdown[stage].points += earned;
+        const partner = players.find((candidate) => candidate.id !== player.id);
+        if (partner) row.partnerIds.add(partner.id);
       }
     }
   }
 
-  const rawWinRate = new Map(
-    [...stats.entries()].map(([playerId, row]) => [playerId, row.gamesPlayed ? row.wins / row.gamesPlayed : 0]),
-  );
-
   const rows = [...stats.values()].map<Omit<MvpRow, "rank">>((row) => {
-    const winPercentage = row.gamesPlayed ? row.wins / row.gamesPlayed : 0;
+    const winPercentage = row.gamesPlayed ? (row.wins / row.gamesPlayed) * 100 : 0;
     const averagePointDifferential = row.gamesPlayed ? row.pointDifferential / row.gamesPlayed : 0;
-    const strengthOfSchedule = row.opponents.length
-      ? row.opponents.reduce((sum, opponentId) => sum + (rawWinRate.get(opponentId) ?? 0.5), 0) / row.opponents.length
-      : 0;
-    const qualityWins = row.winsAgainst.filter((opponentId) => (rawWinRate.get(opponentId) ?? 0) >= 0.6).length / 2;
-    const averageMargin = row.margins.length
-      ? row.margins.reduce((sum, margin) => sum + margin, 0) / row.margins.length
-      : 0;
-    const marginVariance = row.margins.length
-      ? row.margins.reduce((sum, margin) => sum + (margin - averageMargin) ** 2, 0) / row.margins.length
-      : 0;
-    const consistency = 1 - clamp(Math.sqrt(marginVariance) / MVP_WEIGHTS.maximumExpectedPointMargin, 0, 1);
-    const confidence = clamp(row.gamesPlayed / MVP_WEIGHTS.minimumGamesForFullConfidence, 0, 1);
-
-    const components = {
-      winRate: winPercentage * MVP_WEIGHTS.winRate,
-      pointDifferential:
-        ((clamp(averagePointDifferential, -MVP_WEIGHTS.maximumExpectedPointMargin, MVP_WEIGHTS.maximumExpectedPointMargin) +
-          MVP_WEIGHTS.maximumExpectedPointMargin) /
-          (MVP_WEIGHTS.maximumExpectedPointMargin * 2)) *
-        MVP_WEIGHTS.pointDifferential,
-      strengthOfSchedule: strengthOfSchedule * MVP_WEIGHTS.strengthOfSchedule,
-      qualityWins: clamp(qualityWins / Math.max(1, row.gamesPlayed), 0, 1) * MVP_WEIGHTS.qualityWins,
-      consistency: consistency * MVP_WEIGHTS.consistency,
-    };
-    const rawIndex = Object.values(components).reduce((sum, component) => sum + component, 0);
-    const confidenceMultiplier = 0.65 + confidence * 0.35;
+    const playoffAppearances = [...PLAYOFF_STAGES].reduce((sum, stage) => sum + row.stageBreakdown[stage].played, 0);
+    const playoffWins = [...PLAYOFF_STAGES].reduce((sum, stage) => sum + row.stageBreakdown[stage].wins, 0);
+    const highestStageWin = WIN_TIEBREAK_ORDER.find((stage) => row.stageBreakdown[stage].wins > 0) ?? null;
+    const progress = teamProgressBonus(row.player.team?.id, matchups);
+    const mvpIndex = row.stagePoints + progress.stageBonus + progress.championBonus;
 
     return {
       player: row.player,
@@ -168,35 +179,45 @@ export function calculateMvpRankings(games: MvpGame[]) {
       gamesPlayed: row.gamesPlayed,
       wins: row.wins,
       losses: row.losses,
-      winPercentage: round(winPercentage * 100),
+      winPercentage: round(winPercentage),
       pointDifferential: row.pointDifferential,
       averagePointDifferential: round(averagePointDifferential, 2),
-      strengthOfSchedule: round(strengthOfSchedule * 100),
-      qualityWins: Math.round(qualityWins),
-      consistency: round(consistency * 100),
-      confidence: round(confidence * 100),
-      components: {
-        winRate: round(components.winRate),
-        pointDifferential: round(components.pointDifferential),
-        strengthOfSchedule: round(components.strengthOfSchedule),
-        qualityWins: round(components.qualityWins),
-        consistency: round(components.consistency),
-      },
-      mvpIndex: round(rawIndex * confidenceMultiplier, 2),
+      playoffAppearances,
+      playoffWins,
+      highestStageWin,
+      stagePoints: round(row.stagePoints, 2),
+      teamStageBonus: round(progress.stageBonus, 2),
+      championBonus: round(progress.championBonus, 2),
+      stageBreakdown: row.stageBreakdown,
+      mvpIndex: round(mvpIndex, 2),
     };
   });
+
+  const compareHigherStageWins = (a: Omit<MvpRow, "rank">, b: Omit<MvpRow, "rank">) => {
+    for (const stage of WIN_TIEBREAK_ORDER) {
+      const difference = b.stageBreakdown[stage].wins - a.stageBreakdown[stage].wins;
+      if (difference) return difference;
+    }
+    return 0;
+  };
 
   const rankCategory = (sex: "MALE" | "FEMALE") =>
     rows
       .filter((row) => row.player.sex === sex)
-      .sort(
-        (a, b) =>
-          b.mvpIndex - a.mvpIndex ||
-          b.gamesPlayed - a.gamesPlayed ||
-          b.pointDifferential - a.pointDifferential ||
-          formatPlayerFullName(a.player).localeCompare(formatPlayerFullName(b.player)),
+      .sort((a, b) =>
+        b.mvpIndex - a.mvpIndex ||
+        compareHigherStageWins(a, b) ||
+        b.wins - a.wins ||
+        b.gamesPlayed - a.gamesPlayed ||
+        b.pointDifferential - a.pointDifferential ||
+        formatPlayerFullName(a.player).localeCompare(formatPlayerFullName(b.player)),
       )
       .map<MvpRow>((row, index) => ({ ...row, rank: index + 1 }));
 
-  return { male: rankCategory("MALE"), female: rankCategory("FEMALE"), weights: MVP_WEIGHTS };
+  return {
+    male: rankCategory("MALE"),
+    female: rankCategory("FEMALE"),
+    stageWeights: MVP_STAGE_POINTS,
+    teamStageBonus: MVP_TEAM_STAGE_BONUS,
+  };
 }

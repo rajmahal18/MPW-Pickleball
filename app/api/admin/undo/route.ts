@@ -6,6 +6,7 @@ import { requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
 const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
         await tx.simulationRun.update({ where: { id: run.id }, data: { status: "UNDONE", completedAt: new Date() } });
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "SIMULATION_UNDONE", entityType: "SimulationRun", entityId: run.id });
       }, LONG_TRANSACTION_OPTIONS);
+      invalidatePublicVotingCodeSnapshot(tournament.id);
       return NextResponse.redirect(redirectBack(request, "/admin/simulation", { success: "Simulation run undone from its automatic checkpoint." }), 303);
     }
 

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/permissions";
 import { requestData, redirectBack } from "@/lib/request";
-import { generateVotingCode, hashVotingCode, votingCodeHint } from "@/lib/tournament/voting";
+import { generateVotingCode, hashVotingCode, parsePhilippineLocalDateTime, votingCodeHint } from "@/lib/tournament/voting";
 import { writeAudit } from "@/lib/audit";
+import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 export async function POST(request: Request) {
   const user = await requireAdmin();
@@ -14,6 +15,89 @@ export async function POST(request: Request) {
   const action = String(data.action || "generate");
 
   try {
+    if (action === "schedule-batch") {
+      const requestedCount = Number(data.count || 100);
+      if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 500) throw new Error("Public code batch size must be a whole number from 1 to 500.");
+      const count = requestedCount;
+      const releaseAt = parsePhilippineLocalDateTime(String(data.releaseAt || ""));
+      if (releaseAt <= new Date()) throw new Error("Schedule the public code drop for a future time.");
+
+      // Generate the whole drop before opening the transaction, then insert it in
+      // one batch. This keeps 50/100-code drops fast even when Postgres is remote.
+      const generated = new Map<string, string>();
+      while (generated.size < count) {
+        const plain = generateVotingCode();
+        generated.set(hashVotingCode(plain), plain);
+      }
+      const existing = await prisma.votingCode.findMany({
+        where: { codeHash: { in: [...generated.keys()] } },
+        select: { codeHash: true },
+      });
+      for (const row of existing) generated.delete(row.codeHash);
+      while (generated.size < count) {
+        const plain = generateVotingCode();
+        const codeHash = hashVotingCode(plain);
+        if (generated.has(codeHash)) continue;
+        const collision = await prisma.votingCode.findUnique({ where: { codeHash }, select: { id: true } });
+        if (!collision) generated.set(codeHash, plain);
+      }
+      const publicCodes = [...generated.entries()].slice(0, count).map(([codeHash, plain]) => ({
+        tournamentId: tournament.id,
+        publicCode: plain,
+        codeHash,
+        codeHint: votingCodeHint(plain),
+        status: "UNUSED" as const,
+      }));
+
+      await prisma.$transaction(async (tx) => {
+        const batch = await tx.votingCodeBatch.create({
+          data: { tournamentId: tournament.id, quantity: count, releaseAt },
+        });
+        await tx.votingCode.createMany({
+          data: publicCodes.map((code) => ({ ...code, batchId: batch.id })),
+        });
+        await writeAudit(tx, {
+          tournamentId: tournament.id,
+          actorId: user.id,
+          action: "VOTING_CODE_BATCH_SCHEDULED",
+          entityType: "VotingCodeBatch",
+          entityId: batch.id,
+          afterState: { count, releaseAt: releaseAt.toISOString() },
+        });
+      }, { maxWait: 10_000, timeout: 30_000 });
+      invalidatePublicVotingCodeSnapshot(tournament.id);
+      return NextResponse.redirect(redirectBack(request, "/admin/voting", { success: `${count} public codes scheduled for release.` }), 303);
+    }
+
+    if (action === "release-batch-now" || action === "cancel-batch") {
+      const batchId = String(data.batchId || "");
+      const batch = await prisma.votingCodeBatch.findFirst({
+        where: { id: batchId, tournamentId: tournament.id },
+        include: { codes: { select: { id: true, status: true } } },
+      });
+      if (!batch) throw new Error("Voting-code batch not found.");
+      if (batch.cancelledAt) throw new Error("This batch is already cancelled.");
+      if (action === "release-batch-now") {
+        if (batch.releaseAt <= new Date()) throw new Error("This batch has already been released.");
+        const now = new Date();
+        await prisma.$transaction(async (tx) => {
+          await tx.votingCodeBatch.update({ where: { id: batch.id }, data: { releaseAt: now } });
+          await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "VOTING_CODE_BATCH_RELEASED_NOW", entityType: "VotingCodeBatch", entityId: batch.id, afterState: { releaseAt: now.toISOString() } });
+        });
+        invalidatePublicVotingCodeSnapshot(tournament.id);
+        return NextResponse.redirect(redirectBack(request, "/admin/voting", { success: "Code batch released." }), 303);
+      }
+      if (batch.releaseAt <= new Date() || batch.codes.some((code) => code.status === "USED")) throw new Error("Only an unreleased batch can be cancelled.");
+      const now = new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.votingCodeBatch.update({ where: { id: batch.id }, data: { cancelledAt: now } });
+        await tx.votingCode.updateMany({ where: { batchId: batch.id, status: { in: ["UNUSED", "ISSUED"] } }, data: { status: "REVOKED", revokedAt: now } });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "VOTING_CODE_BATCH_CANCELLED", entityType: "VotingCodeBatch", entityId: batch.id });
+      });
+      invalidatePublicVotingCodeSnapshot(tournament.id);
+      return NextResponse.redirect(redirectBack(request, "/admin/voting", { success: "Scheduled code batch cancelled." }), 303);
+    }
+
     if (action === "generate") {
       const count = Math.min(Math.max(Number(data.count || 20), 1), 100);
       const issued = String(data.issued || "") === "on" || data.issued === true;
@@ -83,6 +167,8 @@ export async function POST(request: Request) {
                 tournamentId: tournament.id,
                 codeHash: hashVotingCode(plain),
                 codeHint: votingCodeHint(plain),
+                batchId: code.batchId,
+                publicCode: code.batchId ? plain : null,
                 status: "ISSUED",
                 issuedAt: new Date(),
               },
@@ -112,6 +198,7 @@ export async function POST(request: Request) {
         });
       });
       const token = Buffer.from(JSON.stringify({ codes: [plain], createdAt: new Date().toISOString() })).toString("base64url");
+      if (code.batchId) invalidatePublicVotingCodeSnapshot(tournament.id);
       return NextResponse.redirect(redirectBack(request, "/admin/voting", { print: token }), 303);
     } else {
       throw new Error("Unsupported voting code action.");
