@@ -11,6 +11,7 @@ import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName 
 import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
 import { qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
+import { nextEditableTeamMatchupId } from "../lib/tournament/leader-lineup-access";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -30,6 +31,30 @@ function matchup(
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
 }
+
+
+test("team-manager lineup access follows the earliest unfinished court-queue matchup", () => {
+  const rows = [
+    { id: "later", status: "LINEUP_PENDING", queuePosition: 8, order: 8 },
+    { id: "next", status: "LINEUP_PENDING", queuePosition: 3, order: 3 },
+    { id: "done", status: "COMPLETED", queuePosition: null, order: 1 },
+  ];
+  assert.equal(nextEditableTeamMatchupId(rows), "next");
+});
+
+test("an ongoing team matchup stays lineup-active until it finishes", () => {
+  const rows = [
+    { id: "future", status: "LINEUP_PENDING", queuePosition: 1, order: 4 },
+    { id: "current", status: "LIVE", queuePosition: 2, order: 2 },
+  ];
+  assert.equal(nextEditableTeamMatchupId(rows), "current");
+});
+
+test("team-manager lineups stay closed when no unfinished matchup is in the court queue", () => {
+  assert.equal(nextEditableTeamMatchupId([
+    { id: "unscheduled", status: "LINEUP_PENDING", queuePosition: null, order: 1 },
+  ]), null);
+});
 
 test("standings apply pair-match wins, NPD, head-to-head, and total points", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A")];

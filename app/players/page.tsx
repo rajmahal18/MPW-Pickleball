@@ -113,46 +113,42 @@ export default async function Players({ searchParams }: { searchParams: Promise<
   const filters = { q: search, division: safeDivisionId, team: safeTeamId, sex, sort };
   if (totalPlayers > 0 && currentPage > totalPages) redirect(buildHref(filters, totalPages));
   const hasFilters = Boolean(search || safeDivisionId || safeTeamId || sex || sort !== "first");
+  const selectedTeam = safeTeamId ? publicTeams.find((team) => team.id === safeTeamId) ?? null : null;
+  const rosterContext = selectedTeam ? selectedTeam.shortName : `${publicTeams.length} team${publicTeams.length === 1 ? "" : "s"}`;
 
-  return <main className="public-page mx-auto max-w-7xl px-4 py-6 md:py-10">
+  return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-10">
     <section className="public-hero">
       <div>
         <div className="public-kicker">Tournament roster</div>
         <h1 className="public-title">Players</h1>
-        <p className="public-lede">Browse confirmed participants across public divisions and teams.</p>
+        <div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalPlayers} player{totalPlayers === 1 ? "" : "s"} · {rosterContext}</div>
       </div>
-      <div className="public-count"><strong>{totalPlayers}</strong><span>players</span></div>
     </section>
 
-    <PublicAutoSubmitForm className="public-filter relative mt-6 grid gap-3 lg:grid-cols-[minmax(220px,1.6fr)_1fr_1fr_.8fr_.9fr_auto]">
-      <label className="min-w-0"><span className="filter-label">Search</span><input type="search" name="q" defaultValue={search} placeholder="Player or team" className="filter-control"/></label>
+    <PublicAutoSubmitForm className="public-filter relative mt-3 grid grid-cols-2 gap-2 md:mt-6 md:gap-3 lg:grid-cols-[minmax(220px,1.6fr)_1fr_1fr_.8fr_.9fr_auto]">
+      <label className="col-span-2 min-w-0 lg:col-span-1"><span className="filter-label">Search</span><input type="search" name="q" defaultValue={search} placeholder="Player or team" className="filter-control"/></label>
       <label><span className="filter-label">Division</span><select name="division" defaultValue={safeDivisionId} className="filter-control"><option value="">All divisions</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label>
       <label><span className="filter-label">Team</span><select name="team" defaultValue={safeTeamId} className="filter-control"><option value="">All teams</option>{publicTeams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
       <label><span className="filter-label">Category</span><select name="sex" defaultValue={sex} className="filter-control"><option value="">All</option><option value="MALE">Men</option><option value="FEMALE">Women</option></select></label>
       <label><span className="filter-label">Sort</span><select name="sort" defaultValue={sort} className="filter-control">{SORTS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-      <div className="flex items-end">{hasFilters && <Link href="/players" className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link>}</div>
+      <div className="col-span-2 flex items-end lg:col-span-1">{hasFilters && <Link href="/players" className="btn-ghost min-h-10 w-full px-3 lg:min-h-11 lg:w-auto">Clear filters</Link>}</div>
     </PublicAutoSubmitForm>
 
-    {players.length ? <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    {players.length ? <div className="mt-4 grid gap-2.5 sm:grid-cols-2 md:mt-6 md:gap-3 lg:grid-cols-3 xl:grid-cols-4">
       {players.map((player) => {
         const teamIsPublic = Boolean(player.team?.division.isPublic);
-        return <article key={player.id} className="public-card group block focus-within:ring-2 focus-within:ring-court/30">
+        return <article key={player.id} className="public-card group block p-3 focus-within:ring-2 focus-within:ring-court/30 md:p-4">
           <div className="flex items-center gap-3.5">
             <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} size="lg"/></Link>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg"><Link href={`/players/${player.id}`} className="hover:text-court">{formatPlayerDisplayName(player)}</Link></h2>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-gray-500">
-                <span>{player.sex === "MALE" ? "Men" : "Women"}</span>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1 font-extrabold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Confirmed</span>
-              </div>
+              <div className="mt-1 text-xs font-semibold text-gray-500">{player.sex === "MALE" ? "Men" : "Women"}</div>
             </div>
           </div>
           <div className="mt-4 border-t border-line/80 pt-3">
             {teamIsPublic && player.team
               ? <><Link href={`/teams/${player.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{player.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">{player.team.division.name}{player.team.group ? <> · <Link href={`/groups/${player.team.group.slug}`} className="hover:text-court hover:underline">{player.team.group.name}</Link></> : null}</div></>
               : <div className="text-sm font-semibold text-gray-500">Team assignment pending</div>}
-            <Link href={`/players/${player.id}`} className="mt-3 inline-block text-[10px] font-extrabold uppercase tracking-widest text-court opacity-70 transition group-hover:opacity-100 hover:underline">View player & match history →</Link>
           </div>
         </article>;
       })}

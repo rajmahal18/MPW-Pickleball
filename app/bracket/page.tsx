@@ -26,12 +26,12 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
   }) : [];
   const revision = tournament ? await getPublicTournamentRevision(tournament.id) : "none:0";
 
-  return <main className="public-page mx-auto max-w-[1600px] px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-[1600px] px-4 py-3 md:py-8">
     <TournamentSync initialRevision={revision} />
     {query.success && <div className="mb-5 border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{query.success}</div>}
     <section className="public-hero"><div><div className="public-kicker">Knockout stage</div><h1 className="public-title">Bracket</h1><p className="public-lede">Follow the road to the title. Green marks winners, red marks eliminated sides, and the crown stays with the Grand Final champion.</p></div></section>
 
-    <div className="mt-6 space-y-6 md:mt-8 md:space-y-8">
+    <div className="mt-4 space-y-5 md:mt-8 md:space-y-8">
       {divisions.map((division) => <section key={division.id} className="panel overflow-hidden">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line bg-gray-50/70 px-4 py-3 md:px-5 md:py-4">
           <div>

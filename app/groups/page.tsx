@@ -26,17 +26,17 @@ export default async function GroupsIndexPage() {
     },
   });
 
-  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">No published tournament.</main>;
+  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">No published tournament.</main>;
   const divisions = tournament.divisions.filter((division) => division.groups.length > 0);
   const revision = await getPublicTournamentRevision(tournament.id);
 
   return (
-    <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">
+    <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">
       <TournamentSync initialRevision={revision} />
-      <section className="public-hero"><div><div className="public-kicker">Group stage</div><h1 className="public-title">Groups</h1><p className="public-lede">See the race at a glance. Once group play is final, green teams advance and red teams are eliminated.</p></div><Link href="/format" className="btn-ghost rounded-lg">Format guide</Link></section>
+      <section className="public-hero"><div><div className="public-kicker">Group stage</div><h1 className="public-title">Groups</h1><p className="public-lede">See the race at a glance. Once group play is final, green teams advance and red teams are eliminated.</p></div><Link href="/format" className="btn-ghost hidden rounded-lg md:inline-flex">Format guide</Link></section>
 
       {divisions.length ? (
-        <div className="mt-7 space-y-8">
+        <div className="mt-4 space-y-6 md:mt-7 md:space-y-8">
           {divisions.map((division) => {
             const tables = division.groups.map((group) => computeStandings(group.teams, division.matchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
             const qualificationByTeam = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(division.matchups) }) : new Map();

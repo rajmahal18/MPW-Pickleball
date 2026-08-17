@@ -273,3 +273,11 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - MVP Mythical Pair and Fan Favorite hero/poster surfaces carry MPW Dink & Dash branding plus subtle pickleball court/ball visual cues using existing lightweight assets.
 - Mobile bracket progression renders Battle for 3rd before the Grand Final so the Grand Final is the last playoff card in the vertical flow; desktop progression remains unchanged.
 - Print media hides mobile sticky navigation and removes its body bottom padding so official scorecard sheets contain scorecard content only.
+
+## Court-sequenced manager lineups + public browse/mobile UX — 2026-08-17
+
+- Team Manager lineup editing is sequential per team and follows the facilitator court queue. A live/interrupted matchup remains the current editable matchup; otherwise only the earliest unfinished queued matchup is open. Later and unqueued matchups stay locked until the current matchup is completed/forfeited or the facilitator queues the next one.
+- The same lineup sequencing rule is enforced server-side by the Team Manager lineup API, so direct URLs or custom requests cannot bypass the lock. The court board explicitly notes that queue order controls Team Manager lineup access.
+- The public Teams page is group-first rather than a flat directory. Team rows are fully clickable and prioritize team identity, confirmed roster preview, and current group rank/W-L when results exist; redundant View Team actions and detached KPI-style count cards were removed.
+- Public Teams, Players, and Matches use compact inline counts/context instead of floating total-count boxes. Mobile public headers, filters, cards, and page spacing prioritize useful content/actions in the first viewport and reduce unnecessary scrolling without changing tournament logic.
+- The desktop More menu is anchored directly to its trigger. Existing mobile More-menu behavior is preserved.

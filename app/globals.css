@@ -34,6 +34,19 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .public-positive { @apply border-emerald-200 bg-emerald-50 text-emerald-900; }
 .public-negative { @apply border-red-200 bg-red-50 text-red-900; }
 .public-empty { @apply rounded-xl border border-dashed border-line bg-white/70 p-10 text-center text-sm font-semibold text-gray-500; }
+
+@media (max-width: 767px) {
+  .public-hero { gap: .6rem; align-items: flex-start; padding-bottom: .7rem; }
+  .public-kicker { font-size: 9px; letter-spacing: .14em; }
+  .public-title { margin-top: .1rem; font-size: 2rem; line-height: 1.02; }
+  .public-lede { display: none; }
+  .public-filter { padding: .65rem; }
+  .filter-label { margin-bottom: .3rem; font-size: 9px; }
+  .filter-control { min-height: 2.5rem; padding: .5rem .65rem; font-size: .78rem; }
+  .public-card { border-radius: .65rem; }
+  .public-section-heading { padding-bottom: .6rem; }
+  .public-empty { padding: 1.5rem; }
+}
 .fan-arena { background: radial-gradient(circle at 82% 18%, rgba(244,177,31,.32), transparent 24%), radial-gradient(circle at 16% 82%, rgba(232,93,42,.24), transparent 28%), linear-gradient(135deg, #12386f 0%, #1f6fb2 54%, #12386f 100%); }
 .mythical-pair-poster { background: radial-gradient(circle at 14% 30%, rgba(31,111,178,.38), transparent 28%), radial-gradient(circle at 86% 70%, rgba(244,177,31,.28), transparent 30%), linear-gradient(125deg, #07172f 0%, #12386f 48%, #241b24 100%); }
 .mythical-pair-glow { position: absolute; width: 18rem; height: 18rem; border-radius: 9999px; filter: blur(54px); opacity: .16; pointer-events: none; }

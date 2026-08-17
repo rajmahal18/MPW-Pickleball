@@ -70,10 +70,10 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     return second.updatedAt.getTime() - first.updatedAt.getTime() || first.order - second.order;
   });
 
-  return <main className="public-page mx-auto max-w-6xl px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-6xl px-4 py-3 md:py-8">
     <Link href="/teams" className="text-sm font-bold text-court hover:text-ink">← Back to teams</Link>
 
-    <section className="public-hero mt-4">
+    <section className="public-hero mt-2 md:mt-4">
       <div className="flex min-w-0 items-start gap-4">
         {team.logoUrl
           ? <img src={team.logoUrl} alt="" className="h-16 w-16 shrink-0 rounded-full border border-line bg-white object-contain p-1.5 md:h-20 md:w-20"/>
@@ -90,12 +90,12 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       </div>
     </section>
 
-    <section className="mt-7">
+    <section className="mt-4 md:mt-7">
       <div className="mb-4"><div className="public-kicker">Roster</div><h2 className="text-2xl font-black tracking-tight">Players</h2></div>
       {players.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} className="public-card group p-3 text-center md:p-4"><Player player={player}/><div className="mt-3 text-[9px] font-black uppercase tracking-widest text-court opacity-60 group-hover:opacity-100">View profile →</div></Link>)}</div> : <div className="public-empty">No confirmed public players are currently assigned to this team.</div>}
     </section>
 
-    <section className="mt-8">
+    <section className="mt-6 md:mt-8">
       <div className="mb-4"><div className="public-kicker">Tournament schedule</div><h2 className="text-2xl font-black tracking-tight">Matches</h2></div>
       {orderedMatchups.length ? <div className="space-y-3">{orderedMatchups.map((matchup) => {
         const isHome = matchup.homeTeamId === team.id;

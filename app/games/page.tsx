@@ -102,7 +102,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   const currentPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
 
-  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
+  if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">Run the seed script first.</main>;
 
   const [teams, allFilterPlayers, allMatchups] = await Promise.all([
     prisma.team.findMany({
@@ -226,14 +226,13 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   }, new Map<string, typeof games>());
   const hasPrimaryFilters = Boolean(teamId || playerId || matchupId);
 
-  return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">
+  return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">
     <TournamentSync initialRevision={revision} />
     <section className="public-hero">
-      <div><div className="public-kicker">Match directory</div><h1 className="public-title">Matches</h1></div>
-      <div className="public-count"><strong>{totalGames}</strong><span>matches</span></div>
+      <div><div className="public-kicker">Match directory</div><h1 className="public-title">Matches</h1><div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalGames} match{totalGames === 1 ? "" : "es"}</div></div>
     </section>
 
-    <PublicAutoSubmitForm className="public-filter relative mt-6 grid gap-3 lg:grid-cols-[1fr_1.15fr_1.25fr_auto]">
+    <PublicAutoSubmitForm className="public-filter relative mt-3 grid grid-cols-2 gap-2 md:mt-6 md:gap-3 lg:grid-cols-[1fr_1.15fr_1.25fr_auto]">
       {activeTab !== "ALL" && <input type="hidden" name="status" value={activeTab}/>} 
       <label><span className="filter-label">District / Team</span><select name="team" defaultValue={teamId} className="filter-control"><option value="">All districts / teams</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
       <div><span className="filter-label">Player</span><AvatarPlayerSelect
@@ -248,8 +247,8 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
           avatar: player,
         }))}
       /></div>
-      <label><span className="filter-label">Matchup</span><select name="matchup" defaultValue={matchupId} className="filter-control"><option value="">All matchups</option>{matchups.map((matchup) => <option key={matchup.id} value={matchup.id}>{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"} · {matchContext(matchup)}</option>)}</select></label>
-      <div className="flex items-end">{hasPrimaryFilters && <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-11 w-full px-3 lg:w-auto">Clear filters</Link>}</div>
+      <label className="col-span-2 lg:col-span-1"><span className="filter-label">Matchup</span><select name="matchup" defaultValue={matchupId} className="filter-control"><option value="">All matchups</option>{matchups.map((matchup) => <option key={matchup.id} value={matchup.id}>{matchup.homeTeam?.shortName || "TBD"} vs {matchup.awayTeam?.shortName || "TBD"} · {matchContext(matchup)}</option>)}</select></label>
+      <div className="col-span-2 flex items-end lg:col-span-1">{hasPrimaryFilters && <Link href={buildHref({ team: "", player: "", matchup: "" })} className="btn-ghost min-h-10 w-full px-3 lg:min-h-11 lg:w-auto">Clear filters</Link>}</div>
     </PublicAutoSubmitForm>
 
     <div className="mt-4 flex items-center gap-3"><span className="hidden text-[10px] font-extrabold uppercase tracking-widest text-gray-400 sm:block">Status</span><nav className="flex min-w-0 flex-1 gap-2 overflow-x-auto border-b border-court/20 pb-2 text-sm font-bold">
@@ -259,7 +258,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
       })}
     </nav></div>
 
-    {games.length ? <><div className="mt-6 space-y-5">
+    {games.length ? <><div className="mt-4 space-y-4 md:mt-6 md:space-y-5">
       {[...grouped.entries()].map(([key, rows]) => {
         const label = groupLabel(key);
         const firstGame = rows[0]!;

@@ -7,6 +7,7 @@ import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { writeAudit } from "@/lib/audit";
 import { recalculateMatchup } from "@/lib/tournament/recalculate";
 import { categoriesForStage, categoryLabel } from "@/lib/tournament/rules";
+import { nextEditableTeamMatchupId } from "@/lib/tournament/leader-lineup-access";
 
 type LineupWithSlots = Prisma.LineupGetPayload<{ include: { slots: true } }>;
 type RequestedSlot = { playerAId: string; playerBId: string };
@@ -53,6 +54,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
       if (!matchup || ![matchup.homeTeamId, matchup.awayTeamId].includes(teamId)) throw new Error("You cannot manage this team matchup.");
       if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("This matchup does not have both teams assigned yet.");
+
+      const teamSchedule = await tx.matchup.findMany({
+        where: {
+          tournamentId: matchup.tournamentId,
+          OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }],
+        },
+        select: { id: true, status: true, queuePosition: true, order: true },
+      });
+      const nextEditableId = nextEditableTeamMatchupId(teamSchedule);
+      if (nextEditableId !== matchup.id) {
+        throw new Error(nextEditableId
+          ? "This lineup is locked until your earlier scheduled matchup is completed."
+          : "This lineup is locked until the facilitator places your next matchup in the court schedule.");
+      }
 
       const required = Math.max(1, matchup.gamesPerMatchup);
       const rawSlots = Array.isArray(data.slots) ? data.slots : [];
