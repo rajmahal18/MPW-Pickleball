@@ -1,6 +1,7 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 import { isPublicLaunchOpen } from "@/lib/public-launch";
+import { publicUrl } from "@/lib/request";
 import { SESSION_COOKIE, sessionSecretBytes } from "@/lib/session-config";
 
 const ALWAYS_AVAILABLE = ["/login", "/api/auth", "/api/health"];
@@ -26,7 +27,7 @@ export async function middleware(request: NextRequest) {
   const launchOpen = isPublicLaunchOpen();
 
   if (launchOpen) {
-    if (pathname === "/countdown") return NextResponse.redirect(new URL("/", request.url));
+    if (pathname === "/countdown") return NextResponse.redirect(publicUrl(request, "/"));
     return NextResponse.next();
   }
 
@@ -36,7 +37,7 @@ export async function middleware(request: NextRequest) {
 
   const authenticated = await hasSignedSession(request);
   if (authenticated) {
-    if (pathname === "/countdown") return NextResponse.redirect(new URL("/", request.url));
+    if (pathname === "/countdown") return NextResponse.redirect(publicUrl(request, "/"));
     return NextResponse.next();
   }
 
@@ -45,7 +46,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/countdown") return NextResponse.next();
-  return NextResponse.redirect(new URL("/countdown", request.url));
+  return NextResponse.redirect(publicUrl(request, "/countdown"));
 }
 
 export const config = {
