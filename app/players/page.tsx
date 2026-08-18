@@ -6,6 +6,7 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
+import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +52,11 @@ export default async function Players({ searchParams }: { searchParams: Promise<
 
   const divisions = await prisma.division.findMany({
     where: { tournamentId: tournament.id, isPublic: true },
-    select: { id: true, name: true },
+    select: { id: true, name: true, slug: true, entrantType: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
-  const publicDivisionIds = new Set(divisions.map((division) => division.id));
-  const safeDivisionId = divisionId && publicDivisionIds.has(divisionId) ? divisionId : "";
+  const selectedDivision = divisions.find((division) => division.id === divisionId || division.slug === divisionId) ?? divisions[0] ?? null;
+  const safeDivisionId = selectedDivision?.id ?? "";
   const publicTeams = await prisma.team.findMany({
     where: { division: { tournamentId: tournament.id, isPublic: true }, ...(safeDivisionId ? { divisionId: safeDivisionId } : {}) },
     select: { id: true, name: true, shortName: true, divisionId: true, division: { select: { name: true } } },
@@ -74,7 +75,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
         division: { isPublic: true, ...(safeDivisionId ? { id: safeDivisionId } : {}) },
       },
     },
-    ...(safeTeamId ? { teamId: safeTeamId } : {}),
+    ...(safeTeamId ? (selectedDivision?.entrantType === "PAIR" ? { OR: [{ pairAsA: { some: { teamId: safeTeamId, isActive: true } } }, { pairAsB: { some: { teamId: safeTeamId, isActive: true } } }] } : { teamId: safeTeamId }) : {}),
     ...(sex ? { sex } : {}),
     ...(search ? {
       OR: [
@@ -90,6 +91,8 @@ export default async function Players({ searchParams }: { searchParams: Promise<
   const playerInclude = {
     team: { include: { group: true, division: true } },
     divisionEntries: { where: { status: "CONFIRMED" as const, division: { isPublic: true } }, include: { division: true } },
+    pairAsA: { where: { isActive: true, team: { divisionId: safeDivisionId || undefined } }, include: { team: { include: { division: true, group: true } }, playerB: true } },
+    pairAsB: { where: { isActive: true, team: { divisionId: safeDivisionId || undefined } }, include: { team: { include: { division: true, group: true } }, playerA: true } },
   } satisfies Prisma.PlayerInclude;
   type PlayerRow = Prisma.PlayerGetPayload<{ include: typeof playerInclude }>;
 
@@ -111,11 +114,11 @@ export default async function Players({ searchParams }: { searchParams: Promise<
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalPlayers / pageSize));
-  const filters = { q: search, division: safeDivisionId, team: safeTeamId, sex, sort };
+  const filters = { q: search, division: selectedDivision?.slug ?? "", team: safeTeamId, sex, sort };
   if (totalPlayers > 0 && currentPage > totalPages) redirect(buildHref(filters, totalPages));
-  const hasFilters = Boolean(search || safeDivisionId || safeTeamId || sex || sort !== "first");
+  const hasFilters = Boolean(search || safeTeamId || sex || sort !== "first");
   const selectedTeam = safeTeamId ? publicTeams.find((team) => team.id === safeTeamId) ?? null : null;
-  const rosterContext = selectedTeam ? selectedTeam.shortName : `${publicTeams.length} team${publicTeams.length === 1 ? "" : "s"}`;
+  const rosterContext = selectedTeam ? selectedTeam.shortName : `${publicTeams.length} ${selectedDivision?.entrantType === "PAIR" ? `pair${publicTeams.length === 1 ? "" : "s"}` : `team${publicTeams.length === 1 ? "" : "s"}`}`;
 
   return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-10">
     <section className="public-hero">
@@ -125,14 +128,15 @@ export default async function Players({ searchParams }: { searchParams: Promise<
         <div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalPlayers} player{totalPlayers === 1 ? "" : "s"} · {rosterContext}</div>
       </div>
     </section>
+    <EventTabs divisions={divisions} activeId={selectedDivision?.id ?? ""} basePath="/players"/>
 
     <PublicAutoSubmitForm className="public-filter relative mt-3 grid grid-cols-2 gap-2 md:mt-6 md:gap-3 lg:grid-cols-[minmax(220px,1.6fr)_1fr_1fr_.8fr_.9fr_auto]">
       <label className="col-span-2 min-w-0 lg:col-span-1"><span className="filter-label">Search</span><input type="search" name="q" defaultValue={search} placeholder="Player or team" className="filter-control"/></label>
-      <label><span className="filter-label">Division</span><select name="division" defaultValue={safeDivisionId} className="filter-control"><option value="">All divisions</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label>
-      <label><span className="filter-label">Team</span><select name="team" defaultValue={safeTeamId} className="filter-control"><option value="">All teams</option>{publicTeams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
+      <input type="hidden" name="division" value={selectedDivision?.slug ?? ""}/><label><span className="filter-label">{selectedDivision?.entrantType === "PAIR" ? "Pair" : "Team"}</span><select name="team" defaultValue={safeTeamId} className="filter-control"><option value="">{selectedDivision?.entrantType === "PAIR" ? "All pairs" : "All teams"}</option>{publicTeams.map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}</select></label>
+
       <label><span className="filter-label">Category</span><select name="sex" defaultValue={sex} className="filter-control"><option value="">All</option><option value="MALE">Men</option><option value="FEMALE">Women</option></select></label>
       <label><span className="filter-label">Sort</span><select name="sort" defaultValue={sort} className="filter-control">{SORTS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-      <div className="col-span-2 flex items-end lg:col-span-1">{hasFilters && <Link href="/players" className="btn-ghost min-h-10 w-full px-3 lg:min-h-11 lg:w-auto">Clear filters</Link>}</div>
+      <div className="col-span-2 flex items-end lg:col-span-1">{hasFilters && <Link href={`/players?division=${encodeURIComponent(selectedDivision?.slug ?? "")}`} className="btn-ghost min-h-10 w-full px-3 lg:min-h-11 lg:w-auto">Clear filters</Link>}</div>
     </PublicAutoSubmitForm>
 
     {players.length ? <div className="mt-4 grid gap-2.5 sm:grid-cols-2 md:mt-6 md:gap-3 lg:grid-cols-3 xl:grid-cols-4">
@@ -146,9 +150,9 @@ export default async function Players({ searchParams }: { searchParams: Promise<
             </div>
           </div>
           <div className="mt-4 border-t border-line/80 pt-3">
-            {teamIsPublic && player.team
+            {selectedDivision?.entrantType === "PAIR" ? (() => { const pair = player.pairAsA[0] ?? player.pairAsB[0]; const partner = player.pairAsA[0]?.playerB ?? player.pairAsB[0]?.playerA; return pair ? <><Link href={`/teams/${pair.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{pair.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">Paired with {partner ? formatPlayerDisplayName(partner) : "TBD"}{pair.team.group ? ` · ${pair.team.group.name}` : ""}</div></> : <div className="text-sm font-semibold text-gray-500">Pair assignment pending</div>; })() : (teamIsPublic && player.team
               ? <><Link href={`/teams/${player.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{player.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">{player.team.division.name}{player.team.group ? <> · <Link href={`/groups/${player.team.group.slug}`} className="hover:text-court hover:underline">{player.team.group.name}</Link></> : null}</div></>
-              : <div className="text-sm font-semibold text-gray-500">Team assignment pending</div>}
+              : <div className="text-sm font-semibold text-gray-500">Team assignment pending</div>)}
           </div>
         </article>;
       })}

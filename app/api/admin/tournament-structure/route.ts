@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import type { PairMatchCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireSuperadmin } from "@/lib/permissions";
 import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { writeAudit } from "@/lib/audit";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { computeStandings } from "@/lib/tournament/standings";
 import { defaultCategoryPattern, gamesForStage } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
+import { preparePairEntrantMatchup, preparePairEntrantDivision } from "@/lib/tournament/pair-entrants";
 import { qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 
 const FORMATS = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
 const STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const ENTRANT_TYPES = ["TEAM", "PLAYER", "PAIR"] as const;
+const SEX_CATEGORIES = ["MALE", "FEMALE"] as const;
 const PAIR_MATCH_CATEGORIES = ["MENS", "WOMENS", "MIXED"] as const;
 const TOURNAMENT_TRANSACTION_OPTIONS = { maxWait: 10000, timeout: 30000 };
 
@@ -53,6 +55,12 @@ function format(value: unknown) {
 function entrantType(value: unknown) {
   if (!ENTRANT_TYPES.includes(value as (typeof ENTRANT_TYPES)[number])) throw new Error("Select a valid entrant type.");
   return value as typeof ENTRANT_TYPES[number];
+}
+function optionalSexCategory(value: unknown) {
+  const cleaned = String(value || "").trim().toUpperCase();
+  if (!cleaned || cleaned === "ALL") return null;
+  if (!SEX_CATEGORIES.includes(cleaned as (typeof SEX_CATEGORIES)[number])) throw new Error("Select a valid event sex category.");
+  return cleaned as (typeof SEX_CATEGORIES)[number];
 }
 function stage(value: unknown) {
   if (!STAGES.includes(value as (typeof STAGES)[number])) throw new Error("Select a valid matchup stage.");
@@ -177,7 +185,7 @@ async function syncFutureKnockoutGameCounts(
 
 export async function POST(request: Request) {
   assertSameOrigin(request);
-  const user = await requireAdmin();
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
 
   try {
@@ -187,6 +195,10 @@ export async function POST(request: Request) {
     if (!tournament) throw new Error("Tournament not found.");
 
     if (action === "create-division") {
+      const nextEntrantType = entrantType(data.entrantType || "TEAM");
+      const nextSexCategory = optionalSexCategory(data.sexCategory);
+      const requestedDefaultGames = number(data.defaultGamesPerMatchup || 1, "Group/default matches per matchup", 1, 31);
+      const requestedKnockoutGames = optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31);
       const created = await prisma.$transaction(async (tx) => {
         const division = await tx.division.create({
           data: {
@@ -194,9 +206,10 @@ export async function POST(request: Request) {
             name: text(data.name, "Division name"),
             slug: slug(data.slug || data.name),
             formatType: format(data.formatType || "CUSTOM"),
-            entrantType: entrantType(data.entrantType || "TEAM"),
-            defaultGamesPerMatchup: number(data.defaultGamesPerMatchup || 1, "Group/default matches per matchup", 1, 31),
-            knockoutGamesPerMatchup: optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31),
+            entrantType: nextEntrantType,
+            sexCategory: nextSexCategory,
+            defaultGamesPerMatchup: nextEntrantType === "PAIR" ? 1 : requestedDefaultGames,
+            knockoutGamesPerMatchup: nextEntrantType === "PAIR" ? 1 : requestedKnockoutGames,
             groupMatchCategories: [],
             knockoutMatchCategories: [],
             groupCategoryRulesEnabled: false,
@@ -221,20 +234,45 @@ export async function POST(request: Request) {
       const divisionId = text(data.divisionId, "Division ID");
       const before = await prisma.division.findUnique({ where: { id: divisionId } });
       if (!before || before.tournamentId !== tournament.id) throw new Error("Division not found.");
-      const nextDefaultGames = number(data.defaultGamesPerMatchup, "Group/default matches per matchup", 1, 31);
-      const nextKnockoutGames = optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31);
+      const requestedDefaultGames = number(data.defaultGamesPerMatchup, "Group/default matches per matchup", 1, 31);
+      const requestedKnockoutGames = optionalNumber(data.knockoutGamesPerMatchup, "Knockout matches per matchup", 1, 31);
       const preserveLineupRules = data.preserveLineupRules === "1";
+      const nextEntrantType = entrantType(data.entrantType || before.entrantType);
+      const nextSexCategory = optionalSexCategory(data.sexCategory);
+      if (nextEntrantType !== before.entrantType) {
+        const [recordedPlay, existingEntrants, existingMatchups] = await Promise.all([
+          prisma.matchup.findFirst({
+            where: { divisionId, OR: [{ status: { in: ["COMPLETED", "FORFEITED", "LIVE", "INTERRUPTED"] } }, { games: { some: { OR: [{ status: { not: "SCHEDULED" } }, { homeScore: { not: 0 } }, { awayScore: { not: 0 } }] } } }] },
+            select: { id: true },
+          }),
+          prisma.team.count({ where: { divisionId } }),
+          prisma.matchup.count({ where: { divisionId } }),
+        ]);
+        if (recordedPlay) throw new Error("Entrant type cannot change after play has been recorded.");
+        if (existingEntrants || existingMatchups) throw new Error("Change entrant type only while the division is empty. Remove unplayed entrants and matchups first so Team Event and fixed-pair data cannot be mixed.");
+      }
+      if (nextSexCategory !== before.sexCategory) {
+        const [existingEntrants, existingEntries, existingMatchups] = await Promise.all([
+          prisma.team.count({ where: { divisionId } }),
+          prisma.divisionPlayer.count({ where: { divisionId } }),
+          prisma.matchup.count({ where: { divisionId } }),
+        ]);
+        if (existingEntrants || existingEntries || existingMatchups) throw new Error("Change the event sex category only while the division is empty so existing entrants cannot become invalid.");
+      }
+      const nextDefaultGames = nextEntrantType === "PAIR" ? 1 : requestedDefaultGames;
+      const nextKnockoutGames = nextEntrantType === "PAIR" ? 1 : requestedKnockoutGames;
       const next = {
         name: text(data.name, "Division name"),
         slug: slug(data.slug),
         formatType: format(data.formatType),
-        entrantType: entrantType(data.entrantType || before.entrantType),
+        entrantType: nextEntrantType,
+        sexCategory: nextSexCategory,
         defaultGamesPerMatchup: nextDefaultGames,
         knockoutGamesPerMatchup: nextKnockoutGames,
-        groupMatchCategories: preserveLineupRules ? before.groupMatchCategories : categoryPattern(data, "groupCategory", nextDefaultGames, before.groupMatchCategories, "GROUP"),
-        knockoutMatchCategories: preserveLineupRules ? before.knockoutMatchCategories : categoryPattern(data, "knockoutCategory", nextKnockoutGames ?? nextDefaultGames, before.knockoutMatchCategories, "KNOCKOUT"),
-        groupCategoryRulesEnabled: preserveLineupRules ? before.groupCategoryRulesEnabled : data.groupCategoryRulesEnabled === "on",
-        knockoutCategoryRulesEnabled: preserveLineupRules ? before.knockoutCategoryRulesEnabled : data.knockoutCategoryRulesEnabled === "on",
+        groupMatchCategories: nextEntrantType === "PAIR" ? [] : (preserveLineupRules ? before.groupMatchCategories : categoryPattern(data, "groupCategory", nextDefaultGames, before.groupMatchCategories, "GROUP")),
+        knockoutMatchCategories: nextEntrantType === "PAIR" ? [] : (preserveLineupRules ? before.knockoutMatchCategories : categoryPattern(data, "knockoutCategory", nextKnockoutGames ?? nextDefaultGames, before.knockoutMatchCategories, "KNOCKOUT")),
+        groupCategoryRulesEnabled: nextEntrantType === "PAIR" ? false : (preserveLineupRules ? before.groupCategoryRulesEnabled : data.groupCategoryRulesEnabled === "on"),
+        knockoutCategoryRulesEnabled: nextEntrantType === "PAIR" ? false : (preserveLineupRules ? before.knockoutCategoryRulesEnabled : data.knockoutCategoryRulesEnabled === "on"),
         qualifiersPerGroup: number(data.qualifiersPerGroup, "Qualifiers per group", 0, 16),
         wildcardCount: number(data.wildcardCount, "Wildcard count", 0, 16),
         autoProgression: data.autoProgression === "on",
@@ -256,7 +294,7 @@ export async function POST(request: Request) {
         await tx.division.update({ where: { id: divisionId }, data: next });
         await syncFutureKnockoutGameCounts(tx, { id: divisionId, defaultGamesPerMatchup: next.defaultGamesPerMatchup, knockoutGamesPerMatchup: next.knockoutGamesPerMatchup });
         await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: `Division settings changed: ${next.name}` });
-        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "DIVISION_UPDATED", entityType: "Division", entityId: divisionId, beforeState: { formatType: before.formatType, entrantType: before.entrantType, defaultGamesPerMatchup: before.defaultGamesPerMatchup, knockoutGamesPerMatchup: before.knockoutGamesPerMatchup, autoProgression: before.autoProgression, thirdPlaceEnabled: before.thirdPlaceEnabled, suddenDeathAtTen: before.suddenDeathAtTen }, afterState: next });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "DIVISION_UPDATED", entityType: "Division", entityId: divisionId, beforeState: { formatType: before.formatType, entrantType: before.entrantType, sexCategory: before.sexCategory, defaultGamesPerMatchup: before.defaultGamesPerMatchup, knockoutGamesPerMatchup: before.knockoutGamesPerMatchup, autoProgression: before.autoProgression, thirdPlaceEnabled: before.thirdPlaceEnabled, suddenDeathAtTen: before.suddenDeathAtTen }, afterState: next });
       }, TOURNAMENT_TRANSACTION_OPTIONS);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Division settings updated." }), 303);
     }
@@ -265,6 +303,7 @@ export async function POST(request: Request) {
       const divisionId = text(data.divisionId, "Division ID");
       const division = await prisma.division.findUnique({ where: { id: divisionId } });
       if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
+      if (division.entrantType === "PAIR") throw new Error("Fixed-pair events do not use team lineup category rules.");
       const groupMatchCategories = categoryPattern(data, "groupCategory", division.defaultGamesPerMatchup, division.groupMatchCategories, "GROUP");
       const knockoutCount = division.knockoutGamesPerMatchup ?? division.defaultGamesPerMatchup;
       const knockoutMatchCategories = categoryPattern(data, "knockoutCategory", knockoutCount, division.knockoutMatchCategories, "KNOCKOUT");
@@ -484,6 +523,7 @@ export async function POST(request: Request) {
       const groupPosition = groupId ? optionalNumber(data.groupPosition, "Group position", 1, 99) : null;
       const division = await prisma.division.findUnique({ where: { id: divisionId } });
       if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
+      if (division.entrantType === "PAIR") throw new Error("Create fixed pair entrants from Player Pool for this event instead of creating a team wrapper directly.");
       if (groupId) {
         const group = await prisma.group.findUnique({ where: { id: groupId } });
         if (!group || group.divisionId !== divisionId) throw new Error("Group does not belong to this division.");
@@ -514,7 +554,7 @@ export async function POST(request: Request) {
       const hasRecordedPlay = affected.some((matchup) => matchup.status === "COMPLETED" || matchup.status === "FORFEITED"
         || matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0))
         || directGames.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0);
-      if (hasRecordedPlay) throw new Error("A team with recorded play cannot be deleted. Keep it for historical integrity.");
+      if (hasRecordedPlay) throw new Error("An entrant with recorded play cannot be deleted. Keep it for historical integrity.");
 
       await prisma.$transaction(async (tx) => {
         for (const matchup of affected) {
@@ -553,7 +593,10 @@ export async function POST(request: Request) {
           afterState: { playersReturnedToPool: team.players.length, futureMatchupsCleared: affected.length },
         });
       });
-      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${team.name} removed. Its players returned to the unassigned pool and future matchup slots were cleared.` }), 303);
+      const success = team.division.entrantType === "PAIR"
+        ? `${team.name} pair entrant removed. Team Event roster assignments were left untouched and future matchup slots were cleared.`
+        : `${team.name} removed. Its players returned to the unassigned pool and future matchup slots were cleared.`;
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success }), 303);
     }
 
     if (action === "update-team-identity") {
@@ -665,6 +708,10 @@ export async function POST(request: Request) {
       const divisionId = text(data.divisionId, "Division ID");
       const groupId = optionalText(data.groupId);
       const groupPosition = groupId ? optionalNumber(data.groupPosition, "Group position", 1, 99) : null;
+      const targetDivision = await prisma.division.findUnique({ where: { id: divisionId } });
+      if (!targetDivision || targetDivision.tournamentId !== tournament.id) throw new Error("Destination division not found.");
+      if (divisionId !== before.divisionId && (before.division.entrantType === "PAIR" || targetDivision.entrantType === "PAIR")) throw new Error("Fixed-pair entrants cannot be moved between event types. Remove the unplayed pair and recreate it in the correct Executive event instead.");
+      if (divisionId !== before.divisionId && targetDivision.entrantType !== before.division.entrantType) throw new Error("Entrants cannot be moved between divisions with different entrant types.");
       const placementChange = groupId !== before.groupId || groupPosition !== before.groupPosition;
       const fixtureChange = divisionId !== before.divisionId || groupId !== before.groupId;
       if (groupId) {
@@ -927,6 +974,7 @@ export async function POST(request: Request) {
         await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "DIVISION_GROUP_ROUND_ROBINS_GENERATED", entityType: "Division", entityId: divisionId, afterState: { groupCount: division.groups.length, matchupCount: created } });
       });
+      if (division.entrantType === "PAIR") await preparePairEntrantDivision(prisma, divisionId);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: created ? `${created} group round-robin matchups generated.` : "No group had enough teams to generate matchups." }), 303);
     }
 
@@ -989,6 +1037,7 @@ export async function POST(request: Request) {
         await compactTournamentQueue(tx, tournament.id);
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "ROUND_ROBIN_REGENERATED", entityType: group ? "Group" : "Division", entityId: group?.id ?? divisionId, afterState: { teamCount: teams.length, matchupCount: (teams.length * (teams.length - 1)) / 2 } });
       });
+      if (division.entrantType === "PAIR") await preparePairEntrantDivision(prisma, divisionId);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Round-robin matchups generated." }), 303);
     }
 
@@ -1082,6 +1131,7 @@ export async function POST(request: Request) {
       const matchupStage = stage(data.stage || "CUSTOM");
       const orderAgg = await prisma.matchup.aggregate({ where: { divisionId, stage: matchupStage }, _max: { order: true } });
       const defaultGames = gamesForStage(division, matchupStage);
+      const requestedGames = division.entrantType === "PAIR" ? 1 : number(data.gamesPerMatchup || defaultGames, "Matches per matchup", 1, 31);
       const matchup = await prisma.matchup.create({
         data: {
           tournamentId: tournament.id,
@@ -1090,7 +1140,7 @@ export async function POST(request: Request) {
           groupLabel: optionalText(data.groupLabel, 80),
           roundLabel: text(data.roundLabel, "Round label", 80),
           order: (orderAgg._max.order ?? 0) + 1,
-          gamesPerMatchup: number(data.gamesPerMatchup || defaultGames, "Matches per matchup", 1, 31),
+          gamesPerMatchup: requestedGames,
           homeTeamId,
           awayTeamId,
           status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
@@ -1098,6 +1148,7 @@ export async function POST(request: Request) {
           courtLabel: null,
         },
       });
+      if (division.entrantType === "PAIR") await preparePairEntrantMatchup(prisma, matchup.id);
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${matchup.roundLabel} created.` }), 303);
     }
 
@@ -1111,6 +1162,8 @@ export async function POST(request: Request) {
         await prisma.matchup.update({ where: { id: matchupId }, data: base });
       } else {
         const divisionId = text(data.divisionId, "Division ID");
+        const division = await prisma.division.findUnique({ where: { id: divisionId } });
+        if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
         const homeTeamId = optionalText(data.homeTeamId);
         const awayTeamId = optionalText(data.awayTeamId);
         const requestedStage = stage(data.stage);
@@ -1129,7 +1182,7 @@ export async function POST(request: Request) {
               divisionId,
               stage: requestedStage,
               groupLabel: optionalText(data.groupLabel, 80),
-              gamesPerMatchup: number(data.gamesPerMatchup, "Matches per matchup", 1, 31),
+              gamesPerMatchup: division.entrantType === "PAIR" ? 1 : number(data.gamesPerMatchup, "Matches per matchup", 1, 31),
               homeTeamId,
               awayTeamId,
               status: homeTeamId && awayTeamId ? "LINEUP_PENDING" : "SCHEDULED",
@@ -1143,6 +1196,7 @@ export async function POST(request: Request) {
           });
           await compactTournamentQueue(tx, tournament.id);
         });
+        if (division.entrantType === "PAIR") await preparePairEntrantMatchup(prisma, matchupId);
       }
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: hasStarted ? "Live/completed matchup metadata updated; competitors and match structure were preserved." : "Future matchup updated." }), 303);
     }
@@ -1167,7 +1221,7 @@ export async function POST(request: Request) {
           const base = {
             roundLabel: text(data[`roundLabel-${key}`], "Round label", 80),
           };
-          const requestedGames = isStarted ? matchup.gamesPerMatchup : number(data[`gamesPerMatchup-${key}`] || matchup.gamesPerMatchup, "Matches per matchup", 1, 31);
+          const requestedGames = isStarted ? matchup.gamesPerMatchup : (division.entrantType === "PAIR" ? 1 : number(data[`gamesPerMatchup-${key}`] || matchup.gamesPerMatchup, "Matches per matchup", 1, 31));
           if (!isStarted && requestedGames !== matchup.gamesPerMatchup) {
             await tx.game.deleteMany({ where: { matchupId: matchup.id } });
             await tx.lineup.deleteMany({ where: { matchupId: matchup.id } });

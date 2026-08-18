@@ -52,14 +52,14 @@ function playerOrderBy(sort: typeof SORT_OPTIONS[number]): Prisma.PlayerOrderByW
 
 export default async function AdminPlayers({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; q?: string; status?: string; division?: string; assignment?: string; sex?: string; employment?: string; office?: string; sort?: string; page?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/login");
+  if (!user || user.role !== "SUPERADMIN") redirect("/login");
   const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true, name: true } });
   if (!tournament) return <main className="admin-shell">No tournament.</main>;
 
   const divisions = await prisma.division.findMany({
     where: { tournamentId: tournament.id },
-    select: { id: true, name: true, sortOrder: true, teams: { select: { id: true, name: true, shortName: true }, orderBy: { shortName: "asc" } } },
+    select: { id: true, name: true, sortOrder: true, entrantType: true, sexCategory: true, teams: { select: { id: true, name: true, shortName: true }, orderBy: { shortName: "asc" } } },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
@@ -98,8 +98,8 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     prisma.player.groupBy({ by: ["participationStatus"], where: { tournamentId: tournament.id }, _count: { _all: true } }),
     prisma.player.count({ where: { tournamentId: tournament.id, teamId: { not: null } } }),
     prisma.player.findMany({
-      where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED", teamId: null },
-      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, office: true },
+      where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED" },
+      select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, office: true, sex: true, pairAsA: { where: { isActive: true }, select: { team: { select: { divisionId: true } } } }, pairAsB: { where: { isActive: true }, select: { team: { select: { divisionId: true } } } } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       take: 250,
     }),
@@ -136,12 +136,13 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
     take: PAGE_SIZE,
   });
 
-  const teams = divisions.flatMap((division) => division.teams.map((team) => ({ ...team, divisionName: division.name })));
+  const teams = divisions.filter((division) => division.entrantType === "TEAM").flatMap((division) => division.teams.map((team) => ({ ...team, divisionName: division.name })));
+  const pairDivisions = divisions.filter((division) => division.entrantType === "PAIR");
   const countByStatus = new Map(statusCounts.map((row) => [row.participationStatus, row._count._all]));
   const offices = officeRows.map((row) => row.office).filter((value): value is string => Boolean(value));
 
   return <main className="admin-shell">
-    <AdminNav/><FlashMessage success={query.success} error={query.error}/>
+    <AdminNav role={user.role}/><FlashMessage success={query.success} error={query.error}/>
 
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -205,15 +206,29 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
         <Field label="Office / DEO" name="office"/>
         <label><span className="label">Attendance</span><select name="participationStatus" defaultValue="POOL" className="mt-1 w-full border border-line p-2 text-sm font-bold"><option value="POOL">Pool / tentative</option><option value="CONFIRMED">Confirmed</option><option value="UNAVAILABLE">Unavailable</option><option value="WITHDRAWN">Withdrawn</option></select></label>
         <label className="md:col-span-2"><span className="label">Initial division (optional)</span><select name="divisionId" className="mt-1 w-full border border-line p-2 text-sm font-bold"><option value="">Not set yet</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label>
-        <label className="md:col-span-2"><span className="label">Initial team (optional)</span><select name="teamId" className="mt-1 w-full border border-line p-2 text-sm font-bold"><option value="">Unassigned</option>{divisions.map((division) => <optgroup key={division.id} label={division.name}>{division.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} — {team.name}</option>)}</optgroup>)}</select></label>
+        <label className="md:col-span-2"><span className="label">Initial team (optional)</span><select name="teamId" className="mt-1 w-full border border-line p-2 text-sm font-bold"><option value="">Unassigned</option>{divisions.filter((division) => division.entrantType === "TEAM").map((division) => <optgroup key={division.id} label={division.name}>{division.teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} — {team.name}</option>)}</optgroup>)}</select></label>
         <SubmitButton className="btn-primary md:col-span-2 lg:col-span-4" pendingLabel="Adding…">Add to player pool</SubmitButton>
       </form>
     </details>
 
-    {unassignedConfirmed.length >= 2 && <details className="mt-5 border border-line bg-white">
+    {pairDivisions.length > 0 && <details className="mt-5 border border-line bg-white">
       <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase text-gray-600">Advanced · create Executive pair entrant</summary>
-      <div className="border-t border-line bg-paper px-4 py-3 text-xs text-gray-600">Use this only when a division's entrant itself is a fixed pair. Team Event playing pairs are submitted per matchup by the team manager and do not need to be created here.</div>
-      <form action="/api/admin/master-data" method="post" className="grid gap-3 border-t border-line p-4 md:grid-cols-2 lg:grid-cols-6 lg:items-end"><input type="hidden" name="action" value="create-pair-unit"/><label><span className="label">Division</span><select name="divisionId" className="mt-1 w-full border border-line p-2 text-sm font-bold">{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label><Field label="Pair/team name" name="name" required/><Field label="Short name" name="shortName" required/><Field label="Pair label" name="label"/><div><span className="label">Player A</span><div className="mt-1"><AvatarPlayerSelect name="playerAId" value="" placeholder="Select player A…" options={unassignedConfirmed.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed · unassigned", avatar: player }))}/></div></div><div><span className="label">Player B</span><div className="mt-1"><AvatarPlayerSelect name="playerBId" value="" placeholder="Select player B…" options={unassignedConfirmed.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed · unassigned", avatar: player }))}/></div></div><SubmitButton className="btn-primary md:col-span-2 lg:col-span-6" pendingLabel="Creating pair…">Create Executive pair entrant</SubmitButton></form>
+      <div className="border-t border-line bg-paper px-4 py-3 text-xs text-gray-600">Executive entrants are fixed pairs. This does not remove a player from an existing Team Event roster; the pair is a separate event entry. Team Event playing pairs still come from team-manager lineups.</div>
+      <div className="grid gap-4 border-t border-line p-4 xl:grid-cols-2">
+        {pairDivisions.map((division) => {
+          const candidates = unassignedConfirmed.filter((player) => (!division.sexCategory || player.sex === division.sexCategory) && ![...player.pairAsA, ...player.pairAsB].some((pair) => pair.team.divisionId === division.id));
+          return <div key={division.id} className="rounded-lg border border-line bg-paper/40 p-4">
+            <div className="mb-3"><div className="label text-court">{division.sexCategory === "MALE" ? "Men's pair event" : division.sexCategory === "FEMALE" ? "Women's pair event" : "Open pair event"}</div><h3 className="font-black uppercase">{division.name}</h3><p className="mt-1 text-xs text-gray-500">{candidates.length} eligible confirmed player{candidates.length === 1 ? "" : "s"} not yet locked into a pair in this event.</p></div>
+            {candidates.length >= 2 ? <form action="/api/admin/master-data" method="post" className="grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="action" value="create-pair-unit"/><input type="hidden" name="divisionId" value={division.id}/>
+              <Field label="Pair name (optional)" name="name"/><Field label="Short label (optional)" name="shortName"/>
+              <div><span className="label">Player A</span><div className="mt-1"><AvatarPlayerSelect name="playerAId" value="" placeholder="Select player A…" options={candidates.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed", avatar: player }))}/></div></div>
+              <div><span className="label">Player B</span><div className="mt-1"><AvatarPlayerSelect name="playerBId" value="" placeholder="Select player B…" options={candidates.map((player) => ({ id: player.id, label: formatPlayerDisplayName(player), meta: player.office || "Confirmed", avatar: player }))}/></div></div>
+              <SubmitButton className="btn-primary md:col-span-2" pendingLabel="Creating pair…">Create pair entrant</SubmitButton>
+            </form> : <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs font-bold text-amber-950">At least two eligible confirmed players are needed for this event.</div>}
+          </div>;
+        })}
+      </div>
     </details>}
 
     <section className="mt-5 border border-line bg-white">

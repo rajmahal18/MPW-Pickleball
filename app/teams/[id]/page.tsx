@@ -39,6 +39,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         include: { divisionEntries: true },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       },
+      pairs: { where: { isActive: true }, include: { playerA: true, playerB: true } },
     },
   });
   if (!team) notFound();
@@ -62,7 +63,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     team.groupId ? prisma.groupStandingOverride.findMany({ where: { groupId: team.groupId }, select: { teamId: true, position: true } }) : Promise.resolve([]),
   ]);
 
-  const players = team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === team.divisionId && entry.status === "CONFIRMED"));
+  const players = team.division.entrantType === "PAIR" && team.pairs[0]
+    ? [team.pairs[0].playerA, team.pairs[0].playerB]
+    : team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === team.divisionId && entry.status === "CONFIRMED"));
   const standing = team.group ? computeStandings(groupTeams, groupMatchups, standingOverrides).find((row) => row.team.id === team.id) : null;
   const orderedMatchups = [...matchups].sort((first, second) => {
     const priority = (STATUS_PRIORITY[first.status] ?? 9) - (STATUS_PRIORITY[second.status] ?? 9);
@@ -72,7 +75,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   });
 
   return <main className="public-page mx-auto max-w-6xl px-4 py-3 md:py-8">
-    <Link href="/teams" className="text-sm font-bold text-court hover:text-ink">← Back to teams</Link>
+    <Link href={`/teams?division=${encodeURIComponent(team.division.slug)}`} className="text-sm font-bold text-court hover:text-ink">← Back to {team.division.entrantType === "PAIR" ? "pairs" : "teams"}</Link>
 
     <section className="public-hero mt-2 md:mt-4">
       <div className="flex min-w-0 items-start gap-4">
@@ -82,7 +85,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         <div className="min-w-0">
           <div className="public-kicker">{team.division.name}{team.group ? <> · <Link href={`/groups/${team.group.slug}`} className="hover:text-ink hover:underline">{team.group.name}</Link></> : null}</div>
           <h1 className="public-title">{team.name}</h1>
-          <p className="public-lede">{players.length} confirmed player{players.length === 1 ? "" : "s"} · {team.shortName}</p>
+          <p className="public-lede">{team.division.entrantType === "PAIR" ? "Fixed Executive pair" : `${players.length} confirmed player${players.length === 1 ? "" : "s"}`} · {team.shortName}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {standing && <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-black">Rank {standing.rankLabel} · {team.group?.name}</span>}
             {standing && <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-black">W–L {standing.won}–{standing.lost}</span>}
@@ -92,8 +95,8 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     </section>
 
     <section className="mt-4 md:mt-7">
-      <div className="mb-4"><div className="public-kicker">Roster</div><h2 className="text-2xl font-black tracking-tight">Players</h2></div>
-      {players.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} className="public-card group p-3 text-center md:p-4"><Player player={player}/><div className="mt-3 text-[9px] font-black uppercase tracking-widest text-court opacity-60 group-hover:opacity-100">View profile →</div></Link>)}</div> : <div className="public-empty">No confirmed public players are currently assigned to this team.</div>}
+      <div className="mb-4"><div className="public-kicker">{team.division.entrantType === "PAIR" ? "Pair members" : "Roster"}</div><h2 className="text-2xl font-black tracking-tight">Players</h2></div>
+      {players.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} className="public-card group p-3 text-center md:p-4"><Player player={player}/><div className="mt-3 text-[9px] font-black uppercase tracking-widest text-court opacity-60 group-hover:opacity-100">View profile →</div></Link>)}</div> : <div className="public-empty">No confirmed public players are currently assigned to this entrant.</div>}
     </section>
 
     <section className="mt-6 md:mt-8">
@@ -118,7 +121,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         </article>;
-      })}</div> : <div className="public-empty">No matchups are currently assigned to this team.</div>}
+      })}</div> : <div className="public-empty">No matchups are currently assigned to this entrant.</div>}
     </section>
   </main>;
 }

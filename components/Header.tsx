@@ -5,12 +5,12 @@ import { LayoutDashboard, LogIn, LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
 import PublicNav from "@/components/PublicNav";
 
-type HeaderUser = { role: "ADMIN" | "TEAM_LEADER" } | null;
+type HeaderUser = { role: "SUPERADMIN" | "ADMIN" | "TEAM_MANAGER" } | null;
 
 export default function Header({ user }: { user: HeaderUser }) {
   const pathname = usePathname();
   if (pathname === "/countdown") return null;
-  const dashboardHref = user?.role === "ADMIN" ? "/admin" : "/leader";
+  const dashboardHref = user?.role === "TEAM_MANAGER" ? "/leader" : "/admin";
 
   return <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
     <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 md:flex md:flex-nowrap md:px-6 md:py-3">

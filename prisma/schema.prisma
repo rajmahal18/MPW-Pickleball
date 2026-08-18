@@ -8,8 +8,9 @@ datasource db {
 }
 
 enum UserRole {
+  SUPERADMIN
   ADMIN
-  TEAM_LEADER
+  TEAM_MANAGER
 }
 
 enum SexCategory {
@@ -130,6 +131,7 @@ model Tournament {
   simulationRuns SimulationRun[]
   checkpoints    Checkpoint[]
   auditLogs      AuditLog[]
+  mvpSelections  MvpSelection[]
 
   @@index([isPublished])
 }
@@ -142,6 +144,7 @@ model Division {
   slug                   String
   formatType             DivisionFormat      @default(CUSTOM)
   entrantType            DivisionEntrantType @default(TEAM)
+  sexCategory            SexCategory?
   defaultGamesPerMatchup  Int                 @default(1)
   knockoutGamesPerMatchup Int?
   groupMatchCategories          PairMatchCategory[] @default([])
@@ -166,6 +169,7 @@ model Division {
   teams         Team[]
   matchups      Matchup[]
   playerEntries DivisionPlayer[]
+  mvpSelections MvpSelection[]
 
   @@unique([tournamentId, slug])
   @@index([tournamentId, sortOrder])
@@ -248,6 +252,7 @@ model Player {
   pairAsB             Pair[]                    @relation("PairPlayerB")
   user                User?
   fanVotes            FanVote[]
+  mvpSelections       MvpSelection[]
 
   @@index([tournamentId, participationStatus, isActive])
   @@index([teamId, sex, isActive])
@@ -301,6 +306,25 @@ model User {
   simulationRuns SimulationRun[]
   checkpoints    Checkpoint[]
   scoreEvents    ScoreEvent[]
+  mvpSelections  MvpSelection[] @relation("MvpSelectionActor")
+}
+
+model MvpSelection {
+  id           String      @id @default(cuid())
+  tournamentId String
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  divisionId   String
+  division     Division    @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  sexCategory  SexCategory
+  playerId     String
+  player       Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  selectedById String?
+  selectedBy   User?       @relation("MvpSelectionActor", fields: [selectedById], references: [id], onDelete: SetNull)
+  selectedAt   DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([divisionId, sexCategory])
+  @@index([tournamentId, divisionId])
 }
 
 model Matchup {

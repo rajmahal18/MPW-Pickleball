@@ -10,6 +10,7 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 import AvatarPlayerSelect from "@/components/AvatarPlayerSelect";
 import GenderIndicator from "@/components/GenderIndicator";
+import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPT
 
 type StatusTab = typeof STATUS_TABS[number]["value"];
 type GameStatus = typeof GAME_STATUSES[number];
-type MatchQuery = { status?: string; page?: string; team?: string; player?: string; matchup?: string };
+type MatchQuery = { division?: string; status?: string; page?: string; team?: string; player?: string; matchup?: string };
 
 function isStatusTab(value: unknown): value is StatusTab {
   return typeof value === "string" && STATUS_TABS.some((tab) => tab.value === value);
@@ -105,10 +106,14 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
 
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">Run the seed script first.</main>;
 
+  const divisions = await prisma.division.findMany({ where: { tournamentId: tournament.id, isPublic: true }, select: { id: true, name: true, slug: true, entrantType: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const selectedDivision = divisions.find((division) => division.slug === query.division || division.id === query.division) ?? divisions[0] ?? null;
+  if (!selectedDivision) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">No public event is configured.</main>;
+
   const [teams, allFilterPlayers, allMatchups] = await Promise.all([
     prisma.team.findMany({
-      where: { division: { tournamentId: tournament.id, isPublic: true } },
-      select: { id: true, name: true, shortName: true, division: { select: { name: true, sortOrder: true } } },
+      where: { divisionId: selectedDivision.id },
+      select: { id: true, name: true, shortName: true, pairs: { where: { isActive: true }, select: { playerAId: true, playerBId: true } }, division: { select: { name: true, sortOrder: true } } },
       orderBy: [{ division: { sortOrder: "asc" } }, { shortName: "asc" }],
     }),
     prisma.player.findMany({
@@ -116,19 +121,21 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         tournamentId: tournament.id,
         isActive: true,
         participationStatus: "CONFIRMED",
-        team: { division: { isPublic: true } },
+        divisionEntries: { some: { divisionId: selectedDivision.id, status: "CONFIRMED" } },
       },
       select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, sex: true, team: { select: { id: true, shortName: true } } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.matchup.findMany({
-      where: { tournamentId: tournament.id, division: { isPublic: true }, homeTeamId: { not: null }, awayTeamId: { not: null } },
+      where: { tournamentId: tournament.id, divisionId: selectedDivision.id, homeTeamId: { not: null }, awayTeamId: { not: null } },
       select: { id: true, divisionId: true, stage: true, groupLabel: true, roundLabel: true, order: true, homeTeamId: true, awayTeamId: true, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, division: { select: { name: true, sortOrder: true } } },
       orderBy: [{ division: { sortOrder: "asc" } }, { order: "asc" }],
     }),
   ]);
 
   const teamIds = new Set(teams.map((team) => team.id));
+  const pairTeamByPlayer = new Map<string, string>();
+  if (selectedDivision.entrantType === "PAIR") for (const team of teams) for (const pair of team.pairs) { pairTeamByPlayer.set(pair.playerAId, team.id); pairTeamByPlayer.set(pair.playerBId, team.id); }
   const allPlayerIds = new Set(allFilterPlayers.map((player) => player.id));
   const allMatchupIds = new Set(allMatchups.map((matchup) => matchup.id));
   const teamId = query.team && teamIds.has(query.team) ? query.team : "";
@@ -136,14 +143,15 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   const requestedMatchup = query.matchup && allMatchupIds.has(query.matchup) ? allMatchups.find((matchup) => matchup.id === query.matchup) : undefined;
 
   const matchupTeamIds = requestedMatchup ? new Set([requestedMatchup.homeTeamId, requestedMatchup.awayTeamId]) : null;
+  const eventTeamId = (player: (typeof allFilterPlayers)[number]) => selectedDivision.entrantType === "PAIR" ? pairTeamByPlayer.get(player.id) ?? "" : player.team?.id ?? "";
   const filterPlayers = teamId
-    ? allFilterPlayers.filter((player) => player.team?.id === teamId)
+    ? allFilterPlayers.filter((player) => eventTeamId(player) === teamId)
     : matchupTeamIds
-      ? allFilterPlayers.filter((player) => player.team?.id && matchupTeamIds.has(player.team.id))
+      ? allFilterPlayers.filter((player) => matchupTeamIds.has(eventTeamId(player)))
       : allFilterPlayers;
   const visiblePlayerIds = new Set(filterPlayers.map((player) => player.id));
   const playerId = requestedPlayer && visiblePlayerIds.has(requestedPlayer.id) ? requestedPlayer.id : "";
-  const playerTeamId = playerId ? filterPlayers.find((player) => player.id === playerId)?.team?.id || "" : "";
+  const playerTeamId = playerId ? eventTeamId(filterPlayers.find((player) => player.id === playerId)!) : "";
   const matchupContextTeamId = teamId || playerTeamId;
   const matchups = matchupContextTeamId
     ? allMatchups.filter((matchup) => matchup.homeTeamId === matchupContextTeamId || matchup.awayTeamId === matchupContextTeamId)
@@ -155,7 +163,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
     NOT: { status: "SCHEDULED", matchup: { status: "COMPLETED", winnerTeamId: { not: null } } },
     matchup: {
       tournamentId: tournament.id,
-      division: { isPublic: true },
+      divisionId: selectedDivision.id,
       ...(readyFilter ? { status: "READY" as const } : {}),
       ...(matchupId ? { id: matchupId } : {}),
     },
@@ -228,11 +236,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   const totalPages = Math.max(1, Math.ceil(totalGames / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const games = allGames.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const filters = { status: activeTab, team: teamId, player: playerId, matchup: matchupId };
+  const filters = { division: selectedDivision.slug, status: activeTab, team: teamId, player: playerId, matchup: matchupId };
 
   const buildHref = (overrides: Partial<typeof filters> = {}, page = 1) => {
     const next = { ...filters, ...overrides };
     const params = new URLSearchParams();
+    params.set("division", next.division);
     if (next.status !== "ALL") params.set("status", next.status);
     if (next.team) params.set("team", next.team);
     if (next.player) params.set("player", next.player);
@@ -243,6 +252,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   };
 
   const staleFilters =
+    (query.division && query.division !== selectedDivision.slug && query.division !== selectedDivision.id) ||
     (query.team && query.team !== teamId) ||
     (query.player && query.player !== playerId) ||
     (query.matchup && query.matchup !== matchupId) ||
@@ -265,10 +275,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
     <section className="public-hero">
       <div><div className="public-kicker">Match directory</div><h1 className="public-title">Matches</h1><div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalGames} match{totalGames === 1 ? "" : "es"}</div></div>
     </section>
+    <EventTabs divisions={divisions} activeId={selectedDivision.id} basePath="/games" preserve={{ status: activeTab !== "ALL" ? activeTab : undefined }}/>
 
     <PublicAutoSubmitForm className="public-filter relative mt-3 grid grid-cols-2 gap-2 md:mt-6 md:gap-3 lg:grid-cols-[1fr_1.15fr_1.25fr_auto]">
-      {activeTab !== "ALL" && <input type="hidden" name="status" value={activeTab}/>} 
-      <label><span className="filter-label">District / Team</span><select name="team" defaultValue={teamId} className="filter-control"><option value="">All districts / teams</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
+      <input type="hidden" name="division" value={selectedDivision.slug}/>{activeTab !== "ALL" && <input type="hidden" name="status" value={activeTab}/>} 
+      <label><span className="filter-label">{selectedDivision.entrantType === "PAIR" ? "Pair" : "District / Team"}</span><select name="team" defaultValue={teamId} className="filter-control"><option value="">{selectedDivision.entrantType === "PAIR" ? "All pairs" : "All districts / teams"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.shortName} · {team.division.name}</option>)}</select></label>
       <div><span className="filter-label">Player</span><AvatarPlayerSelect
         name="player"
         value={playerId}
@@ -277,7 +288,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
         options={filterPlayers.map((player) => ({
           id: player.id,
           label: formatPlayerDisplayName(player),
-          meta: player.team?.shortName || "Unassigned",
+          meta: selectedDivision.entrantType === "PAIR" ? (teams.find((team) => team.id === eventTeamId(player))?.shortName || "Pair") : (player.team?.shortName || "Unassigned"),
           avatar: player,
         }))}
       /></div>

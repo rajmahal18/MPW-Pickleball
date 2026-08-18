@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function VotingAdmin({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; print?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/login");
+  if (!user || user.role !== "SUPERADMIN") redirect("/login");
   const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true, votingOpen: true } });
   if (!tournament) return <main className="admin-shell">No tournament.</main>;
@@ -35,7 +35,7 @@ export default async function VotingAdmin({ searchParams }: { searchParams: Prom
   }
 
   return <main className="admin-shell">
-    <AdminNav/>
+    <AdminNav role={user.role}/>
     <FlashMessage success={query.success} error={query.error}/>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div><div className="label">Fan Favorite operations</div><h1 className="text-3xl font-black uppercase md:text-4xl">Voting & Code Drops</h1><p className="mt-1 text-sm text-gray-500">Schedule public code batches, watch depletion speed, and track vote distribution without clutter.</p></div>

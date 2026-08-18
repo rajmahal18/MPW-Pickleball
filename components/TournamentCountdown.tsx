@@ -66,7 +66,7 @@ export default function TournamentCountdown({ launchAt, serverNow }: { launchAt:
         </div>
         <div className="mt-6 flex items-center justify-center gap-2 text-xs font-semibold text-white/60 sm:text-sm"><CalendarDays className="h-4 w-4"/><span>Public access: {launchLabel} (Philippine time)</span></div>
         <div className="mx-auto mt-8 max-w-md border-t border-white/10 pt-6">
-          <p className="text-sm text-white/55">Tournament staff and team leaders can sign in for early access.</p>
+          <p className="text-sm text-white/55">Tournament staff and team managers can sign in for early access.</p>
           <Link href="/login" className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white px-5 py-3 text-sm font-black text-ink transition hover:bg-gold"><LogIn className="h-4 w-4"/>Authorized login</Link>
         </div>
       </section>

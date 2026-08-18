@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CheckpointsPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/login");
+  if (!user || user.role !== "SUPERADMIN") redirect("/login");
   const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } });
   const [checkpoints, matchups] = tournament ? await Promise.all([
@@ -40,7 +40,7 @@ export default async function CheckpointsPage({ searchParams }: { searchParams: 
 
   return (
     <main className="admin-shell">
-      <AdminNav />
+      <AdminNav role={user.role}/>
       <FlashMessage {...query} />
       <div className="label">Recovery and controlled rollback</div>
       <h1 className="text-3xl font-black uppercase md:text-4xl">Checkpoints & Undo</h1>
@@ -65,9 +65,9 @@ export default async function CheckpointsPage({ searchParams }: { searchParams: 
         <h2 className="text-xl font-black uppercase">Granular tournament rollback</h2>
         <p className="mt-1 text-sm text-gray-500">Reset scores in exactly one matchup, one division round, or one division stage while preserving master records. Type UNDO to confirm.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          <UndoForm action="matchup" label="Undo team matchup">
+          <UndoForm action="matchup" label="Undo matchup">
             <select name="matchupId" required className="w-full border border-line p-3">
-              <option value="">Select team matchup</option>
+              <option value="">Select matchup</option>
               {matchups.filter((matchup) => matchup.homeTeam && matchup.awayTeam).map((matchup) => (
                 <option value={matchup.id} key={matchup.id}>{matchup.division.name} · {matchup.groupLabel || matchup.stage} · {matchup.roundLabel} · {matchup.homeTeam?.shortName} vs {matchup.awayTeam?.shortName}</option>
               ))}

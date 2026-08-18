@@ -129,14 +129,14 @@ export default function TournamentCourtBoard({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="label text-court">Add to court queue</div>
-            <h3 className="mt-0.5 font-black uppercase text-ink">Queue a team matchup</h3>
+            <h3 className="mt-0.5 font-black uppercase text-ink">Queue a matchup</h3>
           </div>
           <div className="text-xs font-bold text-gray-500">{state.availableMatchups.length} available</div>
         </div>
         <p className="mt-2 text-xs leading-5 text-gray-500">Queue order also controls Team Manager lineup access: each team can edit only its earliest unfinished queued matchup.</p>
         <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_150px_auto]">
           <select
-            aria-label="Available team matchup"
+            aria-label="Available matchup"
             value={selectedMatchupId}
             onChange={(event) => setSelectedMatchupId(event.target.value)}
             className="min-h-11 min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm font-bold"
@@ -243,6 +243,6 @@ export default function TournamentCourtBoard({
       </div> : <div className="p-8 text-center text-sm font-bold text-gray-500">Set the number of active courts to create the tournament-day board.</div>}
     </section>
 
-    <p className="text-xs leading-5 text-gray-500">Queue numbers are the overall call order. Court columns show where each team matchup will be played; a whole team matchup stays one block covering all of its configured matches.</p>
+    <p className="text-xs leading-5 text-gray-500">Queue numbers are the overall call order. Court columns show where each matchup will be played; a whole matchup stays one block covering all of its configured matches.</p>
   </div>;
 }

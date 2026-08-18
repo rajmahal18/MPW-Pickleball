@@ -21,5 +21,5 @@ export async function POST(request: Request) {
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",").at(0)?.trim();
   const secureCookie = (forwardedProto || new URL(request.url).protocol.replace(":", "")) === "https";
   await createSession(user.id, secureCookie);
-  return NextResponse.redirect(publicUrl(request, user.role === "ADMIN" ? "/admin" : "/leader"), 303);
+  return NextResponse.redirect(publicUrl(request, user.role === "TEAM_MANAGER" ? "/leader" : "/admin"), 303);
 }

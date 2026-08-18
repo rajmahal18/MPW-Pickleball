@@ -1,10 +1,24 @@
+# 2026-08-18 Multi-event / roles / MVP patch
+
+- Preserved the existing Team Event workflow while making public and admin surfaces division/event-aware. Public Matches, Groups, Bracket, Players, Teams, and MVP surfaces can switch between **Team Event**, **Men’s Executive**, and **Women’s Executive** through event tabs.
+- Executive divisions use `entrantType=PAIR` plus an explicit `sexCategory` (`MALE` / `FEMALE`) instead of inferring Men’s/Women’s behavior from names or slugs. The fixed pair is the public entrant; the existing Team/Pair/Game storage remains an internal compatibility layer so the proven scoring, standings, scheduling, and bracket engines do not need a parallel implementation. Pair matchups are always one scoreable match and their fixed lineups/games are prepared automatically, including after automatic knockout progression.
+- Authentication now has three roles: `SUPERADMIN`, `ADMIN`, and `TEAM_MANAGER`. The migration maps legacy `ADMIN` accounts to `SUPERADMIN` and legacy `TEAM_LEADER` accounts to `TEAM_MANAGER` to preserve existing access safely.
+- `SUPERADMIN` owns setup/configuration, player/pair master data, accounts, voting setup, simulation, checkpoints/reset, audit/system controls, plus all live operations. `ADMIN` is a game-day operator for live scoring and score-event recovery only. `TEAM_MANAGER` retains only its own Team Event lineup-submission workflow. Permissions are enforced server-side.
+- Added Superadmin account management for operational Admin and Team Manager accounts.
+- Reworked MVP into a transparent 0-100 **MVP Index** with visible components and weights: wins 15%, win rate 20%, participation/trust 10%, playoff impact 20%, strength of schedule 15%, point differential 15%, team finish 5%. Normalization for wins/participation/playoff impact is sex-category-specific.
+- Formal MVP eligibility requires **3 completed matches**, while provisional candidates remain visible before that threshold.
+- An exact top tie caused by the same locked pair can be resolved only by Superadmin organizer selection; the public winner is labeled **Selected by organizers**. A clear leader requires no organizer intervention.
+- MVP selection is stored in `MvpSelection` per division and sex category, and is only honored when the current calculated leaders still form a valid locked-pair tie.
+
+---
+
 # MPW Pickleball — Project State
 
-Last architecture update: 2026-08-13
+Last architecture update: 2026-08-18
 
 Latest performance/reliability update: 2026-08-13
 
-Latest UI/UX update: 2026-08-13
+Latest UI/UX update: 2026-08-18
 
 ## Current direction
 
@@ -16,7 +30,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 
 ### Data model
 
-- Added `Division`.
+- Added `Division` (including optional event `sexCategory`).
 - Added division formats and additional matchup stages.
 - Added tournament-level player pool status (`POOL`, `CONFIRMED`, `UNAVAILABLE`, `WITHDRAWN`).
 - Added `DivisionPlayer` for division eligibility/confirmation.
@@ -38,7 +52,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Player Pool now has event-day filters, scannable status badges, collapsed add-player workflow, and Quick Pair Unit remains available for confirmed unassigned players.
 - Added division eligibility/confirmation controls.
 - Added optional team assignment and pair activation/deactivation rules.
-- Added **Quick Pair Unit** for two confirmed unassigned players (useful for Executive brackets).
+- Added fixed Executive pair creation for two confirmed, event-eligible players. Executive membership is independent of the player’s Team Event roster assignment.
 - Changing a confirmed player to unavailable/withdrawn invalidates only affected future lineup usage; past recorded results remain intact.
 - Moving an unplayed team to another division/group clears its stale future matchup slots and syncs member eligibility into the new division.
 
@@ -64,7 +78,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Male/Female MVP
 - Live scoring/corrections/forfeits
 - Audit logs
-- Team leader lineups
+- Team Manager lineups
 - Simulation Center, including generic division/stage simulation
 - Checkpoints/restore/undo/reset
 - Player avatars
@@ -79,10 +93,10 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 
 ## Important current boundaries
 
-1. A player has one active `teamId` at a time. `DivisionPlayer` can represent eligibility in multiple divisions, but active team assignment selects the player's current competition unit.
+1. `Player.teamId` is the active Team Event roster assignment. Executive fixed-pair participation is separate through `DivisionPlayer` + the pair entrant wrapper, so a player can remain on a Team Event roster while also joining an Executive event.
 2. Automatic group-knockout seeding is implemented for 2/4/8 qualifiers only. Use manual future matchups for other shapes.
 3. Checkpoints snapshot **activity state** (matchups, lineups, pair-match records, scores, votes), not full structural master data. Division definitions, player-pool eligibility, and team master edits are not rolled back by checkpoint restore.
-4. The factory seed intentionally recreates the original Open sample plus Executive divisions. Its 3-group/7-match values are examples, not engine constants.
+4. The factory seed recreates the Team Event sample plus Men’s Executive and Women’s Executive. Its 3-group/7-match Team Event values are examples, not engine constants.
 5. Some deterministic simulation quick scenarios intentionally target the legacy Open sample shape (for example three-way/wildcard test scenarios). They are now scoped to the first configured grouped division so running those presets does not erase activity in Executive/other divisions. Generic simulation is division/stage-aware; production tournament logic must not depend on the legacy presets.
 6. Public visibility is division-aware. `POOL`/tentative names remain admin-only, and private divisions are excluded from public player/pair-match/team-matchup/team/MVP views.
 7. The public Matches and player directories now use server-side pagination/search where useful. Live polling pauses in hidden tabs and refreshes on focus to reduce event-day database pressure.
@@ -97,10 +111,10 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 4. Run `npx prisma generate`.
 5. Run `npm run typecheck` and tests.
 6. Run `npm run build`.
-7. Open `/admin/tournament` and confirm Open + Executive divisions.
-8. Open `/admin/players` and confirm existing Open players/pairs remain intact.
+7. Open `/admin/tournament` and confirm Team Event + Men’s Executive + Women’s Executive divisions.
+8. Open `/admin/players` and confirm existing Team Event players/pairs remain intact and Executive pair candidates are sex-filtered.
 9. Verify `/format`, `/groups`, `/bracket`, `/fan-favorite`, and `/mvp`.
-10. Create a test Executive candidate, confirm them, build a Quick Pair Unit, then create a future one-match matchup.
+10. Create a test Executive fixed pair, then create a future one-match matchup and confirm its scoreable game is prepared automatically.
 11. Confirm that marking a player unavailable reopens only future affected lineups and leaves completed scores unchanged.
 12. Check `/api/health` after deployment and verify `/games` and `/players` pagination with real production-sized data.
 13. Review `/admin/tournament` at desktop and mobile widths to confirm the selected-division console remains usable for last-minute changes.

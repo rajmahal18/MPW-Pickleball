@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireSuperadmin } from "@/lib/permissions";
 import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { executeSimulation, type SimulationOptions } from "@/lib/tournament/simulation";
@@ -14,7 +14,7 @@ function jsonSafe(value: unknown) {
 
 export async function POST(request: Request) {
   assertSameOrigin(request);
-  const user = await requireAdmin();
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
   if (!tournament) return new NextResponse("Tournament not found", { status: 404 });

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireOperator } from "@/lib/permissions";
 import { requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { recalculateTournament } from "@/lib/tournament/recalculate";
@@ -25,7 +25,7 @@ function matchupStage(value: string) {
 }
 
 async function resetMatchups(tx: Prisma.TransactionClient, tournamentId: string, matchupIds: string[]) {
-  if (!matchupIds.length) throw new Error("No team matchups matched the selected rollback scope.");
+  if (!matchupIds.length) throw new Error("No matchups matched the selected rollback scope.");
   await tx.scoreEvent.deleteMany({ where: { game: { matchupId: { in: matchupIds } } } });
   await tx.game.updateMany({
     where: { matchupId: { in: matchupIds } },
@@ -57,10 +57,11 @@ async function resetMatchups(tx: Prisma.TransactionClient, tournamentId: string,
 }
 
 export async function POST(request: Request) {
-  const user = await requireAdmin();
+  const user = await requireOperator();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const data = await requestData(request);
   const action = String(data.action || "simulation");
+  if (action !== "score-event" && user.role !== "SUPERADMIN") return new NextResponse("Superadmin access required", { status: 403 });
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
   if (!tournament) return new NextResponse("Tournament not found", { status: 404 });
 
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
       let where: Prisma.MatchupWhereInput;
       let auditScope = "";
       if (action === "matchup") {
-        if (!matchupId) throw new Error("Select a team matchup.");
+        if (!matchupId) throw new Error("Select a matchup.");
         where = { tournamentId: tournament.id, id: matchupId };
         auditScope = matchupId;
       } else if (action === "round") {

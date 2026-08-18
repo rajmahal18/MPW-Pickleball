@@ -209,8 +209,8 @@ export async function factorySeed(db: Prisma.TransactionClient) {
   const open = await db.division.create({
     data: {
       tournamentId: tournament.id,
-      name: "Open Division",
-      slug: "open",
+      name: "Team Event",
+      slug: "team-event",
       formatType: "GROUP_KNOCKOUT",
       entrantType: "TEAM",
       defaultGamesPerMatchup: 7,
@@ -228,11 +228,13 @@ export async function factorySeed(db: Prisma.TransactionClient) {
   const executiveMen = await db.division.create({
     data: {
       tournamentId: tournament.id,
-      name: "Executive Men",
-      slug: "executive-men",
+      name: "Men's Executive",
+      slug: "mens-executive",
       formatType: "CUSTOM",
-      entrantType: "PLAYER",
+      entrantType: "PAIR",
+      sexCategory: "MALE",
       defaultGamesPerMatchup: 1,
+      knockoutGamesPerMatchup: 1,
       autoProgression: false,
       advancementRule: "Final format is confirmed after executive attendance is known.",
       guideNotes: "Candidates remain in the player pool until confirmed and assigned.",
@@ -242,32 +244,19 @@ export async function factorySeed(db: Prisma.TransactionClient) {
   const executiveWomen = await db.division.create({
     data: {
       tournamentId: tournament.id,
-      name: "Executive Women",
-      slug: "executive-women",
+      name: "Women's Executive",
+      slug: "womens-executive",
       formatType: "CUSTOM",
-      entrantType: "PLAYER",
+      entrantType: "PAIR",
+      sexCategory: "FEMALE",
       defaultGamesPerMatchup: 1,
+      knockoutGamesPerMatchup: 1,
       autoProgression: false,
       advancementRule: "Final format is confirmed after executive attendance is known.",
       guideNotes: "Candidates remain in the player pool until confirmed and assigned.",
       sortOrder: 20,
     },
   });
-  await db.division.create({
-    data: {
-      tournamentId: tournament.id,
-      name: "Executive Mixed",
-      slug: "executive-mixed",
-      formatType: "CUSTOM",
-      entrantType: "PAIR",
-      defaultGamesPerMatchup: 1,
-      autoProgression: false,
-      advancementRule: "Final format is confirmed after executive attendance and pairings are known.",
-      guideNotes: "Mixed pairs can be formed from confirmed Executive players.",
-      sortOrder: 30,
-    },
-  });
-
   let leaderIndex = 1;
   for (const [groupIndex, groupName] of ["Group A", "Group B", "Group C"].entries()) {
     const group = await db.group.create({
@@ -283,7 +272,7 @@ export async function factorySeed(db: Prisma.TransactionClient) {
           name: `${team.name} Leader`,
           email: `leader${leaderIndex}@mpw.test`,
           passwordHash: await bcrypt.hash("leader123", 10),
-          role: "TEAM_LEADER",
+          role: "TEAM_MANAGER",
           teamId: team.id,
         },
       });
@@ -313,7 +302,7 @@ export async function factorySeed(db: Prisma.TransactionClient) {
       name: "Tournament Admin",
       email: "admin@mpw.test",
       passwordHash: await bcrypt.hash("admin123", 10),
-      role: "ADMIN",
+      role: "SUPERADMIN",
     },
   });
   return tournament;

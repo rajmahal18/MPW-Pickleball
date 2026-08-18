@@ -46,7 +46,7 @@ function chunks<T>(items: T[], size: number) {
 
 export default async function MatchScorecardsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ScorecardSearch> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/login");
+  if (!user || (user.role !== "SUPERADMIN" && user.role !== "ADMIN")) redirect("/login");
 
   const { id } = await params;
   const query = await searchParams;

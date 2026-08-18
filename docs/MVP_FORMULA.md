@@ -1,47 +1,68 @@
-# MVP Statistical Formula
+# MVP Index Formula
 
-The tracker provides separate **Male MVP** and **Female MVP** rankings. It uses completed or forfeited pair matches only and rewards actual tournament contribution, with progressively higher value in higher-stakes playoff stages.
+The tournament exposes **Male MVP** and/or **Female MVP** rankings according to each public event/division. Team Event can show both; sex-specific Executive events show only the applicable award. Rankings are calculated from completed or forfeited pair matches only. The public MVP page shows the same factor scores, weights, and weighted contributions used by the system so the result can be audited instead of treated as a black box.
 
-## Individual stage points
+## Eligibility and provisional rankings
 
-The maintainable constants are in `lib/tournament/config.ts`.
+- The **MVP Index is always calculated** as soon as a player has a completed match.
+- A player needs at least **3 completed matches** to be formally MVP-eligible.
+- Before any player in a sex category reaches 3 matches, the ranking remains visible and is labeled **Provisional**.
+- Once at least one player in that category is formally eligible, eligible players are ranked ahead of players who have not yet reached the minimum.
 
-| Stage | Played | Win bonus | Total for a win |
+This keeps the MVP race visible early without allowing a tiny 1-0 or 2-0 sample to become the final award winner once qualified candidates exist.
+
+## MVP Index
+
+Each factor is normalized to a 0-100 component score. The final Index is also on a 0-100 scale.
+
+| Factor | Weight | Component score |
+|---|---:|---|
+| Wins | 15% | `wins / most wins in the same sex category * 100` |
+| Win rate | 20% | `wins / matches played * 100` |
+| Participation / trust | 10% | `matches played / most matches played in the same sex category * 100` |
+| Playoff impact | 20% | `player playoff leverage / highest current playoff leverage in the same sex category * 100` |
+| Strength of schedule | 15% | Average tournament win rate of the opponent players beaten |
+| Point differential | 15% | Average point differential mapped to 0-100; even differential is 50 and the configured +/- cap maps to 0/100 |
+| Team finish | 5% | QF 35, SF 55, 3rd 65, finalist 75, champion 100 |
+
+`MVP Index = 0.15(Wins) + 0.20(Win Rate) + 0.10(Participation) + 0.20(Playoff Impact) + 0.15(SOS) + 0.15(Point Differential) + 0.05(Team Finish)`
+
+The category-relative components are intentionally normalized **within Male or Female**, because the two awards are separate races.
+
+## Playoff impact
+
+Playoff credit is earned only when the player actually appears in that match. Team advancement by itself does not create playoff-impact points.
+
+| Stage | Appearance leverage | Win leverage | Total for a win |
 |---|---:|---:|---:|
-| Group / round robin | 0 | 1.00 | 1.00 |
-| Quarterfinal | 0.50 | 1.50 | 2.00 |
-| Semifinal | 0.75 | 2.25 | 3.00 |
-| Battle for 3rd | 1.00 | 2.50 | 3.50 |
-| Grand Final | 1.50 | 3.50 | 5.00 |
+| Group / round robin | 0 | 0 | 0 |
+| Quarterfinal | 1 | 1 | 2 |
+| Semifinal | 2 | 2 | 4 |
+| Battle for 3rd | 2 | 2 | 4 |
+| Grand Final | 3 | 3 | 6 |
 
-A playoff appearance carries merit because knockout lineups have fewer available pair slots. A win adds substantially more merit, and the reward grows as the player performs deeper in the tournament.
+This makes a player who is repeatedly trusted and delivers deep in the bracket more valuable than someone who merely belongs to a team that advanced.
 
-## Small team-progression bonus
+## Strength of schedule
 
-A player also receives a deliberately small bonus when their team reaches a knockout stage:
+Only **wins** contribute opponent-strength credit. For every opponent player defeated, the system looks at that opponent's tournament win rate in the selected event and averages those values. Beating opponents who themselves performed well therefore adds more merit than compiling the same record against a weaker schedule.
 
-- Quarterfinal: +0.25
-- Semifinal: +0.50
-- Battle for 3rd: +0.75
-- Grand Final: +1.25
-- Champion: additional +0.50
+## Point differential
 
-These bonuses are cumulative, but they are intentionally much smaller than actual individual playoff appearances and wins. Reaching a deep stage helps; being selected and delivering in that stage matters much more.
+The system uses **average** point differential rather than total differential so extra matches do not automatically inflate this component. With the current configured cap of +/-15:
 
-## Ranking and tiebreaks
+- average `+15` or better -> 100
+- average `0` -> 50
+- average `-15` or worse -> 0
 
-`MVP points = individual stage points + team-stage bonus + champion bonus`.
+This rewards convincing wins while distinguishing close losses from heavy losses.
 
-If players have the same MVP points, the system compares:
+## Team finish is deliberately small
 
-1. wins at the highest stage first (Grand Final, then Battle for 3rd, Semifinal, Quarterfinal, then group play);
-2. total pair-match wins;
-3. matches played;
-4. total point differential;
-5. player name only as a deterministic final ordering.
+Team finish is only **5%** of the Index. Winning the tournament helps, but it cannot by itself make a weak individual record the MVP. A player from a non-champion team can win if their wins, efficiency, playoff performance, opponent quality, and margins are strong enough.
 
-The MVP page also exposes playoff appearances, playoff wins, stage points, team-run bonus, win rate, average differential, and highest-stage win so the ranking remains easy to explain.
+## Locked-pair organizer selection
 
-## Locked-pair limitation
+A fixed/locked pair can produce two players with exactly the same measurable inputs and therefore the exact same MVP Index. When the top two candidates are the same locked pair with an identical record and Index, the system **does not invent an artificial decimal tiebreaker**.
 
-When two players always compete as one locked pair, result data cannot identify which individual carried the pair. Both players receive the same pair-derived match inputs. The UI labels this condition; the numbers support, but do not replace, the eye test.
+In that one case, the **Superadmin** can select which partner receives the award. The public MVP result is marked **Selected by organizers**. If there is a clear statistical leader, there is no manual organizer override.

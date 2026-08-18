@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { Matchup } from "@prisma/client";
 import { compareStandingRows, computeStandings, qualificationOutcomes, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
-import { calculateMvpRankings } from "../lib/tournament/mvp";
+import { calculateMvpRankings, organizerSelectionTie, resolveMvpAward } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
 import { qrMatrix } from "../lib/qr";
 import { normalizeVotingCode } from "../lib/tournament/voting";
@@ -289,63 +289,103 @@ test("division qualifiers block knockout slots when a qualifying tie is unresolv
   assert.equal(selected.unresolved[0]!.scope, "DIRECT");
 });
 
-test("MVP rankings stay sex-separated and disclose locked-pair derivation", () => {
+test("MVP rankings stay sex-separated, expose components, and require 3 matches for formal eligibility", () => {
   const player = (id: string, sex: "MALE" | "FEMALE") => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex, team: { id: `T${id}`, name: `Team ${id}`, shortName: `T${id}` } });
   const maleA = player("MA", "MALE"), femaleA = player("FA", "FEMALE"), maleB = player("MB", "MALE"), femaleB = player("FB", "FEMALE");
-  const games = [1, 2, 3, 4].map((index) => ({ id: String(index), homeScore: 11, awayScore: 7, winnerTeamId: "TMA", homeTeamId: "TMA", awayTeamId: "TMB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "P1", playerA: maleA, playerB: femaleA }, awayPair: { id: "P2", playerA: maleB, playerB: femaleB } }));
+  const games = [1, 2, 3].map((index) => ({ id: String(index), homeScore: 11, awayScore: 7, winnerTeamId: "TMA", homeTeamId: "TMA", awayTeamId: "TMB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "P1", playerA: maleA, playerB: femaleA }, awayPair: { id: "P2", playerA: maleB, playerB: femaleB } }));
   const result = calculateMvpRankings(games);
   assert.equal(result.male[0]!.player.id, "MA");
   assert.equal(result.female[0]!.player.id, "FA");
   assert.equal(result.male[0]!.mvpIndex, result.female[0]!.mvpIndex);
-  assert.equal(result.male[0]!.lockedPairDerived, true);
+  assert.equal(result.male[0]!.eligible, true);
+  assert.equal(result.male[0]!.components.winRate, 100);
+  assert.equal(result.minimumMatches, 3);
 });
 
-test("MVP rewards actual high-stakes playoff appearances and wins more heavily than group wins", () => {
+test("MVP relative components normalize inside each sex category", () => {
+  const player = (id: string, sex: "MALE" | "FEMALE", teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex, team: { id: teamId, name: teamId, shortName: teamId } });
+  const ma = player("MA", "MALE", "MA"), mb = player("MB", "MALE", "MB"), fa = player("FA", "FEMALE", "FA"), fb = player("FB", "FEMALE", "FB");
+  const maleMate = player("MM", "MALE", "MA"), maleOppMate = player("MO", "MALE", "MB"), femaleMate = player("FM", "FEMALE", "FA"), femaleOppMate = player("FO", "FEMALE", "FB");
+  const games = [1, 2, 3, 4].map((index) => ({ id: `m${index}`, homeScore: 11, awayScore: 7, winnerTeamId: "MA", homeTeamId: "MA", awayTeamId: "MB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "MPA", playerA: ma, playerB: maleMate }, awayPair: { id: "MPB", playerA: mb, playerB: maleOppMate } }));
+  games.push({ id: "f1", homeScore: 11, awayScore: 9, winnerTeamId: "FA", homeTeamId: "FA", awayTeamId: "FB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "FPA", playerA: fa, playerB: femaleMate }, awayPair: { id: "FPB", playerA: fb, playerB: femaleOppMate } } as never);
+  const result = calculateMvpRankings(games as never);
+  const femaleLeader = result.female.find((row) => row.player.id === "FA")!;
+  assert.equal(femaleLeader.components.wins, 100);
+  assert.equal(femaleLeader.components.participation, 100);
+});
+
+test("MVP candidates remain visible as provisional before anybody reaches 3 matches", () => {
   const player = (id: string, teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: teamId, name: teamId, shortName: teamId } });
-  const groupStar = player("GROUP_STAR", "TG");
-  const finalStar = player("FINAL_STAR", "TF");
-  const fillerA = player("A", "TA");
-  const fillerB = player("B", "TB");
-  const pair = (id: string, playerA: ReturnType<typeof player>, playerB: ReturnType<typeof player>) => ({ id, playerA, playerB });
-  const game = (id: string, stage: "GROUP" | "FINAL", home: ReturnType<typeof player>, away: ReturnType<typeof player>) => ({
-    id, homeScore: 11, awayScore: 7, winnerTeamId: home.team.id, homeTeamId: home.team.id, awayTeamId: away.team.id, status: "COMPLETED",
-    matchup: { stage }, homePair: pair(`H${id}`, home, fillerA), awayPair: pair(`A${id}`, away, fillerB),
-  });
-  const result = calculateMvpRankings([
-    game("g1", "GROUP", groupStar, finalStar),
-    game("g2", "GROUP", groupStar, finalStar),
-    game("g3", "GROUP", groupStar, finalStar),
-    game("f1", "FINAL", finalStar, groupStar),
-  ] as never);
-  const finalist = result.male.find((row) => row.player.id === "FINAL_STAR")!;
-  const groupOnly = result.male.find((row) => row.player.id === "GROUP_STAR")!;
-  assert.equal(finalist.stageBreakdown.FINAL.played, 1);
-  assert.equal(finalist.stageBreakdown.FINAL.wins, 1);
-  assert.equal(finalist.stageBreakdown.FINAL.points, 5);
-  assert.ok(finalist.mvpIndex > groupOnly.mvpIndex);
+  const a = player("A", "TA"), b = player("B", "TB"), c = player("C", "TC"), d = player("D", "TD");
+  const games = [1, 2].map((index) => ({ id: String(index), homeScore: 11, awayScore: 8, winnerTeamId: "TA", homeTeamId: "TA", awayTeamId: "TB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "PA", playerA: a, playerB: c }, awayPair: { id: "PB", playerA: b, playerB: d } }));
+  const result = calculateMvpRankings(games);
+  assert.ok(result.male.length > 0);
+  assert.equal(result.male[0]!.eligible, false);
+  assert.equal(result.male[0]!.provisional, true);
+  assert.equal(result.male[0]!.matchesToEligibility, 1);
 });
 
-test("MVP team progression is only a small supplement to individual match contribution", () => {
+test("provisional locked-pair ties do not allow organizer selection before 3 matches", () => {
+  const player = (id: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: "TA", name: "Pair A", shortName: "PA" } });
+  const a = player("A"), b = player("B"), c = { ...player("C"), team: { id: "TB", name: "Pair B", shortName: "PB" } }, d = { ...player("D"), team: { id: "TB", name: "Pair B", shortName: "PB" } };
+  const games = [1, 2].map((index) => ({ id: `g${index}`, homeScore: 11, awayScore: 7, winnerTeamId: "TA", homeTeamId: "TA", awayTeamId: "TB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "PA", playerA: a, playerB: b }, awayPair: { id: "PB", playerA: c, playerB: d } }));
+  const result = calculateMvpRankings(games);
+  const award = resolveMvpAward(result.male, "A");
+  assert.equal(award.tie.length, 2);
+  assert.equal(award.pendingOrganizerSelection, false);
+  assert.equal(award.selectedByOrganizers, false);
+  assert.equal(award.winner, undefined);
+});
+
+test("MVP playoff impact rewards actual late-stage participation rather than merely reaching the stage", () => {
+  const player = (id: string, teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: teamId, name: teamId, shortName: teamId } });
+  const finalStar = player("FINAL_STAR", "TF");
+  const peer = player("PEER", "TP");
+  const mateA = player("MATE_A", "TF");
+  const mateB = player("MATE_B", "TP");
+  const games = [
+    { id: "g1", homeScore: 11, awayScore: 8, winnerTeamId: "TF", homeTeamId: "TF", awayTeamId: "TP", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "HF1", playerA: finalStar, playerB: mateA }, awayPair: { id: "AP1", playerA: peer, playerB: mateB } },
+    { id: "g2", homeScore: 11, awayScore: 9, winnerTeamId: "TP", homeTeamId: "TP", awayTeamId: "TF", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "HP2", playerA: peer, playerB: mateB }, awayPair: { id: "AF2", playerA: finalStar, playerB: mateA } },
+    { id: "f1", homeScore: 11, awayScore: 7, winnerTeamId: "TF", homeTeamId: "TF", awayTeamId: "TP", status: "COMPLETED", matchup: { stage: "FINAL" as const }, homePair: { id: "HF3", playerA: finalStar, playerB: mateA }, awayPair: { id: "AP3", playerA: peer, playerB: mateB } },
+  ];
+  const result = calculateMvpRankings(games);
+  const finalist = result.male.find((row) => row.player.id === "FINAL_STAR")!;
+  const other = result.male.find((row) => row.player.id === "PEER")!;
+  assert.equal(finalist.stageBreakdown.FINAL.played, 1);
+  assert.equal(finalist.stageBreakdown.FINAL.leverage, 6);
+  assert.equal(finalist.components.playoffImpact, 100);
+  assert.ok(finalist.mvpIndex > other.mvpIndex);
+});
+
+test("MVP team finish is only 5 percent and cannot rescue weak individual performance", () => {
   const player = (id: string, teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: teamId, name: teamId, shortName: teamId } });
   const contributor = player("CONTRIBUTOR", "TC");
   const carried = player("CARRIED", "TF");
   const mateA = player("MATE_A", "TC");
-  const mateB = player("MATE_B", "OTHER");
-  const groupWins = [1, 2, 3].map((index) => ({
-    id: `g${index}`, homeScore: 11, awayScore: 5, winnerTeamId: "TC", homeTeamId: "TC", awayTeamId: "OTHER", status: "COMPLETED", matchup: { stage: "GROUP" as const },
-    homePair: { id: `HC${index}`, playerA: contributor, playerB: mateA }, awayPair: { id: `AO${index}`, playerA: mateB, playerB: carried },
+  const mateB = player("MATE_B", "TF");
+  const games = [1, 2, 3].map((index) => ({
+    id: `g${index}`, homeScore: 11, awayScore: 5, winnerTeamId: "TC", homeTeamId: "TC", awayTeamId: "TF", status: "COMPLETED", matchup: { stage: "GROUP" as const },
+    homePair: { id: `HC${index}`, playerA: contributor, playerB: mateA }, awayPair: { id: `AF${index}`, playerA: carried, playerB: mateB },
   }));
-  const matchups = [
-    { stage: "QUARTERFINAL", homeTeamId: "TF", awayTeamId: "X", winnerTeamId: "TF", status: "COMPLETED" },
-    { stage: "SEMIFINAL", homeTeamId: "TF", awayTeamId: "Y", winnerTeamId: "TF", status: "COMPLETED" },
-    { stage: "FINAL", homeTeamId: "TF", awayTeamId: "Z", winnerTeamId: "Z", status: "COMPLETED" },
-  ];
-  const result = calculateMvpRankings(groupWins as never, matchups as never);
+  const matchups = [{ stage: "FINAL", homeTeamId: "TF", awayTeamId: "Z", winnerTeamId: "TF", status: "COMPLETED" }];
+  const result = calculateMvpRankings(games as never, matchups as never);
   const contributorRow = result.male.find((row) => row.player.id === "CONTRIBUTOR")!;
   const carriedRow = result.male.find((row) => row.player.id === "CARRIED")!;
-  assert.equal(carriedRow.teamStageBonus, 2);
-  assert.equal(carriedRow.championBonus, 0);
+  assert.equal(carriedRow.components.teamFinish, 100);
   assert.ok(contributorRow.mvpIndex > carriedRow.mvpIndex);
+});
+
+test("organizer selection is available only for an exact top locked-pair tie", () => {
+  const player = (id: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: "TA", name: "Pair A", shortName: "PA" } });
+  const a = player("A"), b = player("B"), c = { ...player("C"), team: { id: "TB", name: "Pair B", shortName: "PB" } }, d = { ...player("D"), team: { id: "TB", name: "Pair B", shortName: "PB" } };
+  const games = [1, 2, 3].map((index) => ({ id: `g${index}`, homeScore: 11, awayScore: 7, winnerTeamId: "TA", homeTeamId: "TA", awayTeamId: "TB", status: "COMPLETED", matchup: { stage: "GROUP" as const }, homePair: { id: "PA", playerA: a, playerB: b }, awayPair: { id: "PB", playerA: c, playerB: d } }));
+  const result = calculateMvpRankings(games);
+  const tied = organizerSelectionTie(result.male);
+  assert.deepEqual(tied.map((row) => row.player.id).sort(), ["A", "B"]);
+  assert.equal(tied[0]!.mvpIndex, tied[1]!.mvpIndex);
+  assert.equal(resolveMvpAward(result.male).winner, undefined);
+  assert.equal(resolveMvpAward(result.male, "B").winner?.player.id, "B");
+  assert.equal(resolveMvpAward(result.male, "B").selectedByOrganizers, true);
 });
 
 test("simulation RNG is deterministic", () => {

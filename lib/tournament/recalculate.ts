@@ -4,6 +4,7 @@ import { resolveQualificationSource } from "@/lib/tournament/bracket-seeding";
 import { writeAudit } from "@/lib/audit";
 import { gamesForStage, winsNeededForMatchup } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
+import { preparePairEntrantDivision } from "@/lib/tournament/pair-entrants";
 
 function matchupHasStarted(matchup: { games: Array<{ status: string; homeScore: number; awayScore: number }> }) {
   return matchup.games.some((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0);
@@ -224,7 +225,7 @@ export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId
     where: { id: matchupId },
     include: { games: { orderBy: { gameNumber: "asc" } }, lineups: true },
   });
-  if (!matchup) throw new Error("Team matchup not found.");
+  if (!matchup) throw new Error("Matchup not found.");
 
   const decidedGames = matchup.games.filter(
     (game) => (game.status === "COMPLETED" || game.status === "FORFEITED") && game.winnerTeamId,
@@ -301,6 +302,9 @@ export async function recalculateTournament(
     } else if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && !allGroupComplete) {
       await clearFutureKnockoutSlots(db, division.id);
     }
+
+    // PAIR events have fixed entrants, so newly assigned knockout slots never wait for a manager lineup.
+    if (division.entrantType === "PAIR") await preparePairEntrantDivision(db, division.id);
 
     results.push({ divisionId: division.id, allGroupComplete, qualifierIds, autoKnockoutSupported, unresolvedQualificationSlots });
   }

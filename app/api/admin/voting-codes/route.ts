@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireSuperadmin } from "@/lib/permissions";
 import { requestData, redirectBack } from "@/lib/request";
 import { generateVotingCode, hashVotingCode, parsePhilippineLocalDateTime, votingCodeHint } from "@/lib/tournament/voting";
 import { writeAudit } from "@/lib/audit";
 import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 export async function POST(request: Request) {
-  const user = await requireAdmin();
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
   if (!tournament) return new NextResponse("Tournament not found", { status: 404 });

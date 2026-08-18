@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
-import { redirectBack, requestData } from "@/lib/request";
+import { requireSuperadmin } from "@/lib/permissions";
+import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { writeAudit } from "@/lib/audit";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 
@@ -134,7 +134,8 @@ async function invalidateFuturePairUsage(pairId: string, db: DbClient = prisma) 
 }
 
 export async function POST(request: Request) {
-  const user = await requireAdmin();
+  assertSameOrigin(request);
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
 
   try {
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
 
       const players = await prisma.player.findMany({
         where: { id: { in: playerIds }, tournamentId: tournament.id },
-        select: { id: true, teamId: true, isActive: true, participationStatus: true },
+        select: { id: true, teamId: true, isActive: true, participationStatus: true, sex: true },
       });
       if (players.length !== playerIds.length) throw new Error("One or more selected players are invalid for this tournament.");
 
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
       if (batchAction === "assign-team") {
         const teamId = text(data.teamId, "Destination team");
         const team = await prisma.team.findUnique({ where: { id: teamId }, include: { division: true } });
-        if (!team || team.division.tournamentId !== tournament.id) throw new Error("Invalid destination team.");
+        if (!team || team.division.tournamentId !== tournament.id || team.division.entrantType !== "TEAM") throw new Error("Players can only be roster-assigned to a Team Event team.");
         if (players.some((player) => !player.isActive || player.participationStatus !== "CONFIRMED")) throw new Error("Batch team assignment only accepts active, confirmed players.");
         const movingIds = players.filter((player) => player.teamId !== teamId).map((player) => player.id);
 
@@ -208,6 +209,7 @@ export async function POST(request: Request) {
         const status = divisionStatus(data.divisionStatus);
         const division = await prisma.division.findUnique({ where: { id: divisionId } });
         if (!division || division.tournamentId !== tournament.id) throw new Error("Invalid division.");
+        if (division.sexCategory && players.some((player) => player.sex !== division.sexCategory)) throw new Error(`${division.name} only accepts ${division.sexCategory === "MALE" ? "male" : "female"} players.`);
 
         await prisma.$transaction(async (tx) => {
           if (status !== "CONFIRMED") {
@@ -255,16 +257,27 @@ export async function POST(request: Request) {
         prisma.player.findUnique({ where: { id: playerBId } }),
       ]);
       if (!division || division.tournamentId !== tournament.id) throw new Error("Invalid division.");
+      if (division.entrantType !== "PAIR") throw new Error("Executive pair entrants can only be created inside a Pair division.");
       for (const player of [playerA, playerB]) {
         if (!player || player.tournamentId !== tournament.id || !player.isActive || player.participationStatus !== "CONFIRMED") throw new Error("Both players must be active and confirmed.");
-        if (player.teamId) throw new Error("Quick pair creation only accepts unassigned players. Move/deactivate existing assignments first.");
       }
-      const teamName = text(data.name, "Pair/team name", 100);
-      const shortName = text(data.shortName, "Short name", 20);
-      const pairLabel = optionalText(data.label, 40) || "Pair 1";
+      if (division.sexCategory && (playerA!.sex !== division.sexCategory || playerB!.sex !== division.sexCategory)) {
+        throw new Error(`${division.name} accepts ${division.sexCategory === "MALE" ? "male" : "female"} players only.`);
+      }
+      const existingMembership = await prisma.pair.findFirst({
+        where: {
+          isActive: true,
+          team: { divisionId },
+          OR: [{ playerAId: { in: [playerAId, playerBId] } }, { playerBId: { in: [playerAId, playerBId] } }],
+        },
+      });
+      if (existingMembership) throw new Error("One of these players is already in an active pair for this Executive event.");
+      const compactName = (player: NonNullable<typeof playerA>) => player.displayName?.trim() || `${player.firstName} ${player.lastName}`.trim();
+      const teamName = optionalText(data.name, 100) || `${compactName(playerA!)} / ${compactName(playerB!)}`;
+      const shortName = optionalText(data.shortName, 20) || `${playerA!.lastName.slice(0, 3)}-${playerB!.lastName.slice(0, 3)}`.toUpperCase();
+      const pairLabel = optionalText(data.label, 40) || "Executive Pair";
       const created = await prisma.$transaction(async (tx) => {
         const team = await tx.team.create({ data: { divisionId, groupId: null, name: teamName, shortName } });
-        await tx.player.updateMany({ where: { id: { in: [playerAId, playerBId] } }, data: { teamId: team.id } });
         for (const playerId of [playerAId, playerBId]) {
           await tx.divisionPlayer.upsert({
             where: { divisionId_playerId: { divisionId, playerId } },
@@ -283,17 +296,19 @@ export async function POST(request: Request) {
         });
         return team;
       });
-      return NextResponse.redirect(redirectBack(request, "/admin/players", { success: `${created.name} created and both players assigned.` }), 303);
+      return NextResponse.redirect(redirectBack(request, "/admin/players", { success: `${created.name} created as an Executive pair entrant.` }), 303);
     }
 
     if (action === "create-player") {
       const requestedDivisionId = optionalText(data.divisionId);
       const teamId = optionalText(data.teamId);
+      const playerSex = sex(data.sex);
       const team = teamId ? await prisma.team.findUnique({ where: { id: teamId }, include: { division: true } }) : null;
-      if (teamId && (!team || team.division.tournamentId !== tournament.id)) throw new Error("Invalid team assignment.");
+      if (teamId && (!team || team.division.tournamentId !== tournament.id || team.division.entrantType !== "TEAM")) throw new Error("Players can only be roster-assigned to a Team Event team.");
       if (requestedDivisionId) {
         const division = await prisma.division.findUnique({ where: { id: requestedDivisionId } });
         if (!division || division.tournamentId !== tournament.id) throw new Error("Invalid division selection.");
+        if (division.sexCategory && division.sexCategory !== playerSex) throw new Error(`${division.name} only accepts ${division.sexCategory === "MALE" ? "male" : "female"} players.`);
         if (team && team.divisionId !== requestedDivisionId) throw new Error("Selected team does not belong to the selected division.");
       }
       const divisionId = team?.divisionId ?? requestedDivisionId;
@@ -305,7 +320,7 @@ export async function POST(request: Request) {
             middleInitial: optionalText(data.middleInitial, 10),
             lastName: text(data.lastName, "Last name", 60),
             displayName: optionalText(data.displayName, 80),
-            sex: sex(data.sex),
+            sex: playerSex,
             employmentType: employmentType(data.employmentType),
             office: optionalText(data.office, 120),
             tournamentId: tournament.id,
@@ -326,14 +341,20 @@ export async function POST(request: Request) {
       if (!before || before.tournamentId !== tournament.id) throw new Error("Player not found.");
       const nextTeamId = optionalText(data.teamId);
       const nextTeam = nextTeamId ? await prisma.team.findUnique({ where: { id: nextTeamId }, include: { division: true } }) : null;
-      if (nextTeamId && (!nextTeam || nextTeam.division.tournamentId !== tournament.id)) throw new Error("Invalid team assignment.");
+      if (nextTeamId && (!nextTeam || nextTeam.division.tournamentId !== tournament.id || nextTeam.division.entrantType !== "TEAM")) throw new Error("Players can only be roster-assigned to a Team Event team.");
       const nextParticipationStatus = participation(data.participationStatus || before.participationStatus);
+      const nextSex = sex(data.sex);
+      if (nextSex !== before.sex) {
+        const sexSpecificEntries = await prisma.divisionPlayer.findMany({ where: { playerId }, include: { division: { select: { name: true, sexCategory: true } } } });
+        const incompatible = sexSpecificEntries.find((entry) => entry.division.sexCategory && entry.division.sexCategory !== nextSex);
+        if (incompatible) throw new Error(`Remove this player from ${incompatible.division.name} before changing sex category.`);
+      }
       const next = {
         firstName: text(data.firstName, "First name", 60),
         middleInitial: optionalText(data.middleInitial, 10),
         lastName: text(data.lastName, "Last name", 60),
         displayName: optionalText(data.displayName, 80),
-        sex: sex(data.sex),
+        sex: nextSex,
         employmentType: employmentType(data.employmentType),
         office: optionalText(data.office, 120),
         isActive: data.isActive === "on",
@@ -366,6 +387,7 @@ export async function POST(request: Request) {
       const status = divisionStatus(data.status);
       const [player, division] = await Promise.all([prisma.player.findUnique({ where: { id: playerId } }), prisma.division.findUnique({ where: { id: divisionId } })]);
       if (!player || player.tournamentId !== tournament.id || !division || division.tournamentId !== tournament.id) throw new Error("Invalid player/division selection.");
+      if (division.sexCategory && player.sex !== division.sexCategory) throw new Error(`${division.name} only accepts ${division.sexCategory === "MALE" ? "male" : "female"} players.`);
       await prisma.$transaction(async (tx) => {
         if (status !== "CONFIRMED" && player.teamId) {
           const assignedTeam = await tx.team.findUnique({ where: { id: player.teamId } });
@@ -388,7 +410,7 @@ export async function POST(request: Request) {
         prisma.player.findUnique({ where: { id: playerAId } }),
         prisma.player.findUnique({ where: { id: playerBId } }),
       ]);
-      if (!team || team.division.tournamentId !== tournament.id || !playerA || !playerB || playerA.teamId !== teamId || playerB.teamId !== teamId) throw new Error("Both players must already be assigned to this team.");
+      if (!team || team.division.tournamentId !== tournament.id || team.division.entrantType !== "TEAM" || !playerA || !playerB || playerA.teamId !== teamId || playerB.teamId !== teamId) throw new Error("Team Event playing pairs require two players already rostered to the same Team Event team.");
       if (playerA.participationStatus !== "CONFIRMED" || playerB.participationStatus !== "CONFIRMED") throw new Error("Both players must be confirmed before creating an active pair.");
       const confirmedEntries = await prisma.divisionPlayer.count({
         where: { divisionId: team.divisionId, playerId: { in: [playerAId, playerBId] }, status: "CONFIRMED" },

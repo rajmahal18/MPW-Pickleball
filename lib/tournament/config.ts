@@ -1,20 +1,30 @@
-export const MVP_STAGE_POINTS = {
-  GROUP: { participation: 0, win: 1 },
-  ROUND_ROBIN: { participation: 0, win: 1 },
-  QUARTERFINAL: { participation: 0.5, win: 1.5 },
-  SEMIFINAL: { participation: 0.75, win: 2.25 },
-  THIRD_PLACE: { participation: 1, win: 2.5 },
-  FINAL: { participation: 1.5, win: 3.5 },
-  CUSTOM: { participation: 0, win: 1 },
+export const MVP_MIN_MATCHES = 3;
+
+export const MVP_COMPONENT_WEIGHTS = {
+  wins: 0.15,
+  winRate: 0.20,
+  participation: 0.10,
+  playoffImpact: 0.20,
+  strengthOfSchedule: 0.15,
+  pointDifferential: 0.15,
+  teamFinish: 0.05,
 } as const;
 
-export const MVP_TEAM_STAGE_BONUS = {
-  QUARTERFINAL: 0.25,
-  SEMIFINAL: 0.5,
-  THIRD_PLACE: 0.75,
-  FINAL: 1.25,
-  CHAMPION: 0.5,
+// Playoff impact rewards being selected for higher-leverage rounds and then delivering.
+// Group / round-robin matches still matter through wins, win rate, participation, SOS and PD.
+export const MVP_PLAYOFF_LEVERAGE = {
+  GROUP: { played: 0, win: 0 },
+  ROUND_ROBIN: { played: 0, win: 0 },
+  QUARTERFINAL: { played: 1, win: 1 },
+  SEMIFINAL: { played: 2, win: 2 },
+  THIRD_PLACE: { played: 2, win: 2 },
+  FINAL: { played: 3, win: 3 },
+  CUSTOM: { played: 0, win: 0 },
 } as const;
+
+// A legal playoff match can reach 15 under the tournament's win-by-2 / cap-15 rule.
+// Average point differential is mapped around zero: -15 => 0, 0 => 50, +15 => 100.
+export const MVP_POINT_DIFF_CAP = 15;
 
 export const VOTING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const VOTING_CODE_LENGTH = 10;

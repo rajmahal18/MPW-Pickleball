@@ -2,10 +2,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, isTerminalMatchupStatus } from "@/lib/tournament/standings";
 import { formatPlayerDisplayName } from "@/lib/player-name";
+import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
 
-export default async function TeamsPage() {
+export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ division?: string }> }) {
+  const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     orderBy: { createdAt: "desc" },
@@ -27,6 +29,7 @@ export default async function TeamsPage() {
                 include: { divisionEntries: { where: { status: "CONFIRMED" }, select: { divisionId: true } } },
                 orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
               },
+              pairs: { where: { isActive: true }, include: { playerA: true, playerB: true } },
             },
           },
           matchups: {
@@ -40,21 +43,25 @@ export default async function TeamsPage() {
   });
 
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-6">No published tournament.</main>;
-  const totalTeams = tournament.divisions.reduce((total, division) => total + division.teams.length, 0);
-  const totalGroups = tournament.divisions.reduce((total, division) => total + division.groups.filter((group) => division.teams.some((team) => team.groupId === group.id)).length, 0);
-  const showDivisionHeading = tournament.divisions.length > 1;
+  const selectedDivision = tournament.divisions.find((division) => division.slug === query.division || division.id === query.division) ?? tournament.divisions[0] ?? null;
+  const divisions = selectedDivision ? [selectedDivision] : [];
+  const totalTeams = selectedDivision?.teams.length ?? 0;
+  const totalGroups = selectedDivision?.groups.filter((group) => selectedDivision.teams.some((team) => team.groupId === group.id)).length ?? 0;
+  const pairMode = selectedDivision?.entrantType === "PAIR";
+  const showDivisionHeading = false;
 
   return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-10">
     <section className="public-hero">
       <div>
         <div className="public-kicker">Tournament field</div>
-        <h1 className="public-title">Teams</h1>
-        <div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalTeams} team{totalTeams === 1 ? "" : "s"}{totalGroups ? ` · ${totalGroups} group${totalGroups === 1 ? "" : "s"}` : ""}</div>
+        <h1 className="public-title">{pairMode ? "Pairs" : "Teams"}</h1>
+        <div className="mt-1.5 text-xs font-bold text-gray-500 md:mt-2 md:text-sm">{totalTeams} {pairMode ? `pair${totalTeams === 1 ? "" : "s"}` : `team${totalTeams === 1 ? "" : "s"}`}{totalGroups ? ` · ${totalGroups} group${totalGroups === 1 ? "" : "s"}` : ""}</div>
       </div>
     </section>
+    <EventTabs divisions={tournament.divisions} activeId={selectedDivision?.id ?? ""} basePath="/teams"/>
 
-    {tournament.divisions.length ? <div className="mt-4 space-y-8 md:mt-7 md:space-y-10">
-      {tournament.divisions.map((division) => {
+    {divisions.length ? <div className="mt-4 space-y-8 md:mt-7 md:space-y-10">
+      {divisions.map((division) => {
         const groupBlocks = division.groups.map((group) => {
           const teams = division.teams.filter((team) => team.groupId === group.id);
           const groupMatchups = division.matchups.filter((matchup) => matchup.groupLabel === group.name);
@@ -75,7 +82,7 @@ export default async function TeamsPage() {
               </div>
               <div className="space-y-2 p-2.5 md:p-3">
                 {group.teams.map((team) => {
-                  const players = team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === division.id));
+                  const players = division.entrantType === "PAIR" && team.pairs[0] ? [team.pairs[0].playerA, team.pairs[0].playerB] : team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === division.id));
                   const standing = group.standingByTeam.get(team.id);
                   const decided = group.groupMatchups.filter((matchup) => isTerminalMatchupStatus(matchup.status) && (matchup.homeTeamId === team.id || matchup.awayTeamId === team.id));
                   const matchupWins = decided.filter((matchup) => matchup.winnerTeamId === team.id).length;
@@ -87,17 +94,17 @@ export default async function TeamsPage() {
           </div> : null}
 
           {unassigned.length > 0 && <section className="mt-4 overflow-hidden rounded-xl border border-dashed border-line bg-white/80">
-            <div className="border-b border-line px-3 py-2.5"><div className="public-kicker">Awaiting group</div><h2 className="text-lg font-black">Unassigned teams</h2></div>
+            <div className="border-b border-line px-3 py-2.5"><div className="public-kicker">Awaiting group</div><h2 className="text-lg font-black">Unassigned {division.entrantType === "PAIR" ? "pairs" : "teams"}</h2></div>
             <div className="grid gap-2 p-2.5 md:grid-cols-2">{unassigned.map((team) => {
-              const players = team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === division.id));
+              const players = division.entrantType === "PAIR" && team.pairs[0] ? [team.pairs[0].playerA, team.pairs[0].playerB] : team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === division.id));
               return <TeamRow key={team.id} team={team} players={players} rankLabel={null} matchupWins={0} matchupLosses={0}/>;
             })}</div>
           </section>}
 
-          {!groupBlocks.length && !unassigned.length && <div className="public-empty">No public teams are configured in this division yet.</div>}
+          {!groupBlocks.length && !unassigned.length && <div className="public-empty">No public entrants are configured in this event yet.</div>}
         </section>;
       })}
-    </div> : <div className="public-empty mt-4 md:mt-6">No public divisions are configured right now.</div>}
+    </div> : <div className="public-empty mt-4 md:mt-6">No public events are configured right now.</div>}
   </main>;
 }
 

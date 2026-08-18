@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { areGroupMatchupsComplete, computeStandings, qualificationOutcomes } from "@/lib/tournament/standings";
 import StandingsTable from "@/components/StandingsTable";
 import TournamentSync from "@/components/TournamentSync";
+import EventTabs from "@/components/EventTabs";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 
 export const dynamic = "force-dynamic";
 
-export default async function GroupsIndexPage() {
+export default async function GroupsIndexPage({ searchParams }: { searchParams: Promise<{ division?: string }> }) {
+  const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     orderBy: { createdAt: "desc" },
@@ -27,13 +29,16 @@ export default async function GroupsIndexPage() {
   });
 
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">No published tournament.</main>;
-  const divisions = tournament.divisions.filter((division) => division.groups.length > 0);
+  const allDivisions = tournament.divisions;
+  const selected = allDivisions.find((division) => division.slug === query.division || division.id === query.division) ?? allDivisions[0] ?? null;
+  const divisions = selected && selected.groups.length > 0 ? [selected] : [];
   const revision = await getPublicTournamentRevision(tournament.id);
 
   return (
     <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">
       <TournamentSync initialRevision={revision} />
       <section className="public-hero"><div><div className="public-kicker">Group stage</div><h1 className="public-title">Groups</h1><p className="public-lede">See the race at a glance. Once group play is final, green teams advance and red teams are eliminated.</p></div><Link href="/format" className="btn-ghost hidden rounded-lg md:inline-flex">Format guide</Link></section>
+      <EventTabs divisions={allDivisions} activeId={selected?.id ?? ""} basePath="/groups"/>
 
       {divisions.length ? (
         <div className="mt-4 space-y-6 md:mt-7 md:space-y-8">
@@ -52,7 +57,7 @@ export default async function GroupsIndexPage() {
           })}
         </div>
       ) : (
-        <div className="public-empty mt-6">No public group-stage divisions are configured right now.</div>
+        <div className="public-empty mt-6">No groups are configured for this event yet.</div>
       )}
     </main>
   );

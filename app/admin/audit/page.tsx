@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/login");
+  if (!user || user.role !== "SUPERADMIN") redirect("/login");
 
   const query = await searchParams;
   const pageSize = 50;
@@ -29,7 +29,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   if (totalLogs > 0 && page > totalPages) redirect(pageHref(totalPages));
 
   return <main className="admin-shell">
-    <AdminNav />
+    <AdminNav role={user.role}/>
     <div className="label">Immutable operational history</div>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <h1 className="text-3xl font-black uppercase md:text-4xl">Audit Logs</h1>

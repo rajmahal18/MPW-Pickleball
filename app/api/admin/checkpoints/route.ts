@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireSuperadmin } from "@/lib/permissions";
 import { requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot, restoreTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { writeAudit } from "@/lib/audit";
@@ -10,7 +10,7 @@ import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorit
 const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
 
 export async function POST(request: Request) {
-  const user = await requireAdmin();
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const data = await requestData(request);
   const action = String(data.action || "create");

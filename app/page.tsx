@@ -4,7 +4,7 @@ import StandingsTable from "@/components/StandingsTable";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { prisma } from "@/lib/prisma";
 import { areGroupMatchupsComplete, computeStandings, qualificationOutcomes, selectDivisionQualifiers } from "@/lib/tournament/standings";
-import { calculateMvpRankings } from "@/lib/tournament/mvp";
+import { calculateMvpRankings, resolveMvpAward } from "@/lib/tournament/mvp";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
@@ -47,12 +47,13 @@ export default async function Home() {
   });
   if (!tournament) return <main className="public-page mx-auto max-w-7xl p-6">Run the seed script first.</main>;
 
+  const mvpDivision = tournament.divisions[0] ?? null;
   const championFinals = tournament.divisions.flatMap((division) => division.matchups
     .filter((matchup) => matchup.stage === "FINAL" && matchup.winnerTeamId && matchup.winnerTeam && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"))
     .map((matchup) => ({ division, matchup })));
   const championTeamIds = championFinals.map(({ matchup }) => matchup.winnerTeamId!).filter(Boolean);
 
-  const [live, upcoming, fanSnapshot, mvpGames, championPlayers, revision] = await Promise.all([
+  const [live, upcoming, fanSnapshot, mvpGames, championPlayers, mvpSelections, revision] = await Promise.all([
     prisma.game.findMany({
       where: { status: { in: ["LIVE", "INTERRUPTED"] }, matchup: { tournamentId: tournament.id, division: { isPublic: true } } },
       select: {
@@ -68,7 +69,7 @@ export default async function Home() {
     prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: true, awayTeam: true }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
     getFanFavoriteSnapshot(tournament.id),
     prisma.game.findMany({
-      where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } }, status: { in: ["COMPLETED", "FORFEITED"] } },
+      where: { matchup: { tournamentId: tournament.id, ...(mvpDivision ? { divisionId: mvpDivision.id } : { division: { isPublic: true } }) }, status: { in: ["COMPLETED", "FORFEITED"] } },
       include: {
         matchup: { select: { stage: true } },
         homePair: { include: { playerA: { include: { team: true } }, playerB: { include: { team: true } } } },
@@ -76,10 +77,23 @@ export default async function Home() {
       },
     }),
     prisma.player.findMany({
-      where: { teamId: { in: championTeamIds }, isActive: true, participationStatus: "CONFIRMED" },
-      select: { id: true, teamId: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true },
+      where: {
+        isActive: true,
+        participationStatus: "CONFIRMED",
+        OR: [
+          { teamId: { in: championTeamIds } },
+          { pairAsA: { some: { isActive: true, teamId: { in: championTeamIds } } } },
+          { pairAsB: { some: { isActive: true, teamId: { in: championTeamIds } } } },
+        ],
+      },
+      select: {
+        id: true, teamId: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true,
+        pairAsA: { where: { isActive: true, teamId: { in: championTeamIds } }, select: { teamId: true } },
+        pairAsB: { where: { isActive: true, teamId: { in: championTeamIds } }, select: { teamId: true } },
+      },
       orderBy: [{ sex: "asc" }, { firstName: "asc" }, { lastName: "asc" }],
     }),
+    mvpDivision ? prisma.mvpSelection.findMany({ where: { tournamentId: tournament.id, divisionId: mvpDivision.id }, select: { sexCategory: true, playerId: true } }) : Promise.resolve([]),
     getPublicTournamentRevision(tournament.id),
   ]);
 
@@ -106,14 +120,17 @@ export default async function Home() {
     division,
     matchups: division.matchups.filter((matchup) => KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
   })).filter(({ division, matchups }) => division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION" || matchups.length > 0);
-  const mvpMatchups = tournament.divisions.flatMap((division) => division.matchups.map((matchup) => ({
+  const mvpMatchups = (mvpDivision?.matchups ?? []).map((matchup) => ({
     stage: matchup.stage,
     homeTeamId: matchup.homeTeamId,
     awayTeamId: matchup.awayTeamId,
     winnerTeamId: matchup.winnerTeamId,
     status: matchup.status,
-  })));
+  }));
   const mvp = calculateMvpRankings(mvpGames, mvpMatchups);
+  const mvpSelectionBySex = new Map(mvpSelections.map((selection) => [selection.sexCategory, selection.playerId]));
+  const maleMvpState = resolveMvpAward(mvp.male, mvpSelectionBySex.get("MALE") ?? null);
+  const femaleMvpState = resolveMvpAward(mvp.female, mvpSelectionBySex.get("FEMALE") ?? null);
 
   return <main className="public-page"><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
     <div className="relative">
@@ -126,9 +143,9 @@ export default async function Home() {
       key={matchup.id}
       divisionName={division.name}
       team={matchup.winnerTeam!}
-      players={championPlayers.filter((player) => player.teamId === matchup.winnerTeamId)}
-      maleMvp={mvp.male[0]}
-      femaleMvp={mvp.female[0]}
+      players={championPlayers.filter((player) => player.teamId === matchup.winnerTeamId || player.pairAsA.some((pair) => pair.teamId === matchup.winnerTeamId) || player.pairAsB.some((pair) => pair.teamId === matchup.winnerTeamId))}
+      maleMvp={division.id === mvpDivision?.id ? maleMvpState.winner : undefined}
+      femaleMvp={division.id === mvpDivision?.id ? femaleMvpState.winner : undefined}
       maleFan={maleFanLeader}
       femaleFan={femaleFanLeader}
       championImageUrl={division.championImageTeamId === matchup.winnerTeamId ? division.championImageUrl : null}
@@ -148,7 +165,7 @@ export default async function Home() {
     </section>}
 
     <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <article key={matchup.id} className="panel flex items-center justify-between gap-3 p-4 hover:border-emerald-400"><div className="min-w-0"><Link href={`/matches/${matchup.id}`} className="label hover:text-court">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</Link><div className="mt-1 flex flex-wrap items-baseline gap-x-2 font-black">{matchup.homeTeam ? <Link href={`/teams/${matchup.homeTeam.id}`} className="hover:text-court">{matchup.homeTeam.name}</Link> : <span>TBD</span>}<span className="text-gray-400">vs</span>{matchup.awayTeam ? <Link href={`/teams/${matchup.awayTeam.id}`} className="hover:text-court">{matchup.awayTeam.name}</Link> : <span>TBD</span>}</div><div className="text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><div className="flex shrink-0 flex-col items-end gap-2"><StatusBadge status={matchup.status} compact/><Link href={`/matches/${matchup.id}`} className="text-[10px] font-black uppercase tracking-wider text-court hover:text-ink">Open →</Link></div></article>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Public voting</div><h2 className="text-2xl font-black">Fan Favorite</h2></div></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
-    <section><div className="mb-4"><div className="label">MVP</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(mvp.male[0] || mvp.female[0]) ? <MythicalPairPoster male={mvp.male[0]} female={mvp.female[0]} compact/> : <div className="panel p-6 text-sm text-gray-500">No completed matches yet.</div>}</section>
+    <section><div className="mb-4"><div className="label">MVP · {mvpDivision?.name ?? "Current event"}</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(maleMvpState.winner || femaleMvpState.winner) ? <MythicalPairPoster male={maleMvpState.winner} female={femaleMvpState.winner} compact/> : <div className="panel p-6 text-sm text-gray-500">{mvp.male.length || mvp.female.length ? (maleMvpState.pendingOrganizerSelection || femaleMvpState.pendingOrganizerSelection ? "The formal MVP lead is a locked-pair tie awaiting organizer selection. Open the MVP rankings for details." : "The current MVP lead is tied provisionally. Both candidates remain visible in the MVP rankings.") : "No completed matches yet."}</div>}</section>
   </div></main>;
 }
 

@@ -76,7 +76,7 @@ Do not use `prisma db push` for an existing environment. See [docs/MIGRATIONS.md
 Development-only credentials created by `npm run db:seed`:
 
 - Admin: `admin@mpw.test` / `admin123`
-- Open Division team leaders: `leader1@mpw.test` through `leader12@mpw.test` / `leader123`
+- Team Event team-manager test accounts: `leader1@mpw.test` through `leader12@mpw.test` / `leader123`
 
 Change/remove seeded credentials before a real event.
 

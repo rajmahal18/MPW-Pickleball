@@ -36,12 +36,14 @@ export default function GroupAssignmentBoard({
   teams,
   futureGroupMatchupCount,
   assignmentLocked,
+  entrantLabel = "team",
 }: {
   divisionId: string;
   groups: GroupOption[];
   teams: TeamOption[];
   futureGroupMatchupCount: number;
   assignmentLocked: boolean;
+  entrantLabel?: "team" | "pair";
 }) {
   const router = useRouter();
   const baseColumns = useMemo(() => buildColumns(groups, teams), [groups, teams]);
@@ -142,7 +144,7 @@ export default function GroupAssignmentBoard({
       <div>
         <div className="label text-court">Draw helper</div>
         <h3 className="mt-1 text-lg font-black uppercase text-ink">Group assignment board</h3>
-        <p className="mt-1 max-w-3xl text-sm text-gray-600">Drag teams between groups on desktop. On touch screens, tap a team and choose where to move it.</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-600">Drag {entrantLabel === "pair" ? "pairs" : "teams"} between groups on desktop. On touch screens, tap a {entrantLabel} and choose where to move it.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => { setColumns(baseColumns); setSelectedId(null); setMessage(""); setError(""); }} disabled={!dirty || saving} className="btn-ghost min-h-10 rounded-md px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"><RotateCcw className="h-4 w-4"/>Reset</button>
@@ -171,7 +173,7 @@ export default function GroupAssignmentBoard({
                 {destinations.filter((item) => item.id !== destination.id).map((item) => <button key={item.id} type="button" onClick={() => moveTeam(team.id, item.id)} className="rounded-md border border-line bg-white px-2.5 py-1.5 text-[10px] font-black text-ink hover:border-court hover:text-court">{item.name}</button>)}
               </div>}
             </div>;
-          })}{!ids.length && <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-xs text-gray-400">Drop teams here</div>}</div>
+          })}{!ids.length && <div className="rounded-md border border-dashed border-line px-3 py-5 text-center text-xs text-gray-400">Drop {entrantLabel === "pair" ? "pairs" : "teams"} here</div>}</div>
         </div>;
       })}
     </div>

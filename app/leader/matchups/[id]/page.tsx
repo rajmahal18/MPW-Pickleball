@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Lineup({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; success?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "TEAM_LEADER" || !user.teamId) redirect("/login");
+  if (!user || user.role !== "TEAM_MANAGER" || !user.teamId) redirect("/login");
   const { id } = await params;
   const query = await searchParams;
   const matchup = await prisma.matchup.findUnique({

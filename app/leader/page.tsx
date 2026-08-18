@@ -20,7 +20,7 @@ function matchupContext(matchup: { groupLabel: string | null; stage: string; rou
 
 export default async function Leader({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "TEAM_LEADER" || !user.teamId) redirect("/login");
+  if (!user || user.role !== "TEAM_MANAGER" || !user.teamId) redirect("/login");
   const query = await searchParams;
   const matchups = await prisma.matchup.findMany({
     where: { OR: [{ homeTeamId: user.teamId }, { awayTeamId: user.teamId }] },
@@ -95,7 +95,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     <TournamentSync initialRevision={revision} />
     <FlashMessage {...query}/>
     <div>
-      <div className="label">Team leader portal</div><h1 className="text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Only your next unfinished matchup in the court schedule is open for lineup work. Later matchups unlock automatically after the earlier one is completed.</p>
+      <div className="label">Team manager portal</div><h1 className="text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Only your next unfinished matchup in the court schedule is open for lineup work. Later matchups unlock automatically after the earlier one is completed.</p>
     </div>
 
     <section className="mt-4 md:mt-6">

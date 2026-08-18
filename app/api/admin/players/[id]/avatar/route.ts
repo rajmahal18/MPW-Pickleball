@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/permissions";
+import { requireSuperadmin } from "@/lib/permissions";
 import { assertSameOrigin, redirectBack } from "@/lib/request";
 import { saveAvatar } from "@/lib/avatar-storage";
 import { writeAudit } from "@/lib/audit";
@@ -8,7 +8,7 @@ import { writeAudit } from "@/lib/audit";
 export const runtime = "nodejs";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdmin();
+  const user = await requireSuperadmin();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
   const { id } = await params;
   try {

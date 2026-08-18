@@ -21,6 +21,8 @@ Short-notice organizer changes are a normal operating condition, especially for 
 
 3. **Executive attendance is uncertain by design.**
    - Treat late confirmations, no-shows, withdrawals, pair changes, group changes, and canceled unplayed teams as ordinary flows.
+   - Executive divisions use fixed `PAIR` entrants. `Division.sexCategory` is the source of truth for Men’s/Women’s restrictions; never infer eligibility from a display name or slug.
+   - Executive pair membership is separate from `Player.teamId`, which remains the Team Event roster assignment. A player may participate in Team Event and an Executive pair without being moved between them.
    - Prefer admin actions that can be completed through UI, not direct SQL/Prisma Studio.
    - Removing an unplayed team must return its players to the pool; never delete Player records as cleanup.
 
@@ -35,7 +37,8 @@ Short-notice organizer changes are a normal operating condition, especially for 
    - Do not count a player as having played just because they exist in the pool or were once assigned.
 
 6. **Keep unrelated features intact.**
-   - Do not remove or weaken MVP, Fan Favorite, scoring, audit logs, checkpoints/undo, simulation, avatars, public pages, or team-leader lineups unless a requested change explicitly involves them.
+   - Do not remove or weaken MVP, Fan Favorite, scoring, audit logs, checkpoints/undo, simulation, avatars, public pages, or Team Manager lineups unless a requested change explicitly involves them.
+   - Preserve role boundaries server-side: `SUPERADMIN` owns setup/master/system controls, `ADMIN` operates live scoring only, and `TEAM_MANAGER` submits lineups only for its assigned Team Event team.
 
 7. **Dynamic public guidance.**
    - `/format` must describe the live Division/Matchup configuration.
