@@ -1,12 +1,11 @@
-import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Matchup } from "@prisma/client";
 import { compareStandingRows, computeStandings, qualificationOutcomes, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
 import { calculateMvpRankings, organizerSelectionTie, resolveMvpAward } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
-import { qrMatrix } from "../lib/qr";
 import { normalizeVotingCode } from "../lib/tournament/voting";
+import { deviceTypeFromUserAgent, normalizeReferrerHost, normalizeTrackedPath } from "../lib/visitor-analytics";
 import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
 import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
@@ -394,17 +393,24 @@ test("simulation RNG is deterministic", () => {
   assert.deepEqual([first(), first(), first()], [second(), second(), second()]);
 });
 
-test("printed voting codes normalize and render a Version 1 QR matrix", () => {
+test("printed voting codes normalize consistently", () => {
   assert.equal(normalizeVotingCode("abcde-23456"), "ABCDE23456");
-  const matrix = qrMatrix("ABCDE23456");
-  assert.equal(matrix.length, 21);
-  assert.ok(matrix.every((row) => row.length === 21));
-  assert.equal(matrix[0]![0], true);
-  assert.equal(matrix[6]![6], true);
-  const fingerprint = createHash("sha256").update(matrix.flat().map((value) => value ? "1" : "0").join("")).digest("hex");
-  assert.equal(fingerprint, "ba19963d9a31e33b98d257d3124e09b2a0e54e5c699d2753909eff3027237543");
 });
 
+test("visitor analytics accepts only normalized public paths", () => {
+  assert.equal(normalizeTrackedPath("/fan-favorite"), "/fan-favorite");
+  assert.equal(normalizeTrackedPath("/players/abc"), "/players/abc");
+  assert.equal(normalizeTrackedPath("/admin"), null);
+  assert.equal(normalizeTrackedPath("/fan-favorite?code=SECRET"), null);
+});
+
+test("visitor analytics stores only external host and coarse device type", () => {
+  assert.equal(normalizeReferrerHost("https://facebook.com/groups/example?post=123", "mpwdinkanddash.cotabatopickleball.com"), "facebook.com");
+  assert.equal(normalizeReferrerHost("https://mpwdinkanddash.cotabatopickleball.com/fan-favorite", "mpwdinkanddash.cotabatopickleball.com"), null);
+  assert.equal(deviceTypeFromUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile"), "MOBILE");
+  assert.equal(deviceTypeFromUserAgent("Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)"), "TABLET");
+  assert.equal(deviceTypeFromUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"), "DESKTOP");
+});
 test("player names render official full names without nulls or double spaces", () => {
   assert.equal(formatPlayerFullName({ firstName: "Ryan Ibrahim", middleInitial: "L", lastName: "Elias" }), "Ryan Ibrahim L. Elias");
   assert.equal(formatPlayerFullName({ firstName: "Jihan", middleInitial: null, lastName: "Arimao" }), "Jihan Arimao");

@@ -281,6 +281,7 @@ export async function restoreTournamentSnapshot(
         id: String(value.id),
         tournamentId,
         ipHash: String(value.ipHash),
+        visitorKey: (value.visitorKey as string | null) ?? null,
         codeHint: (value.codeHint as string | null) ?? null,
         success: Boolean(value.success),
         reason: (value.reason as string | null) ?? null,

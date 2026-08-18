@@ -19,12 +19,21 @@ export type FanFavoritePublicRanking = {
   player?: FanFavoritePublicPlayer;
 };
 
+export type FanFavoriteTeamSupport = {
+  team: { id: string; name: string; shortName: string };
+  votes: number;
+  percentage: number;
+  maleVotes: number;
+  femaleVotes: number;
+};
+
 export type FanFavoritePublicSnapshot = {
   votingOpen: boolean;
   votingDeadline: string | null;
   totalVotes: number;
   totalsBySex: { male: number; female: number };
   rankingsBySex: { male: FanFavoritePublicRanking[]; female: FanFavoritePublicRanking[] };
+  teamSupport: FanFavoriteTeamSupport[];
   updatedAt: string;
 };
 
@@ -57,15 +66,16 @@ async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavorit
     }),
   ]);
 
-  const players = grouped.length ? await prisma.player.findMany({
+  const players = await prisma.player.findMany({
     where: {
-      id: { in: grouped.map((row) => row.playerId) },
+      tournamentId,
       isActive: true,
       participationStatus: "CONFIRMED",
+      teamId: { not: null },
       team: { division: { isPublic: true } },
     },
     select: playerSelect,
-  }) : [];
+  });
 
   const playerById = new Map(players.map((player) => [player.id, player]));
   const publicGrouped = grouped.filter((row) => playerById.has(row.playerId));
@@ -94,15 +104,41 @@ async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavorit
       });
   }
 
+  const totalVotes = maleTotal + femaleTotal;
+  const teamSupportMap = new Map<string, FanFavoriteTeamSupport>();
+  for (const player of players) {
+    if (!player.team || teamSupportMap.has(player.team.id)) continue;
+    teamSupportMap.set(player.team.id, { team: player.team, votes: 0, percentage: 0, maleVotes: 0, femaleVotes: 0 });
+  }
+  for (const row of publicGrouped) {
+    const player = playerById.get(row.playerId);
+    if (!player?.team) continue;
+    const existing = teamSupportMap.get(player.team.id) ?? {
+      team: player.team,
+      votes: 0,
+      percentage: 0,
+      maleVotes: 0,
+      femaleVotes: 0,
+    };
+    existing.votes += row._count._all;
+    if (row.sexCategory === "MALE") existing.maleVotes += row._count._all;
+    if (row.sexCategory === "FEMALE") existing.femaleVotes += row._count._all;
+    teamSupportMap.set(player.team.id, existing);
+  }
+  const teamSupport = Array.from(teamSupportMap.values())
+    .map((row) => ({ ...row, percentage: totalVotes ? Math.round((row.votes / totalVotes) * 1000) / 10 : 0 }))
+    .sort((a, b) => b.votes - a.votes || a.team.shortName.localeCompare(b.team.shortName));
+
   return {
     votingOpen: Boolean(tournament?.votingOpen && (!tournament.votingDeadline || tournament.votingDeadline > new Date())),
     votingDeadline: tournament?.votingDeadline?.toISOString() ?? null,
-    totalVotes: maleTotal + femaleTotal,
+    totalVotes,
     totalsBySex: { male: maleTotal, female: femaleTotal },
     rankingsBySex: {
       male: rankingsFor("MALE", maleTotal),
       female: rankingsFor("FEMALE", femaleTotal),
     },
+    teamSupport,
     updatedAt: new Date().toISOString(),
   };
 }

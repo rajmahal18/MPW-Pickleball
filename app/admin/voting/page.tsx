@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import AdminNav from "@/components/AdminNav";
 import FlashMessage from "@/components/FlashMessage";
-import QrCode from "@/components/QrCode";
 import PrintButton from "@/components/PrintButton";
 import SubmitButton from "@/components/SubmitButton";
 import FanFavoriteAdminLive from "@/components/FanFavoriteAdminLive";
@@ -65,7 +64,7 @@ export default async function VotingAdmin({ searchParams }: { searchParams: Prom
 
     <FanFavoriteAdminLive initialSnapshot={liveSnapshot}/>
 
-    {printable.length > 0 && <section className="print-sheet mt-6"><div className="no-print mb-3 flex items-center justify-between"><h2 className="text-xl font-black uppercase">New manual codes — print now</h2><PrintButton/></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{printable.map((code, index) => <article key={`${code}-${index}`} className="break-inside-avoid border-2 border-ink bg-white p-4 text-center"><div className="label">MPW Fan Favorite Vote</div><div className="mx-auto my-3 w-fit"><QrCode value={code.replaceAll("-", "")} size={150}/></div><div className="font-mono text-2xl font-black tracking-widest">{code}</div><p className="mt-2 text-xs">Scan the QR or enter this backup code at the Fan Favorite page. Select one male player and one female player.</p></article>)}</div></section>}
+    {printable.length > 0 && <section className="print-sheet mt-6"><div className="no-print mb-3 flex items-center justify-between"><h2 className="text-xl font-black uppercase">New manual codes — print now</h2><PrintButton/></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{printable.map((code, index) => <article key={`${code}-${index}`} className="break-inside-avoid border-2 border-ink bg-white p-5 text-center"><div className="label">MPW Fan Favorite Vote</div><div className="my-5 font-mono text-3xl font-black tracking-widest">{code}</div><p className="text-xs leading-5">Enter this code on the Fan Favorite page, then select one male player and one female player.</p></article>)}</div></section>}
 
     <details className="panel mt-6 overflow-hidden">
       <summary className="cursor-pointer p-4 font-black uppercase">Manual / printable codes <span className="ml-2 text-xs font-semibold normal-case text-gray-500">Legacy attendance-style codes</span></summary>

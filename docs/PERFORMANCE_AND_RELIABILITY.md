@@ -109,7 +109,7 @@ Current image usage is lightweight:
 
 - main public visual is a local static hero background;
 - avatars use the existing `PlayerAvatar` fallback behavior;
-- QR codes and small icons are not routed through heavy image optimization.
+- Small interface icons are not routed through heavy image optimization.
 
 Future image-heavy changes should reserve aspect ratios and avoid loading full-resolution assets for avatar thumbnails.
 

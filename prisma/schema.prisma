@@ -132,6 +132,7 @@ model Tournament {
   checkpoints    Checkpoint[]
   auditLogs      AuditLog[]
   mvpSelections  MvpSelection[]
+  pageViews      PageView[]
 
   @@index([isPublished])
 }
@@ -496,12 +497,29 @@ model VoteAttempt {
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   ipHash       String
+  visitorKey   String?
   codeHint     String?
   success      Boolean    @default(false)
   reason       String?
   createdAt    DateTime   @default(now())
 
   @@index([tournamentId, ipHash, success, createdAt])
+  @@index([tournamentId, visitorKey, success, createdAt])
+}
+
+model PageView {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  visitorKey   String
+  path         String
+  referrerHost String?
+  deviceType   String
+  createdAt    DateTime   @default(now())
+
+  @@index([tournamentId, createdAt])
+  @@index([tournamentId, path, createdAt])
+  @@index([tournamentId, visitorKey, createdAt])
 }
 
 model SimulationRun {

@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { Heart } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import FanFavoriteExperience from "@/components/FanFavoriteExperience";
@@ -37,10 +38,10 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
     getFanFavoriteSnapshot(tournament.id),
   ]) : [[], undefined];
 
-  const eligiblePlayers = players.filter((player) => player.team).map((player) => ({
+  const eligiblePlayers = shuffleForPageLoad(players.filter((player) => player.team).map((player) => ({
     ...player,
     team: { id: player.team!.id, name: player.team!.name, shortName: player.team!.shortName },
-  }));
+  })));
 
   return <main className="public-page mx-auto max-w-7xl px-4 py-6 md:py-10">
     <section className="mb-6 flex flex-col gap-4 border-b border-line pb-6 md:mb-8 md:flex-row md:items-end md:justify-between md:pb-8">
@@ -49,4 +50,14 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
     </section>
     <FanFavoriteExperience players={eligiblePlayers} initialCode={query.code || ""} initialSnapshot={initialSnapshot}/>
   </main>;
+}
+
+
+function shuffleForPageLoad<T>(items: T[]) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }

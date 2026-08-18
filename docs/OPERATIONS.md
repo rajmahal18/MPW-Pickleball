@@ -28,7 +28,7 @@ The server verifies ownership, division eligibility, confirmed attendance, the e
 1. Admin opens **Fan Favorite Voting**.
 2. Generate a batch of up to 100 codes and print the card sheet immediately.
 3. Mark codes as issued when distributing them, or generate them already issued.
-4. An attendee selects one eligible player and enters or scans one code.
+4. An attendee selects the eligible Fan Favorite picks and enters one voting code.
 5. The transaction checks tournament state, player eligibility, code hash, and code status.
 6. The code is atomically moved to `USED` and one vote is created.
 7. Reused, revoked, replaced, invalid, or raced submissions are rejected and recorded.

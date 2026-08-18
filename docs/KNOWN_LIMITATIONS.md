@@ -17,13 +17,12 @@ A dependency-independent TypeScript compiler syntax pass was run across all `.ts
 
 - Point-by-point timed simulation with background pause/resume/cancel is not implemented; simulations are transactional, deterministic, and instant.
 - Fan Favorite rank movement over time is not shown because historical ranking snapshots are not stored.
-- The QR generator is intentionally limited to the short alphanumeric voting-code payload used by this application.
 - The in-memory rate limiter is suitable for one Node process only. Use a shared limiter before horizontally scaling.
 - Checkpoint restoration intentionally restores tournament activity, score-event history, voting codes, votes, and vote-attempt history—not users, teams, players, pairs, audit logs, or uploaded avatar files.
 - “Reset everything except users” preserves the current master teams, players, and pairs rather than deleting and recreating them, which avoids breaking account links.
 - Full factory reset cannot retain an in-database checkpoint because it deletes the tournament and user records that own checkpoints. Take a PostgreSQL backup first.
 - Existing prototype player sex values are inferred from the original `playerA`/`playerB` mixed-pair convention during migration and must be reviewed before a real event.
 - The MVP model uses game results and opponent records; it cannot distinguish shot-level individual contribution within a locked pair.
-- Browser QR scanning depends on `BarcodeDetector`; unsupported browsers must use the printed backup code.
+- Visitor analytics uses an anonymous browser cookie for approximate uniqueness; clearing cookies or switching browsers/devices creates a new visitor identity.
 
 Run the complete verification checklist in the README before deployment and do not treat the application as production-ready until the build, migrations, and critical workflows pass against a disposable PostgreSQL database.

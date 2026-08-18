@@ -121,3 +121,13 @@ Short-notice organizer changes are a normal operating condition, especially for 
 - Venue voters may share one NAT/public IP. Do not restore a very low per-IP Fan Favorite limit that blocks legitimate crowd traffic; preserve layered flood/code protections.
 - Public motion is restrained and one-shot. Respect `prefers-reduced-motion`; do not add blanket entrance animation to every row/card or animation that delays tournament information.
 - UUID avatar/champion media URLs are immutable and should keep long browser caching. Stream large media rather than buffering the whole file in Node memory.
+
+## Fan Favorite fairness + visitor analytics rules — 2026-08-18
+
+- Fan Favorite has a 30-second per-browser cooldown that starts **only after a successful accepted vote**. Invalid/reused/rejected code attempts must not start or extend that cooldown. Keep broad IP/global/code flood protection separate because venue voters may share one NAT IP.
+- Candidate shuffling is presentation-only and occurs on a real Fan Favorite page request/refresh. Never persist shuffled order or let client re-renders/polling continuously reshuffle the ballot.
+- Voting is code-based. Do not restore QR scanning/rendering unless organizers explicitly request QR voting again.
+- Public Support by Team / District means votes grouped by the **receiving player's team**. It is not voter geography, identity, or affiliation.
+- Visitor analytics must remain lightweight and first-party: anonymous browser key, normalized public path, coarse device type, external referrer host, timestamp. Do not add raw IP retention, fingerprinting, precise location, query-string capture, or invasive identity tracking.
+- MVP presentation may be simplified, but the current formula, 3-match eligibility rule, provisional behavior, and locked-pair organizer-selection rule are authoritative. Keep the exact formula accessible in the public app.
+

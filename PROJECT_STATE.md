@@ -1,3 +1,15 @@
+# 2026-08-18 Fan Favorite fairness / MVP UI / visitor analytics patch
+
+- Fan Favorite now enforces a **30-second cooldown per anonymous browser only after a successfully accepted vote**. Invalid, reused, unreleased, revoked, or otherwise rejected codes do not start the cooldown. Broad IP/global/code flood guards remain separate.
+- Fan Favorite candidate order is shuffled server-side on each real page request/refresh. This changes display order only; player IDs, teams, vote counts, rankings, and stored data are untouched.
+- Removed the QR-scanning/rendering workflow. Voting remains code-based through typed/copied public or manual codes.
+- Added a public **Support by Team / District** breakdown. It groups valid votes by the team of the player who received the vote; it does not infer or collect the voter's team/location.
+- MVP scoring math, eligibility, and locked-pair rules are unchanged. The MVP UI now uses compact ranking rows, a single shared locked-pair tie presentation, and expandable factor/formula details instead of repetitive criterion cards.
+- Added lightweight first-party **Superadmin visitor analytics**: page views, approximate unique visitors, hourly traffic, top public pages, coarse device mix, and external referrer host. No raw IP, names, query strings, or full referrer URLs are stored.
+- Visitor analytics and successful-vote cooldown share the same anonymous browser identifier. The additive migration introduces `VoteAttempt.visitorKey` and the `PageView` table.
+
+---
+
 # 2026-08-18 Multi-event / roles / MVP patch
 
 - Preserved the existing Team Event workflow while making public and admin surfaces division/event-aware. Public Matches, Groups, Bracket, Players, Teams, and MVP surfaces can switch between **Team Event**, **Men’s Executive**, and **Women’s Executive** through event tabs.

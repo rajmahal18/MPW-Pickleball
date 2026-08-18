@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Check, Copy, Crown, Heart, ScanLine, Ticket, Trophy, Vote } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Check, Copy, Crown, Heart, Ticket, Trophy, Users, Vote } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
-import { FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS, FAN_FAVORITE_CODE_POLL_INTERVAL_MS, FAN_FAVORITE_POLL_INTERVAL_MS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
+import { FAN_FAVORITE_CLOSED_POLL_INTERVAL_MS, FAN_FAVORITE_CODE_POLL_INTERVAL_MS, FAN_FAVORITE_POLL_INTERVAL_MS, FAN_FAVORITE_VOTE_COOLDOWN_SECONDS, PUBLIC_POLL_JITTER_RATIO } from "@/lib/tournament/config";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import { PickleballPosterDecor, TournamentPosterBrand } from "@/components/TournamentPosterBrand";
 import type { PublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
@@ -23,6 +23,7 @@ export type FanFavoritePlayer = {
 
 type Player = FanFavoritePlayer;
 export type FanFavoriteRanking = { rank: number; votes: number; percentage: number; player?: Player };
+export type FanFavoriteTeamSupport = { team: { id: string; name: string; shortName: string }; votes: number; percentage: number; maleVotes: number; femaleVotes: number };
 type Ranking = FanFavoriteRanking;
 export type FanFavoriteSnapshot = {
   votingOpen: boolean;
@@ -30,13 +31,14 @@ export type FanFavoriteSnapshot = {
   totalVotes: number;
   totalsBySex: { male: number; female: number };
   rankingsBySex: { male: Ranking[]; female: Ranking[] };
+  teamSupport: FanFavoriteTeamSupport[];
   updatedAt: string;
 };
 
 export default function FanFavoriteExperience({ players, initialCode = "", initialSnapshot }: { players: Player[]; initialCode?: string; initialSnapshot?: FanFavoriteSnapshot }) {
   const malePlayers = useMemo(() => players.filter((player) => player.sex === "MALE"), [players]);
   const femalePlayers = useMemo(() => players.filter((player) => player.sex === "FEMALE"), [players]);
-  const [snapshot, setSnapshot] = useState<FanFavoriteSnapshot>(initialSnapshot ?? { votingOpen: false, votingDeadline: null, totalVotes: 0, totalsBySex: { male: 0, female: 0 }, rankingsBySex: { male: [], female: [] }, updatedAt: new Date().toISOString() });
+  const [snapshot, setSnapshot] = useState<FanFavoriteSnapshot>(initialSnapshot ?? { votingOpen: false, votingDeadline: null, totalVotes: 0, totalsBySex: { male: 0, female: 0 }, rankingsBySex: { male: [], female: [] }, teamSupport: [], updatedAt: new Date().toISOString() });
   const [activeTab, setActiveTab] = useState<"VOTE" | "CODES">("VOTE");
   const [selectedMaleId, setSelectedMaleId] = useState(malePlayers[0]?.id || "");
   const [selectedFemaleId, setSelectedFemaleId] = useState(femalePlayers[0]?.id || "");
@@ -46,8 +48,7 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [scanning, setScanning] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
   async function refresh(signal?: AbortSignal) {
     const response = await fetch("/api/public/fan-favorite/rankings", { cache: "no-store", signal });
@@ -82,6 +83,12 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
     return () => { stopped = true; if (timer) window.clearTimeout(timer); controller?.abort(); window.removeEventListener("focus", onFocus); };
   }, [snapshot.votingOpen]);
 
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const timer = window.setInterval(() => setCooldownRemaining((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownRemaining]);
+
   function filterPlayers(list: Player[], search: string) {
     const query = search.trim().toLowerCase();
     if (!query) return list;
@@ -98,35 +105,17 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
     setMessage(""); setError(""); setSubmitting(true);
     try {
       const response = await fetch("/api/public/fan-favorite/vote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ malePlayerId: selectedMaleId, femalePlayerId: selectedFemaleId, code }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Vote failed.");
+      const payload = await response.json() as { error?: string; message?: string; retryAfterSeconds?: number; cooldownSeconds?: number };
+      if (!response.ok) {
+        if (response.status === 429 && payload.retryAfterSeconds) setCooldownRemaining(Math.max(1, Math.ceil(payload.retryAfterSeconds)));
+        throw new Error(payload.error || "Vote failed.");
+      }
       setMessage(payload.message || "Your Fan Favorite picks are in!");
       setCode("");
+      setCooldownRemaining(payload.cooldownSeconds ?? FAN_FAVORITE_VOTE_COOLDOWN_SECONDS);
       setSnapshot((current) => ({ ...current, totalVotes: current.totalVotes + 2, totalsBySex: { male: current.totalsBySex.male + 1, female: current.totalsBySex.female + 1 }, updatedAt: new Date().toISOString() }));
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Vote failed."); }
     finally { setSubmitting(false); }
-  }
-
-  async function scanCode() {
-    setError("");
-    const BarcodeDetectorClass = (window as unknown as { BarcodeDetector?: new (input: { formats: string[] }) => { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>> } }).BarcodeDetector;
-    if (!BarcodeDetectorClass || !navigator.mediaDevices?.getUserMedia) { setError("QR scanning is not supported by this browser. Enter the backup code instead."); return; }
-    let stream: MediaStream | null = null;
-    setScanning(true);
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (!videoRef.current) throw new Error("Camera preview is not available.");
-      videoRef.current.srcObject = stream; await videoRef.current.play();
-      const detector = new BarcodeDetectorClass({ formats: ["qr_code"] });
-      const started = Date.now();
-      while (Date.now() - started < 20_000 && videoRef.current) {
-        const results = await detector.detect(videoRef.current);
-        if (results[0]?.rawValue) { setCode(results[0].rawValue); return; }
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
-      }
-      setError("No QR code was detected. Enter the backup code instead.");
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Camera access failed. Enter the backup code instead."); }
-    finally { stream?.getTracks().forEach((track) => track.stop()); if (videoRef.current) videoRef.current.srcObject = null; setScanning(false); }
   }
 
   return <div className="space-y-6">
@@ -151,10 +140,10 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
         <form onSubmit={submitVote} className="space-y-5 p-4 md:p-5">
           {snapshot.votingDeadline && <div className="rounded-xl bg-paper px-3 py-2 text-xs font-semibold text-gray-500">Voting closes {new Date(snapshot.votingDeadline).toLocaleString()}</div>}
           <div className="grid gap-4 lg:grid-cols-2"><PlayerPicker title="Male Fan Favorite" tone="male" players={filteredMale} search={maleSearch} setSearch={setMaleSearch} selectedPlayerId={selectedMaleId} setSelectedPlayerId={setSelectedMaleId}/><PlayerPicker title="Female Fan Favorite" tone="female" players={filteredFemale} search={femaleSearch} setSearch={setFemaleSearch} selectedPlayerId={selectedFemaleId} setSelectedPlayerId={setSelectedFemaleId}/></div>
-          <div className="rounded-xl border border-dashed border-court/30 bg-court/5 p-4"><label className="block"><span className="filter-label">Your voting code</span><div className="flex flex-col gap-2 sm:flex-row"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="filter-control min-w-0 flex-1 bg-white font-mono font-black tracking-[.16em]" placeholder="ABCDE-23456" autoComplete="off"/><button type="button" onClick={() => void scanCode()} className="btn-ghost min-h-11 w-full rounded-lg sm:w-auto"><ScanLine className="h-4 w-4"/>{scanning ? "Scanning..." : "Scan QR"}</button></div></label>{scanning && <video ref={videoRef} className="mt-3 aspect-video w-full rounded-xl bg-black" muted playsInline/>}</div>
+          <div className="rounded-xl border border-dashed border-court/30 bg-court/5 p-4"><label className="block"><span className="filter-label">Your voting code</span><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="filter-control mt-1 min-w-0 bg-white font-mono font-black tracking-[.16em]" placeholder="ABCDE-23456" autoComplete="off"/></label><p className="mt-2 text-xs font-semibold leading-5 text-gray-500">A {FAN_FAVORITE_VOTE_COOLDOWN_SECONDS}-second cooldown starts only after a successful vote. Invalid or already-used codes do not start the cooldown.</p></div>
           {message && <div className="vote-confirmation rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
           {error && <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800">{error}</div>}
-          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Submitting..." : "Submit votes"}</button>
+          <button type="submit" disabled={!snapshot.votingOpen || !selectedMaleId || !selectedFemaleId || !code || submitting || cooldownRemaining > 0} className="btn-primary min-h-12 w-full rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-50"><Heart className="h-4 w-4" fill="currentColor"/>{submitting ? "Submitting..." : cooldownRemaining > 0 ? `Vote again in ${cooldownRemaining}s` : "Submit votes"}</button>
         </form>
       </section> : <PublicCodeDrops onUseCode={(value) => { setCode(value); setActiveTab("VOTE"); }}/>} 
 
@@ -163,7 +152,28 @@ export default function FanFavoriteExperience({ players, initialCode = "", initi
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"><Leaderboard title="Male" totalVotes={snapshot.totalsBySex.male} rankings={snapshot.rankingsBySex.male} tone="male"/><Leaderboard title="Female" totalVotes={snapshot.totalsBySex.female} rankings={snapshot.rankingsBySex.female} tone="female"/></div>
       </section>
     </div>
+
+    <TeamSupportBreakdown rows={snapshot.teamSupport} totalVotes={snapshot.totalVotes}/>
   </div>;
+}
+
+function TeamSupportBreakdown({ rows, totalVotes }: { rows: FanFavoriteTeamSupport[]; totalVotes: number }) {
+  const leader = rows[0];
+  return <section data-motion-reveal className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4">
+      <div><div className="public-kicker">Crowd support</div><h2 className="text-2xl font-black tracking-tight">Support by Team / District</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">Based on the team of the player receiving each vote — not the voter&apos;s location or identity.</p></div>
+      {leader && <div className="rounded-full border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-black text-ink">Most supported · {leader.team.shortName}</div>}
+    </div>
+    {rows.length ? <div className="grid gap-px bg-line md:grid-cols-2">{rows.map((row, index) => <article key={row.team.id} className="bg-white p-4">
+      <div className="flex items-center gap-3">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black ${index === 0 ? "bg-gold text-ink" : "bg-gray-100 text-gray-500"}`}>{index + 1}</span>
+        <div className="min-w-0 flex-1"><Link href={`/teams/${row.team.id}`} className="block truncate font-black text-ink hover:text-court">{row.team.name}</Link><div className="mt-0.5 text-[11px] font-semibold text-gray-400">{row.maleVotes} male · {row.femaleVotes} female votes</div></div>
+        <div className="text-right"><div className="text-xl font-black text-court">{row.votes}</div><div className="text-[10px] font-black text-gray-400">{row.percentage}%</div></div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-court" style={{ width: `${row.percentage > 0 ? Math.max(3, row.percentage) : 0}%` }}/></div>
+    </article>)}</div> : <div className="p-8 text-center text-sm text-gray-500"><Users className="mx-auto mb-2 h-7 w-7 text-gray-300"/>Team support appears after the first valid votes.</div>}
+    <div className="border-t border-line bg-paper px-5 py-3 text-xs font-semibold text-gray-500">{totalVotes} total player-votes counted across all teams.</div>
+  </section>;
 }
 
 function PublicCodeDrops({ onUseCode }: { onUseCode: (code: string) => void }) {

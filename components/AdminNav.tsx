@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Gauge, History, KeyRound, RotateCcw, Settings2, Users, Vote } from "lucide-react";
+import { Activity, BarChart3, Gauge, History, KeyRound, RotateCcw, Settings2, Users, Vote } from "lucide-react";
 
 const primary = [
   { label: "Overview", href: "/admin", icon: Gauge },
   { label: "Tournament Setup", href: "/admin/tournament", icon: Settings2 },
   { label: "Player Pool", href: "/admin/players", icon: Users },
   { label: "Voting", href: "/admin/voting", icon: Vote },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Accounts", href: "/admin/accounts", icon: KeyRound },
 ] as const;
 
