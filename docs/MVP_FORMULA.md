@@ -17,15 +17,15 @@ Each factor is normalized to a 0-100 component score. The final Index is also on
 
 | Factor | Weight | Component score |
 |---|---:|---|
-| Wins | 15% | `wins / most wins in the same sex category * 100` |
+| Wins | 10% | `wins / most wins in the same sex category * 100` |
 | Win rate | 20% | `wins / matches played * 100` |
 | Participation / trust | 10% | `matches played / most matches played in the same sex category * 100` |
 | Playoff impact | 20% | `player playoff leverage / highest current playoff leverage in the same sex category * 100` |
-| Strength of schedule | 15% | Average tournament win rate of the opponent players beaten |
+| Strength of schedule | 20% | Pooled record of all opponents faced against the rest of the field |
 | Point differential | 15% | Average point differential mapped to 0-100; even differential is 50 and the configured +/- cap maps to 0/100 |
 | Team finish | 5% | QF 35, SF 55, 3rd 65, finalist 75, champion 100 |
 
-`MVP Index = 0.15(Wins) + 0.20(Win Rate) + 0.10(Participation) + 0.20(Playoff Impact) + 0.15(SOS) + 0.15(Point Differential) + 0.05(Team Finish)`
+`MVP Index = 0.10(Wins) + 0.20(Win Rate) + 0.10(Participation) + 0.20(Playoff Impact) + 0.20(SOS) + 0.15(Point Differential) + 0.05(Team Finish)`
 
 The category-relative components are intentionally normalized **within Male or Female**, because the two awards are separate races.
 
@@ -45,7 +45,13 @@ This makes a player who is repeatedly trusted and delivers deep in the bracket m
 
 ## Strength of schedule
 
-Only **wins** contribute opponent-strength credit. For every opponent player defeated, the system looks at that opponent's tournament win rate in the selected event and averages those values. Beating opponents who themselves performed well therefore adds more merit than compiling the same record against a weaker schedule.
+Strength of Schedule uses **every opponent faced**, regardless of whether the candidate won or lost. For each opponent, the system removes that opponent's head-to-head match(es) against the candidate, then pools the opponent's remaining wins and losses with the rest of the candidate's opponents.
+
+`SOS = pooled adjusted opponent wins / (pooled adjusted opponent wins + pooled adjusted opponent losses) * 100`
+
+This is intentionally a **collective record**, not an equal average of opponent percentages. An opponent with four independent results therefore contributes more evidence than an opponent with only one independent result. If an opponent has no other completed match after removing the head-to-head, that opponent contributes no SOS evidence yet.
+
+A loss against a strong opponent still counts normally in Wins/Win Rate, but the difficult schedule is recognized by SOS. Point Differential separately distinguishes a close loss from a heavy loss.
 
 ## Point differential
 

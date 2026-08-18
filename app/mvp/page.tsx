@@ -81,16 +81,17 @@ function FormulaDisclosure() {
     </summary>
     <div className="grid gap-5 border-t border-line p-4 md:p-5 xl:grid-cols-2">
       <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="border-b border-line text-[10px] font-black uppercase tracking-wider text-gray-500"><th className="pb-2">Factor</th><th className="pb-2">Weight</th><th className="pb-2">Component score (0–100)</th></tr></thead><tbody className="divide-y divide-line">
-        <FormulaRow factor="Wins" weight={15} formula="Wins ÷ most wins in the current category × 100"/>
-        <FormulaRow factor="Win rate" weight={20} formula="Wins ÷ matches played × 100"/>
-        <FormulaRow factor="Participation / trust" weight={10} formula="Matches played ÷ most matches played in the category × 100"/>
-        <FormulaRow factor="Playoff impact" weight={20} formula="Actual playoff leverage ÷ highest current playoff leverage × 100"/>
-        <FormulaRow factor="Strength of schedule" weight={15} formula="Average win rate of the opponents beaten"/>
-        <FormulaRow factor="Point differential" weight={15} formula={`Average point diff mapped from -${MVP_POINT_DIFF_CAP}…+${MVP_POINT_DIFF_CAP}; 0 diff = 50`}/>
-        <FormulaRow factor="Team finish" weight={5} formula="QF 35 · SF 55 · 3rd 65 · finalist 75 · champion 100"/>
+        <FormulaRow factor="Wins" weight={Math.round(MVP_COMPONENT_WEIGHTS.wins * 100)} formula="Wins ÷ most wins in the current category × 100"/>
+        <FormulaRow factor="Win rate" weight={Math.round(MVP_COMPONENT_WEIGHTS.winRate * 100)} formula="Wins ÷ matches played × 100"/>
+        <FormulaRow factor="Participation / trust" weight={Math.round(MVP_COMPONENT_WEIGHTS.participation * 100)} formula="Matches played ÷ most matches played in the category × 100"/>
+        <FormulaRow factor="Playoff impact" weight={Math.round(MVP_COMPONENT_WEIGHTS.playoffImpact * 100)} formula="Actual playoff leverage ÷ highest current playoff leverage × 100"/>
+        <FormulaRow factor="Strength of schedule" weight={Math.round(MVP_COMPONENT_WEIGHTS.strengthOfSchedule * 100)} formula="Combined record of all opponents faced against the rest of the field"/>
+        <FormulaRow factor="Point differential" weight={Math.round(MVP_COMPONENT_WEIGHTS.pointDifferential * 100)} formula={`Average point diff mapped from -${MVP_POINT_DIFF_CAP}…+${MVP_POINT_DIFF_CAP}; 0 diff = 50`}/>
+        <FormulaRow factor="Team finish" weight={Math.round(MVP_COMPONENT_WEIGHTS.teamFinish * 100)} formula="QF 35 · SF 55 · 3rd 65 · finalist 75 · champion 100"/>
       </tbody></table></div>
       <div className="space-y-3 text-sm leading-6 text-gray-600">
-        <p><strong className="text-ink">MVP Index =</strong> 15% Wins + 20% Win Rate + 10% Participation + 20% Playoff Impact + 15% Strength of Schedule + 15% Point Differential + 5% Team Finish.</p>
+        <p><strong className="text-ink">MVP Index =</strong> 10% Wins + 20% Win Rate + 10% Participation + 20% Playoff Impact + 20% Strength of Schedule + 15% Point Differential + 5% Team Finish.</p>
+        <p><strong className="text-ink">Strength of schedule:</strong> every opponent faced counts, whether the player won or lost. For each opponent, matches against the player being evaluated are removed first; the remaining opponent wins/losses are then pooled. Opponents with more independent results naturally carry more evidence.</p>
         <p><strong className="text-ink">Playoff leverage:</strong> QF appearance +1 and win +1; SF +2/+2; Battle for 3rd +2/+2; Grand Final +3/+3. Credit is earned only when the player actually plays that match.</p>
         <p><strong className="text-ink">Eligibility:</strong> at least {MVP_MIN_MATCHES} completed matches for the formal award. Until anyone qualifies, the same ranking remains visible as provisional.</p>
         <p><strong className="text-ink">Locked-pair tie:</strong> if the statistical leaders played every recorded match together and share the exact top record and Index, no fake decimal tiebreaker is invented. Once formally eligible, organizers choose the individual awardee.</p>
@@ -179,19 +180,19 @@ function EligibilityBadge({ row }: { row: MvpRow }) {
 
 function FactorBreakdown({ row }: { row: MvpRow }) {
   const factors = [
-    ["Wins", row.components.wins, MVP_COMPONENT_WEIGHTS.wins],
-    ["Win rate", row.components.winRate, MVP_COMPONENT_WEIGHTS.winRate],
-    ["Participation / trust", row.components.participation, MVP_COMPONENT_WEIGHTS.participation],
-    ["Playoff impact", row.components.playoffImpact, MVP_COMPONENT_WEIGHTS.playoffImpact],
-    ["Strength of schedule", row.components.strengthOfSchedule, MVP_COMPONENT_WEIGHTS.strengthOfSchedule],
-    ["Point differential", row.components.pointDifferential, MVP_COMPONENT_WEIGHTS.pointDifferential],
-    ["Team finish", row.components.teamFinish, MVP_COMPONENT_WEIGHTS.teamFinish],
+    ["Wins", row.components.wins, MVP_COMPONENT_WEIGHTS.wins, null],
+    ["Win rate", row.components.winRate, MVP_COMPONENT_WEIGHTS.winRate, null],
+    ["Participation / trust", row.components.participation, MVP_COMPONENT_WEIGHTS.participation, null],
+    ["Playoff impact", row.components.playoffImpact, MVP_COMPONENT_WEIGHTS.playoffImpact, null],
+    ["Strength of schedule", row.components.strengthOfSchedule, MVP_COMPONENT_WEIGHTS.strengthOfSchedule, `${row.strengthOfScheduleWins}-${row.strengthOfScheduleLosses} pooled opponent record vs rest of field`],
+    ["Point differential", row.components.pointDifferential, MVP_COMPONENT_WEIGHTS.pointDifferential, null],
+    ["Team finish", row.components.teamFinish, MVP_COMPONENT_WEIGHTS.teamFinish, null],
   ] as const;
 
   return <div>
     <div className="mb-2 flex items-center justify-between"><span className="label">Index breakdown</span><span className="text-xs font-bold text-gray-400">score × weight = contribution</span></div>
-    <div className="divide-y divide-line border-y border-line">{factors.map(([label, score, weight]) => <div key={label} className="grid grid-cols-[minmax(110px,1fr)_68px_54px] items-center gap-3 py-2 text-xs sm:grid-cols-[minmax(140px,1fr)_minmax(90px,.7fr)_58px_62px]">
-      <div className="min-w-0"><strong className="text-ink">{label}</strong><span className="ml-1.5 text-[10px] font-bold text-gray-400">{Math.round(weight * 100)}%</span></div>
+    <div className="divide-y divide-line border-y border-line">{factors.map(([label, score, weight, detail]) => <div key={label} className="grid grid-cols-[minmax(110px,1fr)_68px_54px] items-center gap-3 py-2 text-xs sm:grid-cols-[minmax(140px,1fr)_minmax(90px,.7fr)_58px_62px]">
+      <div className="min-w-0"><div><strong className="text-ink">{label}</strong><span className="ml-1.5 text-[10px] font-bold text-gray-400">{Math.round(weight * 100)}%</span></div>{detail && <div className="mt-0.5 text-[10px] font-semibold leading-4 text-gray-400">{detail}</div>}</div>
       <div className="hidden h-1.5 overflow-hidden rounded-full bg-gray-200 sm:block"><div className="h-full rounded-full bg-court" style={{ width: `${Math.max(0, Math.min(100, score))}%` }}/></div>
       <div className="text-right font-bold text-gray-600">{formatNumber(score)}</div>
       <div className="text-right font-black text-court">+{formatNumber(score * weight)}</div>

@@ -14,6 +14,7 @@ import MythicalPairPoster from "@/components/MythicalPairPoster";
 import ChampionCelebrationPoster from "@/components/ChampionCelebrationPoster";
 import { Crown, Heart } from "lucide-react";
 import { getFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
+import { tournamentStartAtIso } from "@/lib/public-launch";
 
 export const dynamic = "force-dynamic";
 
@@ -149,7 +150,8 @@ export default async function Home() {
       maleFan={maleFanLeader}
       femaleFan={femaleFanLeader}
       championImageUrl={division.championImageTeamId === matchup.winnerTeamId ? division.championImageUrl : null}
-    />)}</section> : <LiveGamesGrid initial={live}/>} 
+    />)}</section> : null}
+    {(live.length > 0 || championFinals.length === 0) && <LiveGamesGrid initial={live} tournamentStartAt={tournamentStartAtIso()} serverNow={Date.now()}/>}
 
     {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span className="label text-emerald-700">{division} wildcard · qualified</span><Link href={`/teams/${row.team.id}`} className="ml-2 font-bold hover:text-court hover:underline">{row.team.name}</Link></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings, qualificationByTeam }) => <div className="panel min-w-0 overflow-hidden" key={group.id}><div className="flex items-center justify-between border-b border-line bg-gray-50/70 p-4"><div><div className="label">{division.name}</div><h3 className="font-black">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings} qualificationByTeam={qualificationByTeam}/></div>)}</div></section>}
 

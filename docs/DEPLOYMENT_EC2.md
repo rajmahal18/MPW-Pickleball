@@ -46,7 +46,7 @@ sudo -u mpw-pickleball pm2 start ecosystem.config.cjs
 sudo -u mpw-pickleball pm2 save
 ```
 
-Use high-entropy, separate values for `SESSION_SECRET`, `VOTING_CODE_PEPPER`, and `VOTE_ATTEMPT_SALT`. Set `TOURNAMENT_PUBLIC_LAUNCH_AT` to the intended public opening timestamp (for example `2026-08-20T00:00:00+08:00`). Keep `ALLOW_FACTORY_RESET=false` in production.
+Use high-entropy, separate values for `SESSION_SECRET`, `VOTING_CODE_PEPPER`, and `VOTE_ATTEMPT_SALT`. Set `TOURNAMENT_START_AT` to the official tournament-start timestamp used by the homepage Live Matches countdown (for example `2026-08-20T00:00:00+08:00`). The legacy `TOURNAMENT_PUBLIC_LAUNCH_AT` value is still accepted as a fallback, but it no longer gates public access. Keep `ALLOW_FACTORY_RESET=false` in production.
 
 ## Nginx and HTTPS
 

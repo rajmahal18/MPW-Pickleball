@@ -298,6 +298,8 @@ test("MVP rankings stay sex-separated, expose components, and require 3 matches 
   assert.equal(result.male[0]!.mvpIndex, result.female[0]!.mvpIndex);
   assert.equal(result.male[0]!.eligible, true);
   assert.equal(result.male[0]!.components.winRate, 100);
+  assert.equal(result.weights.wins, 0.10);
+  assert.equal(result.weights.strengthOfSchedule, 0.20);
   assert.equal(result.minimumMatches, 3);
 });
 
@@ -311,6 +313,53 @@ test("MVP relative components normalize inside each sex category", () => {
   const femaleLeader = result.female.find((row) => row.player.id === "FA")!;
   assert.equal(femaleLeader.components.wins, 100);
   assert.equal(femaleLeader.components.participation, 100);
+});
+
+test("MVP strength of schedule pools all opponent results against the rest of the field", () => {
+  const player = (id: string, teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: teamId, name: teamId, shortName: teamId } });
+  const a = player("A", "TA"), aMate = player("A2", "TA");
+  const strong = player("STRONG", "TS"), strongMate = player("STRONG2", "TS");
+  const short = player("SHORT", "TW"), shortMate = player("SHORT2", "TW");
+  const feeder = player("FEEDER", "TF"), feederMate = player("FEEDER2", "TF");
+  const other = player("OTHER", "TO"), otherMate = player("OTHER2", "TO");
+  const make = (id: string, homeTeamId: string, awayTeamId: string, winnerTeamId: string, homeA: ReturnType<typeof player>, homeB: ReturnType<typeof player>, awayA: ReturnType<typeof player>, awayB: ReturnType<typeof player>) => ({
+    id, homeScore: winnerTeamId === homeTeamId ? 11 : 7, awayScore: winnerTeamId === awayTeamId ? 11 : 7, winnerTeamId, homeTeamId, awayTeamId, status: "COMPLETED", matchup: { stage: "GROUP" as const },
+    homePair: { id: `${id}-H`, playerA: homeA, playerB: homeB }, awayPair: { id: `${id}-A`, playerA: awayA, playerB: awayB },
+  });
+  const games = [
+    make("a-strong", "TA", "TS", "TA", a, aMate, strong, strongMate),
+    make("a-short", "TA", "TW", "TA", a, aMate, short, shortMate),
+    ...[1, 2, 3, 4].map((index) => make(`strong-${index}`, "TS", "TF", "TS", strong, strongMate, feeder, feederMate)),
+    make("short-other", "TW", "TO", "TO", short, shortMate, other, otherMate),
+  ];
+  const result = calculateMvpRankings(games);
+  const row = result.male.find((candidate) => candidate.player.id === "A")!;
+  // STRONG/STRONG2 are each 4-0 after removing their loss to A; SHORT/SHORT2
+  // are each 0-1 after removing their loss to A. Pooled evidence = 8-2 = 80%.
+  assert.equal(row.strengthOfScheduleWins, 8);
+  assert.equal(row.strengthOfScheduleLosses, 2);
+  assert.equal(row.strengthOfSchedule, 80);
+  assert.equal(row.components.strengthOfSchedule, 80);
+});
+
+test("MVP strength of schedule includes strong opponents even when the candidate loses", () => {
+  const player = (id: string, teamId: string) => ({ id, firstName: id, lastName: "Player", displayName: id, avatarUrl: null, sex: "MALE" as const, team: { id: teamId, name: teamId, shortName: teamId } });
+  const a = player("A", "TA"), aMate = player("A2", "TA");
+  const strong = player("STRONG", "TS"), strongMate = player("STRONG2", "TS");
+  const other = player("OTHER", "TO"), otherMate = player("OTHER2", "TO");
+  const make = (id: string, homeTeamId: string, awayTeamId: string, winnerTeamId: string, homeA: ReturnType<typeof player>, homeB: ReturnType<typeof player>, awayA: ReturnType<typeof player>, awayB: ReturnType<typeof player>) => ({
+    id, homeScore: winnerTeamId === homeTeamId ? 11 : 7, awayScore: winnerTeamId === awayTeamId ? 11 : 7, winnerTeamId, homeTeamId, awayTeamId, status: "COMPLETED", matchup: { stage: "GROUP" as const },
+    homePair: { id: `${id}-H`, playerA: homeA, playerB: homeB }, awayPair: { id: `${id}-A`, playerA: awayA, playerB: awayB },
+  });
+  const result = calculateMvpRankings([
+    make("a-loss", "TA", "TS", "TS", a, aMate, strong, strongMate),
+    make("strong-win", "TS", "TO", "TS", strong, strongMate, other, otherMate),
+  ]);
+  const row = result.male.find((candidate) => candidate.player.id === "A")!;
+  assert.equal(row.wins, 0);
+  assert.equal(row.strengthOfScheduleWins, 2);
+  assert.equal(row.strengthOfScheduleLosses, 0);
+  assert.equal(row.strengthOfSchedule, 100);
 });
 
 test("MVP candidates remain visible as provisional before anybody reaches 3 matches", () => {

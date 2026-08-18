@@ -283,10 +283,11 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Public pages use restrained one-time scroll reveals and vote/progress transitions; `prefers-reduced-motion` disables motion.
 - No tournament format/scoring/advancement logic changed in this pass.
 
-## Pre-launch public gate + public entity navigation + Teams — 2026-08-17
+## Pre-launch countdown + public entity navigation + Teams — updated 2026-08-18
 
-- Public access is gated until `TOURNAMENT_PUBLIC_LAUNCH_AT`; guests see only a countdown/login screen before launch, while signed sessions retain normal access. Public APIs are gated too, and the site opens automatically when server launch time is reached.
-- Default launch fallback matches the announced tournament start date (`2026-08-20T00:00:00+08:00`); production may override the exact opening time through environment configuration.
+- Public access is **not gated** by the tournament timer. Public pages/APIs remain browseable before the official start.
+- The configured tournament start is now a homepage **Live Courts fallback countdown** only: an actual LIVE/INTERRUPTED match always overrides it; before start with no live match the countdown is shown; after start with no live match the normal empty-live state is shown.
+- Prefer `TOURNAMENT_START_AT` for the timer. The legacy `TOURNAMENT_PUBLIC_LAUNCH_AT` env remains supported as a fallback so existing production configuration does not break.
 - Public navigation now exposes a first-class **Teams** page and keeps literal primary labels (`Matches`, `Groups`, `Teams`, `Players`, `Bracket`), moving only secondary destinations (`Format`, `Fan Favorite`, `MVP`) under **More**.
 - Public match/bracket/history surfaces no longer rely on one giant nested card link where that blocks entity navigation. Player names/avatars and team names link to their canonical public pages when the surrounding control is not a form/action.
 - Official scorecard printing is A4 portrait with two landscape half-sheet cards stacked top-and-bottom and a crosswise cut guide.
@@ -320,3 +321,11 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Admin Voting is now an operational **Voting & Code Drops** workspace: schedule a 1–500 code batch at a Philippine-local release time, release a future batch immediately, cancel an unreleased batch, view current depletion, and keep legacy manual/printable codes in a collapsed secondary section.
 - Live admin code-drop metrics include used/remaining codes, codes per minute, elapsed/sell-out time, time to 50% consumption, and simple fast/slow guidance for sizing the next batch. A compact team-distribution horizontal bar view shows Fan Favorite vote share for every tournament team, including teams currently at zero.
 - `VotingCodeBatch` and public-code metadata participate in snapshots, restore, activity/factory resets, and voting simulation cleanup. Migration `20260817170000_fan_favorite_code_batches` is additive and preserves all existing voting codes/votes.
+
+
+## MVP SOS + Fan Favorite usability + live-countdown placement — 2026-08-18
+
+- MVP weights now reduce overlapping raw Wins from 15% to 10% and raise Strength of Schedule from 15% to 20%; all other weights remain unchanged.
+- SOS now uses the pooled adjusted record of **all opponents faced**, not only opponents beaten. Each opponent's head-to-head result(s) against the candidate are removed before pooling the remaining opponent wins/losses, so opponents with more independent results naturally contribute more evidence.
+- Fan Favorite uses a wider desktop canvas, wider ballot-vs-leader allocation, wrapping player names instead of aggressive truncation, explicit male/female selections (no randomized first-row auto-selection), clearer selection steps, and a live Codes-tab status/badge showing available codes and next-drop timing.
+- The old site-wide prelaunch countdown gate is removed. The countdown now lives only in the homepage Live Courts slot and is overridden immediately by any actual live/interrupted match, including pre-tournament testing.

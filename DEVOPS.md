@@ -50,13 +50,13 @@ VOTING_CODE_PEPPER=
 VOTE_ATTEMPT_SALT=
 NEXT_PUBLIC_APP_NAME=
 AVATAR_STORAGE_DIR=/var/lib/rverse-pickleball/avatars
-TOURNAMENT_PUBLIC_LAUNCH_AT=2026-08-20T00:00:00+08:00
+TOURNAMENT_START_AT=2026-08-20T00:00:00+08:00
 ALLOW_FACTORY_RESET=false
 ```
 
 `.env.production` is intentionally excluded locally through `.git/info/exclude`.
 
-Set `TOURNAMENT_PUBLIC_LAUNCH_AT` to the exact Philippine-time public opening moment. Before that timestamp, guests are held on the countdown screen while authenticated users can access the site.
+Set `TOURNAMENT_START_AT` to the exact Philippine-time tournament start used by the homepage Live Courts countdown. Public access is not gated. `TOURNAMENT_PUBLIC_LAUNCH_AT` is still accepted as a legacy fallback if production has not renamed the env yet.
 
 Never commit production secrets to Git.
 

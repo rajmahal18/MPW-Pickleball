@@ -66,6 +66,8 @@ export type MvpRow = {
   highestStageWin: MatchupStage | null;
   playoffLeverage: number;
   strengthOfSchedule: number;
+  strengthOfScheduleWins: number;
+  strengthOfScheduleLosses: number;
   teamFinishLabel: string;
   eligible: boolean;
   matchesToEligibility: number;
@@ -86,7 +88,7 @@ type MutablePlayerStats = {
   pointDifferential: number;
   playoffLeverage: number;
   stageBreakdown: StageBreakdown;
-  qualityWinOpponentIds: string[];
+  opponentResults: Map<string, { winsAgainstCandidate: number; lossesAgainstCandidate: number }>;
 };
 
 const STAGES: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL", "CUSTOM"];
@@ -149,7 +151,7 @@ export function calculateMvpRankings(games: MvpGame[], matchups: MvpMatchup[] = 
       pointDifferential: 0,
       playoffLeverage: 0,
       stageBreakdown: blankBreakdown(),
-      qualityWinOpponentIds: [],
+      opponentResults: new Map(),
     };
     stats.set(player.id, created);
     return created;
@@ -176,9 +178,16 @@ export function calculateMvpRankings(games: MvpGame[], matchups: MvpMatchup[] = 
         row.stageBreakdown[game.matchup.stage].leverage += leverage;
         const partner = side.players.find((candidate) => candidate.id !== player.id);
         if (partner) row.partnerIds.add(partner.id);
-        if (side.won) row.qualityWinOpponentIds.push(...side.opponents.map((opponent) => opponent.id));
-        // Ensure opponents exist so their record can be used for strength of schedule.
-        for (const opponent of side.opponents) ensure(opponent);
+        // Strength of schedule uses every opponent faced, win or loss. Track the
+        // head-to-head result separately so that opponent's record can later be
+        // evaluated only against the rest of the field.
+        for (const opponent of side.opponents) {
+          ensure(opponent);
+          const headToHead = row.opponentResults.get(opponent.id) ?? { winsAgainstCandidate: 0, lossesAgainstCandidate: 0 };
+          if (side.won) headToHead.lossesAgainstCandidate += 1;
+          else headToHead.winsAgainstCandidate += 1;
+          row.opponentResults.set(opponent.id, headToHead);
+        }
       }
     }
   }
@@ -193,19 +202,28 @@ export function calculateMvpRankings(games: MvpGame[], matchups: MvpMatchup[] = 
   };
   const maxima = { MALE: categoryMaxima("MALE"), FEMALE: categoryMaxima("FEMALE") };
 
-  const opponentWinPct = (playerId: string) => {
-    const opponent = stats.get(playerId);
-    return opponent?.gamesPlayed ? (opponent.wins / opponent.gamesPlayed) * 100 : 0;
-  };
-
   const rows = [...stats.values()].filter((row) => row.gamesPlayed > 0).map<Omit<MvpRow, "rank" | "provisional">>((row) => {
     const winPercentage = (row.wins / row.gamesPlayed) * 100;
     const averagePointDifferential = row.pointDifferential / row.gamesPlayed;
     const playoffAppearances = [...PLAYOFF_STAGES].reduce((sum, stage) => sum + row.stageBreakdown[stage].played, 0);
     const playoffWins = [...PLAYOFF_STAGES].reduce((sum, stage) => sum + row.stageBreakdown[stage].wins, 0);
     const highestStageWin = WIN_TIEBREAK_ORDER.find((stage) => row.stageBreakdown[stage].wins > 0) ?? null;
-    const strengthOfSchedule = row.qualityWinOpponentIds.length
-      ? row.qualityWinOpponentIds.reduce((sum, playerId) => sum + opponentWinPct(playerId), 0) / row.qualityWinOpponentIds.length
+
+    // SOS is the pooled record of every opponent faced against everyone else.
+    // Remove all head-to-head matches versus this candidate first, then pool
+    // the remaining opponent wins/losses. This naturally gives a 4-1 opponent
+    // more evidentiary weight than an opponent with only one other result.
+    let strengthOfScheduleWins = 0;
+    let strengthOfScheduleLosses = 0;
+    for (const [opponentId, headToHead] of row.opponentResults) {
+      const opponent = stats.get(opponentId);
+      if (!opponent) continue;
+      strengthOfScheduleWins += Math.max(0, opponent.wins - headToHead.winsAgainstCandidate);
+      strengthOfScheduleLosses += Math.max(0, opponent.losses - headToHead.lossesAgainstCandidate);
+    }
+    const strengthOfScheduleMatches = strengthOfScheduleWins + strengthOfScheduleLosses;
+    const strengthOfSchedule = strengthOfScheduleMatches
+      ? (strengthOfScheduleWins / strengthOfScheduleMatches) * 100
       : 0;
     const finish = teamFinish(row.competitorTeamIds, matchups);
     const categoryMaximum = maxima[row.player.sex];
@@ -237,6 +255,8 @@ export function calculateMvpRankings(games: MvpGame[], matchups: MvpMatchup[] = 
       highestStageWin,
       playoffLeverage: round(row.playoffLeverage, 2),
       strengthOfSchedule: round(strengthOfSchedule, 1),
+      strengthOfScheduleWins,
+      strengthOfScheduleLosses,
       teamFinishLabel: finish.label,
       eligible: row.gamesPlayed >= MVP_MIN_MATCHES,
       matchesToEligibility: Math.max(0, MVP_MIN_MATCHES - row.gamesPlayed),

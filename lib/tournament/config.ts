@@ -1,11 +1,11 @@
 export const MVP_MIN_MATCHES = 3;
 
 export const MVP_COMPONENT_WEIGHTS = {
-  wins: 0.15,
+  wins: 0.10,
   winRate: 0.20,
   participation: 0.10,
   playoffImpact: 0.20,
-  strengthOfSchedule: 0.15,
+  strengthOfSchedule: 0.20,
   pointDifferential: 0.15,
   teamFinish: 0.05,
 } as const;
