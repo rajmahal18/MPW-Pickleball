@@ -33,8 +33,9 @@ export default function PlayerAvatar({
         : "h-14 w-14 text-base";
   const pixels = size === "xl" ? 112 : size === "lg" ? 80 : size === "sm" ? 40 : 56;
   const branding = getTeamBranding(team);
-  const shared = `${classes} shrink-0 rounded-full border-2 border-white ring-1 ring-court/20 shadow-panel`;
+  const shared = `${classes} shrink-0 rounded-full border-2 border-white shadow-panel ${team ? "" : "ring-1 ring-court/20"}`;
+  const teamRing = team ? { boxShadow: `0 0 0 2px ${branding.accent}, 0 0 0 4px ${branding.surface}` } : undefined;
   return avatarUrl && !imageFailed
-    ? <img className={`${shared} object-cover`} style={team ? { boxShadow: `0 0 0 3px ${branding.accent}` } : undefined} src={avatarUrl} alt={name} width={pixels} height={pixels} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
-    : <span className={`${shared} grid place-items-center bg-court/10 font-black text-court`} style={team ? { color: branding.primary, backgroundColor: branding.surface, boxShadow: `0 0 0 3px ${branding.accent}` } : undefined} aria-label={`${name} initials avatar`}>{initials || "?"}</span>;
+    ? <img className={`${shared} object-cover`} style={teamRing} src={avatarUrl} alt={name} width={pixels} height={pixels} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
+    : <span className={`${shared} grid place-items-center bg-court/10 font-black text-court`} style={team ? { color: branding.primary, backgroundColor: branding.surface, ...teamRing } : undefined} aria-label={`${name} initials avatar`}>{initials || "?"}</span>;
 }

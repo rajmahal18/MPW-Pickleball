@@ -4,8 +4,8 @@ import { Crown, Heart } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import type { MvpRow } from "@/lib/tournament/mvp";
-import { TeamLogo } from "@/components/TeamIdentity";
-import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
+import { TeamHeroArtwork, TeamIdentity } from "@/components/TeamIdentity";
+import { getTeamBranding, teamHeroStyle } from "@/lib/team-branding";
 
 type PosterPlayer = {
   id: string;
@@ -42,14 +42,13 @@ export default function ChampionCelebrationPoster({
 }) {
   const branding = getTeamBranding(team);
   return <section className="overflow-hidden rounded-xl border border-line bg-white text-ink shadow-sm">
-    <header className="relative isolate overflow-hidden border-b border-line px-4 py-5 md:px-6" style={{ ...teamBrandingStyle(team), color: branding.text, background: `linear-gradient(135deg, ${branding.primary}, ${branding.secondary})` }}>
-      {branding.logoUrl && <img src={branding.logoUrl} alt="" aria-hidden="true" className="pointer-events-none absolute -right-8 -top-12 -z-10 h-56 w-56 object-contain opacity-10"/>}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <header className="relative isolate overflow-hidden border-b border-line px-4 py-5 md:px-6" style={teamHeroStyle(team)}>
+      <TeamHeroArtwork team={team}/><div className="absolute inset-0 -z-10 bg-black/10"/>
+      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <TeamLogo team={team} size="lg"/>
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[.2em] opacity-85">{divisionName} champion</div>
-            <h2 className="mt-2 text-3xl font-black uppercase leading-tight md:text-5xl"><Link href={`/teams/${team.id}`} className="hover:opacity-80">{team.name}</Link></h2>
+            <div className="text-[10px] font-black uppercase tracking-[.2em] opacity-[.85]">{divisionName} champion</div>
+            <h2 className="mt-2"><TeamIdentity team={team} variant="hero"/></h2>
             <div className="mt-2 text-xs font-black uppercase tracking-[.18em] opacity-70">Dink & Dash 2026</div>
           </div>
         </div>

@@ -5,8 +5,8 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName } from "@/lib/player-name";
-import { TeamLogo } from "@/components/TeamIdentity";
-import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
+import { TeamHeroArtwork, TeamIdentity } from "@/components/TeamIdentity";
+import { teamHeroStyle } from "@/lib/team-branding";
 import { computeStandings } from "@/lib/tournament/standings";
 
 export const dynamic = "force-dynamic";
@@ -79,14 +79,13 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   return <main className="public-page mx-auto max-w-6xl px-4 py-3 md:py-8">
     <Link href={`/teams?division=${encodeURIComponent(team.division.slug)}`} className="text-sm font-bold text-court hover:text-ink">← Back to {team.division.entrantType === "PAIR" ? "pairs" : "teams"}</Link>
 
-    <section className="public-hero relative isolate mt-2 overflow-hidden md:mt-4" style={{ ...teamBrandingStyle(team), backgroundColor: getTeamBranding(team).surface }}>
-      {getTeamBranding(team).logoUrl && <img src={getTeamBranding(team).logoUrl!} alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-10 right-2 -z-10 h-48 w-48 object-contain opacity-[0.06]"/>}
-      <div className="flex min-w-0 items-start gap-4">
-        <TeamLogo team={team} size="lg"/>
-        <div className="min-w-0">
-          <div className="public-kicker">{team.division.name}{team.group ? <> · <Link href={`/groups/${team.group.slug}`} className="hover:text-ink hover:underline">{team.group.name}</Link></> : null}</div>
-          <h1 className="public-title">{team.name}</h1>
-          <p className="public-lede">{team.division.entrantType === "PAIR" ? "Fixed Executive pair" : `${players.length} confirmed player${players.length === 1 ? "" : "s"}`} · {team.shortName}</p>
+    <section className="public-hero relative isolate mt-2 overflow-hidden rounded-2xl border border-line p-5 shadow-sm md:mt-4 md:p-7" style={teamHeroStyle(team)}>
+      <TeamHeroArtwork team={team}/>
+      <div className="relative z-10 min-w-0">
+        <h1><TeamIdentity team={team} variant="hero" link={false}/></h1>
+        <div className="mt-3 min-w-0">
+          <div className="public-kicker !text-current opacity-[.82]">{team.division.name}{team.group ? <> · <Link href={`/groups/${team.group.slug}`} className="hover:underline">{team.group.name}</Link></> : null}</div>
+          <p className="public-lede !text-current opacity-75">{team.division.entrantType === "PAIR" ? "Fixed Executive pair" : `${players.length} confirmed player${players.length === 1 ? "" : "s"}`} · {team.shortName}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {standing && <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-black">Rank {standing.rankLabel} · {team.group?.name}</span>}
             {standing && <span className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-black">W–L {standing.won}–{standing.lost}</span>}

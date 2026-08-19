@@ -2,7 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, isTerminalMatchupStatus } from "@/lib/tournament/standings";
 import { formatPlayerDisplayName } from "@/lib/player-name";
-import { TeamLogo } from "@/components/TeamIdentity";
+import { TeamIdentity } from "@/components/TeamIdentity";
+import { teamCardStyle } from "@/lib/team-branding";
 import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
@@ -123,10 +124,9 @@ function TeamRow({
   matchupLosses: number;
 }) {
   const hasResults = matchupWins + matchupLosses > 0;
-  return <Link href={`/teams/${team.id}`} className="group flex min-w-0 items-center gap-3 rounded-lg border border-line bg-white p-3 hover:border-court/40 hover:bg-court/5 md:p-3.5">
-    <TeamLogo team={team} size="md"/>
+  return <Link href={`/teams/${team.id}`} style={teamCardStyle(team)} className="group flex min-w-0 items-center gap-3 rounded-lg border p-3 transition hover:-translate-y-px hover:shadow-sm md:p-3.5">
+    <TeamIdentity team={team} variant="standard" link={false} className="max-w-[58%]"/>
     <div className="min-w-0 flex-1">
-      <div className="truncate text-sm font-black text-ink group-hover:text-court md:text-base">{team.name}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-gray-500 md:text-xs">
         <span className="font-black uppercase tracking-wide text-gray-400">{team.shortName}</span>
         <span>{players.length} player{players.length === 1 ? "" : "s"}</span>

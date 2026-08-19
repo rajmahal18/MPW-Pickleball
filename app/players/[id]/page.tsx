@@ -5,8 +5,8 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName, formatPlayerCompactName } from "@/lib/player-name";
-import { TeamLogo } from "@/components/TeamIdentity";
-import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
+import { TeamHeroArtwork, TeamIdentity, TeamLogo } from "@/components/TeamIdentity";
+import { getTeamBranding, teamHeroStyle } from "@/lib/team-branding";
 
 export const dynamic = "force-dynamic";
 
@@ -111,15 +111,15 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
     <Link href="/players" className="text-sm font-bold text-court hover:text-ink">← Back to players</Link>
 
     <section className="mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-      <div className="relative isolate overflow-hidden px-5 py-6 md:px-8 md:py-8" style={{ ...teamBrandingStyle(teamIsPublic ? player.team : null), color: branding.text, background: `linear-gradient(135deg, ${branding.primary}, ${branding.secondary} 58%, ${branding.primary})` }}>
-        {branding.logoUrl && <img src={branding.logoUrl} alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-8 -right-8 -z-10 h-52 w-52 object-contain opacity-[0.10] sm:-bottom-12 sm:right-4 sm:h-72 sm:w-72"/>}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+      <div className="relative isolate overflow-hidden px-5 py-6 md:px-8 md:py-8" style={teamHeroStyle(teamIsPublic ? player.team : null)}>
+        {teamIsPublic && player.team && <TeamHeroArtwork team={player.team}/>}<div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/15 via-transparent to-black/10"/>
+        <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center">
           {player.avatarUrl ? <a href={player.avatarUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${formatPlayerDisplayName(player)} profile photo`} className="w-fit rounded-full bg-white/10 p-1 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="xl"/></a> : <div className="w-fit rounded-full bg-white/10 p-1"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="xl"/></div>}
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-extrabold uppercase tracking-[.18em] opacity-85">Player profile</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[.18em] opacity-[.85]">Player profile</div>
             <div className="mt-1 flex items-center gap-2"><h1 className="text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1><GenderIndicator sex={player.sex} className="text-3xl md:text-4xl"/></div>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold opacity-90">
-              {teamIsPublic && player.team && <Link href={`/teams/${player.team.id}`} className="inline-flex items-center gap-2 hover:underline"><TeamLogo team={player.team} size="xs"/>{player.team.name}</Link>}
+              {teamIsPublic && player.team && <TeamIdentity team={player.team} variant="compact"/>}
             </div>
             {divisionNames && <div className="mt-2 text-xs font-semibold opacity-75">{divisionNames}{teamIsPublic && player.team?.group ? ` · ${player.team.group.name}` : ""}</div>}
           </div>

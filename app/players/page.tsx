@@ -6,6 +6,8 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import { formatPlayerDisplayName } from "@/lib/player-name";
 import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
+import { TeamIdentity } from "@/components/TeamIdentity";
+import { teamCardStyle } from "@/lib/team-branding";
 import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
@@ -142,7 +144,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
     {players.length ? <div className="mt-4 grid gap-2.5 sm:grid-cols-2 md:mt-6 md:gap-3 lg:grid-cols-3 xl:grid-cols-4">
       {players.map((player) => {
         const teamIsPublic = Boolean(player.team?.division.isPublic);
-        return <article key={player.id} className="public-card group block p-3 focus-within:ring-2 focus-within:ring-court/30 md:p-4">
+        return <article key={player.id} style={teamCardStyle(teamIsPublic ? player.team : null)} className="public-card group block p-3 focus-within:ring-2 focus-within:ring-court/30 md:p-4">
           <div className="flex items-center gap-3.5">
             <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="lg"/></Link>
             <div className="min-w-0 flex-1">
@@ -151,7 +153,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
           </div>
           <div className="mt-4 border-t border-line/80 pt-3">
             {selectedDivision?.entrantType === "PAIR" ? (() => { const pair = player.pairAsA[0] ?? player.pairAsB[0]; const partner = player.pairAsA[0]?.playerB ?? player.pairAsB[0]?.playerA; return pair ? <><Link href={`/teams/${pair.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{pair.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">Paired with {partner ? formatPlayerDisplayName(partner) : "TBD"}{pair.team.group ? ` · ${pair.team.group.name}` : ""}</div></> : <div className="text-sm font-semibold text-gray-500">Pair assignment pending</div>; })() : (teamIsPublic && player.team
-              ? <><Link href={`/teams/${player.team.id}`} className="text-sm font-extrabold text-ink hover:text-court">{player.team.name}</Link><div className="mt-1 text-xs font-medium text-gray-500">{player.team.division.name}{player.team.group ? <> · <Link href={`/groups/${player.team.group.slug}`} className="hover:text-court hover:underline">{player.team.group.name}</Link></> : null}</div></>
+              ? <TeamIdentity team={player.team} variant="compact" meta={<>{player.team.division.name}{player.team.group ? ` · ${player.team.group.name}` : ""}</>}/>
               : <div className="text-sm font-semibold text-gray-500">Team assignment pending</div>)}
           </div>
         </article>;

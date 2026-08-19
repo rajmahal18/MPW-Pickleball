@@ -65,3 +65,33 @@ export function teamBrandingStyle(team?: TeamBrandingSource | null): CSSProperti
     "--team-surface": branding.surface,
   } as CSSProperties;
 }
+
+export function teamHeroStyle(team?: TeamBrandingSource | null): CSSProperties {
+  const branding = getTeamBranding(team);
+  return {
+    ...teamBrandingStyle(team),
+    color: branding.text,
+    backgroundColor: branding.primary,
+    backgroundImage: [
+      `linear-gradient(90deg, ${withAlpha(branding.primary, 0.98)} 0%, ${withAlpha(branding.primary, 0.88)} 42%, ${withAlpha(branding.primary, 0.5)} 72%, ${withAlpha(branding.primary, 0.76)} 100%)`,
+      `radial-gradient(circle at 78% 25%, ${withAlpha(branding.accent, 0.32)}, transparent 38%)`,
+      `radial-gradient(circle at 30% 110%, ${withAlpha(branding.secondary, 0.8)}, transparent 55%)`,
+      `linear-gradient(135deg, ${branding.primary}, ${branding.secondary})`,
+    ].join(", "),
+  } as CSSProperties;
+}
+
+export function teamCardStyle(team?: TeamBrandingSource | null): CSSProperties {
+  const branding = getTeamBranding(team);
+  return {
+    ...teamBrandingStyle(team),
+    borderColor: withAlpha(branding.primary, 0.2),
+    backgroundColor: "#ffffff",
+    backgroundImage: `radial-gradient(circle at 7% 20%, ${withAlpha(branding.accent, 0.11)}, transparent 32%), linear-gradient(90deg, ${branding.surface} 0, #ffffff 42%)`,
+    boxShadow: `inset 3px 0 0 ${withAlpha(branding.accent, 0.72)}`,
+  } as CSSProperties;
+}
+
+function withAlpha(hex: string, alpha: number) {
+  return `${hex}${Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, "0")}`;
+}
