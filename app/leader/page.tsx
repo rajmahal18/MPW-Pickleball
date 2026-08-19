@@ -7,6 +7,8 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
 import { nextEditableTeamMatchupId } from "@/lib/tournament/leader-lineup-access";
+import SubmitButton from "@/components/SubmitButton";
+import { KeyRound } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ function matchupContext(matchup: { groupLabel: string | null; stage: string; rou
   return `${scope} · ${round}`;
 }
 
-export default async function Leader({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
+export default async function Leader({ searchParams }: { searchParams: Promise<{ success?: string; error?: string; passwordSuccess?: string; passwordError?: string }> }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "TEAM_MANAGER" || !user.teamId) redirect("/login");
   const query = await searchParams;
@@ -118,6 +120,22 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
       <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase text-gray-600">Completed matchups ({history.length})</summary>
       <div className="space-y-3 border-t border-line bg-paper p-3">{history.map((matchup) => card(matchup, "OPEN"))}</div>
     </details>}
+
+    <section id="account-security" className="mt-6 scroll-mt-24 border-t border-line pt-5">
+      <details className="bg-white" open={Boolean(query.passwordSuccess || query.passwordError)}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border border-line px-4 py-3 marker:content-none">
+          <span className="flex min-w-0 items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center bg-court/10 text-court"><KeyRound size={18}/></span><span><span className="block text-sm font-black uppercase">Account security</span><span className="block text-xs font-medium text-gray-500">Change your captain account password</span></span></span>
+          <span className="text-xs font-black uppercase text-court">Manage</span>
+        </summary>
+        <form action="/api/leader/password" method="post" className="grid gap-4 border-x border-b border-line p-4 sm:grid-cols-2 md:p-5">
+          {(query.passwordSuccess || query.passwordError) && <div className="sm:col-span-2"><FlashMessage success={query.passwordSuccess} error={query.passwordError}/></div>}
+          <label className="block sm:col-span-2"><span className="label">Current password</span><input name="currentPassword" type="password" required autoComplete="current-password" className="mt-1 w-full border border-line p-3"/></label>
+          <label className="block"><span className="label">New password</span><input name="newPassword" type="password" required minLength={8} maxLength={200} autoComplete="new-password" className="mt-1 w-full border border-line p-3"/><span className="mt-1 block text-xs text-gray-500">Use at least 8 characters.</span></label>
+          <label className="block"><span className="label">Confirm new password</span><input name="confirmPassword" type="password" required minLength={8} maxLength={200} autoComplete="new-password" className="mt-1 w-full border border-line p-3"/></label>
+          <div className="sm:col-span-2 sm:flex sm:justify-end"><SubmitButton className="btn-primary w-full justify-center sm:w-auto" pendingLabel="Changing password…">Change password</SubmitButton></div>
+        </form>
+      </details>
+    </section>
   </main>;
 }
 
