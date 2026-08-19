@@ -176,7 +176,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 - Team Leader portal now surfaces top-level action counts and prioritizes lineup work, ongoing matchups, ready matchups, and completed history. Matchup cards distinguish “Needs your lineup,” “Waiting for opponent,” and “Ready to play.”
 - Match lineup editing now includes a roster-at-a-glance board. Every player is visibly marked as selected for a specific match, played/protected, unpaired, or unavailable; each match row separately indicates Pair ready / Pair needed / Protected. Unsaved and incomplete lineup states are explicit near the save action.
 - Admin control room top metrics are tournament-operation-first (ongoing, live pair matches, pending lineups, ready, scheduled, completed). The scoring table is urgency-sorted and individual match chips expose live/done/pending/interrupted state without opening the match.
-- Group standings now use `Matches`, `W`, `L`, `NPD`, and `TP`. Matches/W/L are decided pair-match totals, `NPD` is total points scored minus total points conceded across decided pair matches, and `TP` is accumulated points scored. Ranking uses Total Pair Match Wins → NPD → head-to-head → Total Points Scored.
+- Group standings now use `Matches`, `W`, `L`, `NPD`, and `TP`. Matches/W/L are decided pair-match totals, `NPD` is total points scored minus total points conceded across decided pair matches, and `TP` is accumulated points scored. Ranking uses Total Pair Match Wins → NPD → Total Points Scored → head-to-head.
 - Live/provisional standings metrics do not unlock tie/tiebreak actions: actionable ties still require every matchup in that group table to be terminal.
 
 
@@ -186,7 +186,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 ## Match terminology, official tiebreaks, scorecard + mobile pass — 2026-08-12
 
 - Standardized user-facing tournament language on **Match / Matches**. Internal Prisma `Game` records, API identifiers, and the existing `/games` route remain unchanged intentionally to avoid an unnecessary schema/URL migration.
-- Group ranking uses the organizer-approved order directly: **A. Total Pair Match Wins, B. Net Point Differential, C. Head-to-head among teams still tied after A/B, D. Total Points Scored**. Exact ties still require organizer resolution only after the group stage is terminal.
+- Group ranking uses the organizer-approved order directly: **A. Total Pair Match Wins, B. Net Point Differential, C. Total Points Scored, D. Head-to-head among teams still tied after A/B/C**. Exact ties still require organizer resolution only after the group stage is terminal.
 - Public group standings display **Matches / W / L / NPD / TP**, all based on decided pair matches.
 - Official paper scorecards now print as **two landscape half-sheet cards stacked on one A4 portrait sheet**, separated by a crosswise cut guide. The standalone Group field is removed; labels derive group context from the configured round/matchup (for example, `Group A Match 3`).
 - Mobile navigation is now action-first: the public header keeps a compact sticky identity row plus a horizontally scrollable active-page nav strip. Admin navigation accounts for the taller mobile header.

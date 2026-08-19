@@ -68,8 +68,8 @@ export default function StandingsTable({ rows, qualificationByTeam }: { rows: St
       })}</tbody>
     </table>
     <div className="border-t border-line bg-gray-50 px-3 py-2 text-[9px] font-bold leading-relaxed text-gray-500 sm:text-[10px]">
-      <span className="sm:hidden">TB: pair-match wins → NPD → H2H → total points.</span>
-      <span className="hidden sm:inline">Tiebreak order: total pair-match wins, Net Point Differential, head-to-head result, then total points scored.</span>
+      <span className="sm:hidden">TB: pair-match wins → NPD → total points → H2H.</span>
+      <span className="hidden sm:inline">Tiebreak order: total pair-match wins, Net Point Differential, total points scored, then head-to-head result.</span>
     </div>
   </div>;
 }

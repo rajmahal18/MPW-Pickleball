@@ -25,8 +25,8 @@ Teams are ranked using the organizer's required sequence:
 
 A. **Total Pair Match Wins**
 B. **Net Point Differential** — Total Points Scored − Total Points Conceded across the pair matches
-C. **Head-to-head result** between the teams still tied after A and B
-D. **Total Points Scored**
+C. **Total Points Scored**
+D. **Head-to-head result** between the teams still tied after A, B, and C
 
 If teams remain mathematically tied after all four criteria and the group stage is complete, the existing organizer tiebreak override remains available. Cross-group wildcard comparison cannot use head-to-head, so it uses pair-match wins, NPD, then total points scored.
 

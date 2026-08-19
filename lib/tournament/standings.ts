@@ -23,7 +23,7 @@ export type StandingRow = {
   points: number;
   totalPointsScored: number;
   totalPointsConceded: number;
-  /** Head-to-head wins among teams still tied after pair-match wins and net point differential. */
+  /** Head-to-head wins among teams still tied after every preceding standings metric. */
   headToHeadPoints: number;
   rank: number;
   rankLabel: string;
@@ -48,8 +48,8 @@ export function areGroupMatchupsComplete(matchups: Array<Pick<Matchup, "status">
  * Group ranking order uses the official pair-match tiebreak sequence:
  *    A. total pair-match wins
  *    B. net point differential (points scored - points conceded)
- *    C. head-to-head result among teams still tied after A/B
- *    D. total points scored
+ *    C. total points scored
+ *    D. head-to-head result among teams still tied after A/B/C
  *
  * The organizer can still resolve a mathematically exact tie after all four criteria.
  */
@@ -57,8 +57,8 @@ export function compareStandingRows(a: StandingRow, b: StandingRow) {
   return (
     b.gameWins - a.gameWins ||
     b.points - a.points ||
-    b.headToHeadPoints - a.headToHeadPoints ||
-    b.totalPointsScored - a.totalPointsScored
+    b.totalPointsScored - a.totalPointsScored ||
+    b.headToHeadPoints - a.headToHeadPoints
   );
 }
 
@@ -80,7 +80,7 @@ function crossGroupTieKey(row: StandingRow) {
 }
 
 function preHeadToHeadTieKey(row: StandingRow) {
-  return `${row.gameWins}|${row.points}`;
+  return `${row.gameWins}|${row.points}|${row.totalPointsScored}`;
 }
 
 function stableTeamOrder(a: StandingRow, b: StandingRow) {
@@ -200,8 +200,8 @@ export function computeStandings(teams: StandingTeam[], matchups: StandingMatchu
 
   for (const row of rows) row.differential = row.gameWins - row.gameLosses;
 
-  // Head-to-head is criterion C, so evaluate it only among teams still tied after
-  // pair-match wins (A) and net point differential (B).
+  // Head-to-head is the final automatic criterion, so evaluate it only among teams
+  // still tied after pair-match wins, net point differential, and total points.
   const tiedBeforeHeadToHead = new Map<string, StandingRow[]>();
   for (const row of rows) {
     const key = preHeadToHeadTieKey(row);

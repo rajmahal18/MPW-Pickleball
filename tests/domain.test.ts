@@ -55,7 +55,7 @@ test("team-manager lineups stay closed when no unfinished matchup is in the cour
   ]), null);
 });
 
-test("standings apply pair-match wins, NPD, head-to-head, and total points", () => {
+test("standings apply pair-match wins, NPD, total points, and head-to-head", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A")];
   const rows = computeStandings(teams, [
     matchup("1", "A", "B", 4, 3, [[11, 7], [11, 7], [11, 7], [11, 7], [7, 11], [7, 11], [7, 11]]),
@@ -81,13 +81,15 @@ test("official group tiebreak criteria are compared in the required order", () =
   assert.ok(compareStandingRows({ ...base, gameWins: 11, points: -20, headToHeadPoints: 0, totalPointsScored: 100 } as never, { ...base, gameWins: 10, points: 50, headToHeadPoints: 3, totalPointsScored: 300 } as never) < 0);
   // B. NPD is next once pair-match wins are tied.
   assert.ok(compareStandingRows({ ...base, points: 6, headToHeadPoints: 0, totalPointsScored: 100 } as never, { ...base, points: 5, headToHeadPoints: 3, totalPointsScored: 300 } as never) < 0);
-  // C. Head-to-head precedes total points scored.
-  assert.ok(compareStandingRows({ ...base, headToHeadPoints: 2, totalPointsScored: 100 } as never, { ...base, headToHeadPoints: 1, totalPointsScored: 300 } as never) < 0);
-  // D. Total points scored is the final automatic criterion.
-  assert.ok(compareStandingRows({ ...base, totalPointsScored: 211 } as never, { ...base, totalPointsScored: 210 } as never) < 0);
+  // C. Total points scored precedes head-to-head.
+  assert.ok(compareStandingRows({ ...base, headToHeadPoints: 0, totalPointsScored: 211 } as never, { ...base, headToHeadPoints: 3, totalPointsScored: 210 } as never) < 0);
+  // D. Head-to-head is the final automatic criterion.
+  assert.ok(compareStandingRows({ ...base, headToHeadPoints: 2 } as never, { ...base, headToHeadPoints: 1 } as never) < 0);
+  // A full tie across A/B/C/D remains equal for organizer resolution.
+  assert.equal(compareStandingRows(base, { ...base }), 0);
 });
 
-test("head-to-head is applied only within teams still tied after pair wins and NPD", () => {
+test("head-to-head is applied only within teams still tied after pair wins, NPD, and total points", () => {
   const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A"), team("C", "Charlie", "Group A"), team("D", "Delta", "Group A")];
   const rows = computeStandings(teams, [
     matchup("ab", "A", "B", 4, 3),
@@ -100,6 +102,15 @@ test("head-to-head is applied only within teams still tied after pair wins and N
   assert.deepEqual(rows.map((row) => row.team.id), ["C", "A", "D", "B"]);
   assert.deepEqual(rows.map((row) => row.headToHeadPoints), [1, 0, 1, 0]);
   assert.ok(rows.every((row) => row.rankStatus === "RESOLVED"));
+});
+
+test("total points resolve a tie before head-to-head is evaluated", () => {
+  const teams = [team("A", "Alpha", "Group A"), team("B", "Bravo", "Group A")];
+  const rows = computeStandings(teams, [matchup("ab", "A", "B", 1, 1, [[11, 5], [5, 12]])]);
+
+  assert.deepEqual(rows.map((row) => row.team.id), ["B", "A"]);
+  assert.deepEqual(rows.map((row) => row.totalPointsScored), [17, 16]);
+  assert.deepEqual(rows.map((row) => row.headToHeadPoints), [0, 0]);
 });
 
 test("wildcard comes from the best second-place row", () => {
