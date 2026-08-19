@@ -112,7 +112,10 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <Link href={`/matches/${matchup.id}`} className="text-[10px] font-black uppercase tracking-widest text-court hover:text-ink">{matchupContext(matchup)}</Link>
-              <div className="mt-1 text-lg font-black">vs {opponent ? <Link href={`/teams/${opponent.id}`} className="hover:text-court">{opponent.name}</Link> : "TBD"}</div>
+              <div className="mt-2 flex min-w-0 items-center gap-2 text-sm font-black text-gray-400">
+                <span>vs</span>
+                {opponent ? <TeamIdentity team={opponent} variant="compact"/> : <span className="text-lg text-ink">TBD</span>}
+              </div>
               {(matchup.queuePosition !== null || matchup.courtLabel) && <div className="mt-1 text-xs font-semibold text-gray-500">{matchup.queuePosition !== null ? `Queue #${matchup.queuePosition}` : ""}{matchup.queuePosition !== null && matchup.courtLabel ? " · " : ""}{matchup.courtLabel ? `Court ${matchup.courtLabel}` : ""}</div>}
             </div>
             <div className="flex items-center gap-3">

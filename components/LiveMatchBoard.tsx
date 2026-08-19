@@ -84,9 +84,9 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
 
   return <>
     <div className="panel mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-4 text-center md:hidden">
-      <div className="flex min-w-0 flex-col items-center">{matchup.homeTeam ? <><TeamLogo team={matchup.homeTeam} size="xs"/><Link href={`/teams/${matchup.homeTeam.id}`} className="mt-1 block max-w-full truncate text-sm font-black hover:text-court">{matchup.homeTeam.shortName}</Link></> : <div className="truncate text-sm font-black">TBD</div>}</div>
+      <div className="flex min-w-0 flex-col items-center">{matchup.homeTeam ? <><TeamLogo team={matchup.homeTeam} variant="match"/><Link href={`/teams/${matchup.homeTeam.id}`} className="mt-1 block max-w-full truncate text-sm font-black hover:text-court">{matchup.homeTeam.shortName}</Link></> : <div className="truncate text-sm font-black">TBD</div>}</div>
       <div><div className="text-4xl font-black tabular-nums">{matchup.homeWins}-{matchup.awayWins}</div><div className={`text-[9px] font-black uppercase tracking-widest ${connection === "live" ? "text-court" : "text-amber-700"}`}>{connection === "live" ? "Live updates" : "Reconnecting"}</div></div>
-      <div className="flex min-w-0 flex-col items-center">{matchup.awayTeam ? <><TeamLogo team={matchup.awayTeam} size="xs"/><Link href={`/teams/${matchup.awayTeam.id}`} className="mt-1 block max-w-full truncate text-sm font-black hover:text-court">{matchup.awayTeam.shortName}</Link></> : <div className="truncate text-sm font-black">TBD</div>}</div>
+      <div className="flex min-w-0 flex-col items-center">{matchup.awayTeam ? <><TeamLogo team={matchup.awayTeam} variant="match"/><Link href={`/teams/${matchup.awayTeam.id}`} className="mt-1 block max-w-full truncate text-sm font-black hover:text-court">{matchup.awayTeam.shortName}</Link></> : <div className="truncate text-sm font-black">TBD</div>}</div>
     </div>
     <div className="mt-5 hidden gap-4 md:grid md:grid-cols-[1fr_auto_1fr]">
       <TeamPanel team={matchup.homeTeam} wins={matchup.homeWins} winner={matchup.winnerTeamId === matchup.homeTeamId}/>
@@ -111,7 +111,7 @@ export default function LiveMatchBoard({ initial }: { initial: Matchup }) {
 }
 
 function TeamPanel({ team, wins, winner }: { team: Matchup["homeTeam"]; wins: number; winner: boolean }) {
-  return <div className={`panel p-5 text-center ${winner ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200" : ""}`}><div className={`label ${winner ? "text-emerald-700" : ""}`}>{winner ? "✓ Winner" : "Team"}</div>{team ? <Link href={`/teams/${team.id}`} className={`mt-2 flex flex-col items-center gap-2 text-2xl font-black hover:text-court ${winner ? "text-emerald-900" : ""}`}><TeamLogo team={team} size="md"/><span>{team.name}</span></Link> : <div className="mt-1 text-2xl font-black">TBD</div>}<div className={`mt-3 text-5xl font-black tabular-nums ${winner ? "text-emerald-700" : ""}`}>{wins}</div></div>;
+  return <div className={`panel p-5 text-center ${winner ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200" : ""}`}><div className={`label ${winner ? "text-emerald-700" : ""}`}>{winner ? "✓ Winner" : "Team"}</div>{team ? <Link href={`/teams/${team.id}`} className={`mt-2 flex flex-col items-center gap-2 text-2xl font-black hover:text-court ${winner ? "text-emerald-900" : ""}`}><TeamLogo team={team} variant="match"/><span>{team.name}</span></Link> : <div className="mt-1 text-2xl font-black">TBD</div>}<div className={`mt-3 text-5xl font-black tabular-nums ${winner ? "text-emerald-700" : ""}`}>{wins}</div></div>;
 }
 function PairView({ players, team, right }: { players: Player[]; team: Team; right?: boolean }) {
   return <div className={`flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:gap-3 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>

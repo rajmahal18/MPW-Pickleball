@@ -11,6 +11,8 @@ import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 import AvatarPlayerSelect from "@/components/AvatarPlayerSelect";
 import GenderIndicator from "@/components/GenderIndicator";
 import EventTabs from "@/components/EventTabs";
+import { TeamLogo } from "@/components/TeamIdentity";
+import type { TeamBrandingSource } from "@/lib/team-branding";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +68,8 @@ function ScoreCell({ home, away, status }: { home: number; away: number; status:
   </div>;
 }
 
-function TeamChip({ team, side }: { team: { id: string; shortName: string }; side: "home" | "away" }) {
-  const styles = side === "home" ? "border-court bg-court text-white" : "border-gold bg-gold/25 text-ink";
-  return <Link href={`/teams/${team.id}`} className={`inline-flex min-w-10 items-center justify-center border px-2 py-1 text-[10px] font-black uppercase transition hover:ring-2 hover:ring-court/20 ${styles}`}>{team.shortName}</Link>;
+function TeamChip({ team }: { team: TeamBrandingSource & { id: string; name: string; shortName: string }; side: "home" | "away" }) {
+  return <Link href={`/teams/${team.id}`} className="inline-flex max-w-full items-center gap-1.5 text-[10px] font-black uppercase transition hover:text-court"><TeamLogo team={team} variant="match"/><span className="truncate">{team.shortName}</span></Link>;
 }
 
 function PairIdentity({ pair, team, side }: {
@@ -76,13 +77,13 @@ function PairIdentity({ pair, team, side }: {
     playerA: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null; sex: "MALE" | "FEMALE" };
     playerB: { id: string; firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl?: string | null; sex: "MALE" | "FEMALE" };
   };
-  team: { id: string; shortName: string };
+  team: TeamBrandingSource & { id: string; name: string; shortName: string };
   side: "home" | "away";
 }) {
   const right = side === "away";
   const players = [pair.playerA, pair.playerB];
   return <div className={`flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-2 ${right ? "items-end text-right md:flex-row-reverse" : "items-start"}`}>
-    <div className="flex shrink-0 -space-x-2">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} size="sm"/></Link>)}</div>
+    <div className="flex shrink-0 -space-x-2">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} team={team} size="sm"/></Link>)}</div>
     <div className="min-w-0"><TeamChip team={team} side={side}/><div className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs font-bold leading-snug text-ink md:font-black ${right ? "justify-end" : "justify-start"}`}>{players.map((player, index) => <span key={player.id} className="inline-flex items-center gap-0.5">{index > 0 && <span className="mr-0.5 text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link><GenderIndicator sex={player.sex} className="text-[11px]"/></span>)}</div></div>
   </div>;
 }

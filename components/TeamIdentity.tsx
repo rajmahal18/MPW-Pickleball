@@ -4,21 +4,23 @@ import { getTeamBranding, teamBrandingStyle, type TeamBrandingSource } from "@/l
 export type TeamIdentityTeam = TeamBrandingSource & { id?: string; name: string; shortName: string };
 
 export type TeamIdentityVariant = "micro" | "compact" | "standard" | "hero";
+export type TeamLogoVariant = TeamIdentityVariant | "match";
 
-export function TeamLogo({ team, size = "md", className = "" }: { team: TeamIdentityTeam; size?: "xs" | "sm" | "md" | "lg"; className?: string }) {
+export function TeamLogo({ team, variant, size, className = "" }: { team: TeamIdentityTeam; variant?: TeamLogoVariant; size?: "xs" | "sm" | "md" | "lg"; className?: string }) {
   const branding = getTeamBranding(team);
-  const sizes = size === "xs" ? "h-6 w-6 text-[8px]" : size === "sm" ? "h-9 w-9 text-[10px]" : size === "lg" ? "h-20 w-20 text-lg" : "h-12 w-12 text-xs";
-  const shared = `${sizes} shrink-0 rounded-lg border bg-white object-contain p-1 font-black shadow-sm ${className}`;
+  const resolved = variant ?? (size === "xs" ? "micro" : size === "sm" ? "compact" : size === "lg" ? "hero" : "standard");
+  const sizes = resolved === "micro" ? "h-5 w-8 text-[7px]" : resolved === "compact" ? "h-8 w-12 text-[9px]" : resolved === "match" ? "h-10 w-16 text-[10px]" : resolved === "hero" ? "h-[4.5rem] w-28 text-base" : "h-11 w-[4.5rem] text-xs";
+  const pixels = resolved === "micro" ? [32, 20] : resolved === "compact" ? [48, 32] : resolved === "match" ? [64, 40] : resolved === "hero" ? [112, 72] : [72, 44];
+  const shared = `${sizes} shrink-0 overflow-hidden rounded-md border bg-white object-cover font-black shadow-sm ${className}`;
   return branding.logoUrl
-    ? <img src={branding.logoUrl} alt={`${team.name} logo`} width={size === "lg" ? 80 : size === "md" ? 48 : size === "sm" ? 36 : 24} height={size === "lg" ? 80 : size === "md" ? 48 : size === "sm" ? 36 : 24} loading="lazy" decoding="async" className={shared} style={{ borderColor: branding.accent }} />
+    ? <img src={branding.logoUrl} alt={`${team.name} logo`} width={pixels[0]} height={pixels[1]} loading="lazy" decoding="async" className={shared} style={{ borderColor: branding.accent }} />
     : <span className={`${shared} grid place-items-center`} style={{ borderColor: branding.accent, color: branding.primary }} aria-label={`${team.name} initials`}>{team.shortName.slice(0, 2).toUpperCase()}</span>;
 }
 
 export function TeamIdentity({ team, variant = "compact", compact, link = true, className = "", meta, fullName = false }: { team: TeamIdentityTeam; variant?: TeamIdentityVariant; compact?: boolean; link?: boolean; className?: string; meta?: React.ReactNode; fullName?: boolean }) {
   const resolved = compact ? "micro" : variant;
-  const logoSize = resolved === "micro" ? "xs" : resolved === "compact" ? "sm" : resolved === "hero" ? "lg" : "md";
   const nameClass = resolved === "hero" ? "text-3xl font-black leading-tight tracking-tight md:text-5xl" : resolved === "standard" ? "text-base font-black" : resolved === "micro" ? "text-xs font-bold" : "text-sm font-bold";
-  const content = <span className={`inline-flex min-w-0 items-center ${resolved === "hero" ? "gap-3" : "gap-2"} ${className}`} style={teamBrandingStyle(team)}><TeamLogo team={team} size={logoSize}/><span className="min-w-0"><span className={`block truncate ${nameClass}`}>{resolved === "micro" && !fullName ? team.shortName : team.name}</span>{meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-[.65]">{meta}</span>}</span></span>;
+  const content = <span className={`inline-flex min-w-0 items-center ${resolved === "hero" ? "gap-4" : "gap-2"} ${className}`} style={teamBrandingStyle(team)}><TeamLogo team={team} variant={resolved}/><span className="min-w-0"><span className={`block truncate ${nameClass}`}>{resolved === "micro" && !fullName ? team.shortName : team.name}</span>{meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-[.65]">{meta}</span>}</span></span>;
   return link && team.id ? <Link href={`/teams/${team.id}`} className="min-w-0 hover:opacity-80">{content}</Link> : content;
 }
 

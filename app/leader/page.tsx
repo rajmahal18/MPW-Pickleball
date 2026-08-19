@@ -77,7 +77,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     return <div className={`panel flex flex-wrap items-center justify-between gap-3 p-4 ${locked ? "bg-gray-50/70" : ""}`} key={matchup.id}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><StatusBadge status={managerStatus.status} label={managerStatus.label} compact/><span className="label">{matchup.division.name} · {matchupContext(matchup)}</span></div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black sm:text-lg">{matchup.homeTeam ? <><TeamLogo team={matchup.homeTeam} size="xs"/><span>{matchup.homeTeam.name}</span></> : "TBD"}<span className="text-gray-300">vs</span>{matchup.awayTeam ? <><TeamLogo team={matchup.awayTeam} size="xs"/><span>{matchup.awayTeam.name}</span></> : "TBD"}</div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black sm:text-lg">{matchup.homeTeam ? <><TeamLogo team={matchup.homeTeam} variant="compact"/><span>{matchup.homeTeam.name}</span></> : "TBD"}<span className="text-gray-300">vs</span>{matchup.awayTeam ? <><TeamLogo team={matchup.awayTeam} variant="compact"/><span>{matchup.awayTeam.name}</span></> : "TBD"}</div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
           {matchup.queuePosition !== null && <span className="border border-court/20 bg-court/5 px-2 py-1 font-black text-court">Queue #{matchup.queuePosition}{matchup.courtLabel ? ` · Court ${matchup.courtLabel}` : ""}</span>}
           <span className="border border-line bg-white px-2 py-1 font-black">Series {matchup.homeWins}-{matchup.awayWins}</span>
@@ -98,7 +98,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     <TournamentSync initialRevision={revision} />
     <FlashMessage {...query}/>
     <div>
-      <div className="flex items-center gap-3"><TeamLogo team={user.team!} size="md"/><div className="min-w-0"><div className="label">Team manager portal</div><h1 className="truncate text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1></div></div><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Only your next unfinished matchup in the court schedule is open for lineup work. Later matchups unlock automatically after the earlier one is completed.</p>
+      <div className="flex items-center gap-3"><TeamLogo team={user.team!} variant="standard"/><div className="min-w-0"><div className="label">Team manager portal</div><h1 className="truncate text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1></div></div><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Only your next unfinished matchup in the court schedule is open for lineup work. Later matchups unlock automatically after the earlier one is completed.</p>
     </div>
 
     <section className="mt-4 md:mt-6">

@@ -26,7 +26,7 @@ function PairIdentity({ pair, team, right = false }: { pair: LiveGame["homePair"
   const players = [pair.playerA, pair.playerB];
   return <div className={`flex min-w-0 flex-col gap-1.5 ${right ? "items-end text-right" : "items-start"}`}>
     <div className="flex -space-x-2">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} aria-label={`View ${formatPlayerCompactName(player)}`} className="rounded-full transition hover:z-10 hover:ring-2 hover:ring-court/30"><PlayerAvatar {...player} team={team} size="sm"/></Link>)}</div>
-    <Link href={`/teams/${team.id}`} className="label flex items-center gap-1 truncate hover:text-court"><TeamLogo team={team} size="xs"/>{team.shortName}</Link>
+    <Link href={`/teams/${team.id}`} className="label flex items-center gap-1 truncate hover:text-court"><TeamLogo team={team} variant="match"/>{team.shortName}</Link>
     <div className={`flex flex-wrap items-center gap-x-1 text-xs font-black leading-snug sm:text-sm ${right ? "justify-end" : "justify-start"}`}>
       {players.map((player, index) => <span key={player.id} className="contents">{index > 0 && <span className="text-gray-400">/</span>}<Link href={`/players/${player.id}`} className="hover:text-court hover:underline">{formatPlayerCompactName(player)}</Link></span>)}
     </div>

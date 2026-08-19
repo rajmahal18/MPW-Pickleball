@@ -159,7 +159,7 @@ function TeamRow({ team, wins, winner = false, faded = false, champion = false }
 }
 
 function TeamMark({ team, winner }: { team: BracketMatchup["homeTeam"]; winner: boolean }) {
-  if (team) return <TeamLogo team={team} size="sm" className="bracket-team-logo"/>;
+  if (team) return <TeamLogo team={team} variant="micro"/>;
   return <span className={`bracket-team-mark ${winner ? "bracket-team-mark-winner" : ""}`}>TB</span>;
 }
 
