@@ -9,7 +9,7 @@ export type FanFavoritePublicPlayer = {
   displayName: string | null;
   avatarUrl: string | null;
   sex: SexCategory;
-  team: { id: string; name: string; shortName: string } | null;
+  team: { id: string; name: string; shortName: string; logoUrl: string | null; brandingPrimary: string | null; brandingSecondary: string | null; brandingAccent: string | null; brandingText: string | null; brandingSurface: string | null } | null;
 };
 
 export type FanFavoritePublicRanking = {
@@ -20,7 +20,7 @@ export type FanFavoritePublicRanking = {
 };
 
 export type FanFavoriteTeamSupport = {
-  team: { id: string; name: string; shortName: string };
+  team: NonNullable<FanFavoritePublicPlayer["team"]>;
   votes: number;
   percentage: number;
   maleVotes: number;
@@ -49,7 +49,7 @@ const playerSelect = {
   displayName: true,
   avatarUrl: true,
   sex: true,
-  team: { select: { id: true, name: true, shortName: true } },
+  team: { select: { id: true, name: true, shortName: true, logoUrl: true, brandingPrimary: true, brandingSecondary: true, brandingAccent: true, brandingText: true, brandingSurface: true } },
 } as const;
 
 async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavoritePublicSnapshot> {

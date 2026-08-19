@@ -3,6 +3,7 @@ import type { MatchupStage, Prisma } from "@prisma/client";
 import { displayStatus } from "@/components/StatusBadge";
 import { winsNeededForMatchup } from "@/lib/tournament/rules";
 import { Crown } from "lucide-react";
+import { TeamLogo } from "@/components/TeamIdentity";
 
 const PROGRESSION_STAGES = ["QUARTERFINAL", "SEMIFINAL", "FINAL"] as const;
 export const KNOCKOUT_STAGES = [...PROGRESSION_STAGES, "THIRD_PLACE"] as const;
@@ -158,9 +159,8 @@ function TeamRow({ team, wins, winner = false, faded = false, champion = false }
 }
 
 function TeamMark({ team, winner }: { team: BracketMatchup["homeTeam"]; winner: boolean }) {
-  if (team?.logoUrl) return <img src={team.logoUrl} alt="" className="bracket-team-logo" />;
-  const initials = team?.shortName?.slice(0, 2).toUpperCase() || "TB";
-  return <span className={`bracket-team-mark ${winner ? "bracket-team-mark-winner" : ""}`}>{initials}</span>;
+  if (team) return <TeamLogo team={team} size="sm" className="bracket-team-logo"/>;
+  return <span className={`bracket-team-mark ${winner ? "bracket-team-mark-winner" : ""}`}>TB</span>;
 }
 
 function scheduleLabel(matchup: { queuePosition: number | null; courtLabel: string | null; stage: MatchupStage }) {

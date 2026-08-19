@@ -4,6 +4,8 @@ import { Crown, Heart } from "lucide-react";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import type { MvpRow } from "@/lib/tournament/mvp";
+import { TeamLogo } from "@/components/TeamIdentity";
+import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
 
 type PosterPlayer = {
   id: string;
@@ -30,7 +32,7 @@ export default function ChampionCelebrationPoster({
   championImageUrl,
 }: {
   divisionName: string;
-  team: { id: string; name: string; shortName: string; logoUrl: string | null };
+  team: { id: string; name: string; shortName: string; logoUrl: string | null; brandingPrimary: string | null; brandingSecondary: string | null; brandingAccent: string | null; brandingText: string | null; brandingSurface: string | null };
   players: PosterPlayer[];
   maleMvp?: MvpRow;
   femaleMvp?: MvpRow;
@@ -38,17 +40,17 @@ export default function ChampionCelebrationPoster({
   femaleFan?: FanLeader;
   championImageUrl?: string | null;
 }) {
+  const branding = getTeamBranding(team);
   return <section className="overflow-hidden rounded-xl border border-line bg-white text-ink shadow-sm">
-    <header className="border-b border-line bg-ink px-4 py-5 text-white md:px-6">
+    <header className="relative isolate overflow-hidden border-b border-line px-4 py-5 md:px-6" style={{ ...teamBrandingStyle(team), color: branding.text, background: `linear-gradient(135deg, ${branding.primary}, ${branding.secondary})` }}>
+      {branding.logoUrl && <img src={branding.logoUrl} alt="" aria-hidden="true" className="pointer-events-none absolute -right-8 -top-12 -z-10 h-56 w-56 object-contain opacity-10"/>}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          {team.logoUrl
-            ? <img src={team.logoUrl} alt="" className="h-16 w-16 shrink-0 rounded-full border border-white/20 bg-white/10 object-contain p-1 md:h-20 md:w-20"/>
-            : <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-gold/50 bg-white/10 text-sm font-black text-gold md:h-20 md:w-20">{team.shortName.slice(0, 3)}</div>}
+          <TeamLogo team={team} size="lg"/>
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[.2em] text-gold">{divisionName} champion</div>
-            <h2 className="mt-2 text-3xl font-black uppercase leading-tight text-white md:text-5xl"><Link href={`/teams/${team.id}`} className="hover:text-gold">{team.name}</Link></h2>
-            <div className="mt-2 text-xs font-black uppercase tracking-[.18em] text-white/65">Dink & Dash 2026</div>
+            <div className="text-[10px] font-black uppercase tracking-[.2em] opacity-85">{divisionName} champion</div>
+            <h2 className="mt-2 text-3xl font-black uppercase leading-tight md:text-5xl"><Link href={`/teams/${team.id}`} className="hover:opacity-80">{team.name}</Link></h2>
+            <div className="mt-2 text-xs font-black uppercase tracking-[.18em] opacity-70">Dink & Dash 2026</div>
           </div>
         </div>
         <div className="inline-flex w-fit items-center gap-2 rounded-md border border-gold/50 bg-gold px-4 py-2 text-xs font-black uppercase tracking-[.15em] text-ink"><Crown className="h-4 w-4" fill="currentColor"/> Champion Team</div>

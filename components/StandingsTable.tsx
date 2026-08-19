@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { QualificationOutcome, StandingRow } from "@/lib/tournament/standings";
+import { TeamLogo } from "@/components/TeamIdentity";
 
 function signed(value: number) {
   return value > 0 ? `+${value}` : String(value);
@@ -52,7 +53,7 @@ export default function StandingsTable({ rows, qualificationByTeam }: { rows: St
         return <tr key={row.team.id} className={`border-b border-line align-top transition-colors last:border-0 ${rowTone(outcome)}`}>
           <td className={`px-1.5 py-3 font-black ${outcome === "QUALIFIED" ? "text-emerald-800" : outcome === "ELIMINATED" ? "text-red-800" : ""}`}>{row.rankLabel || row.rank}</td>
           <td className="min-w-0 px-1.5 py-3">
-            <Link className={`block overflow-hidden text-ellipsis whitespace-normal font-bold leading-snug ${outcome === "QUALIFIED" ? "text-emerald-950 hover:text-emerald-700" : outcome === "ELIMINATED" ? "text-red-950 hover:text-red-700" : "hover:text-court"}`} href={`/teams/${row.team.id}`} title={row.team.name}>{row.team.name}</Link>
+            <Link className={`flex min-w-0 items-center gap-1.5 font-bold leading-snug ${outcome === "QUALIFIED" ? "text-emerald-950 hover:text-emerald-700" : outcome === "ELIMINATED" ? "text-red-950 hover:text-red-700" : "hover:text-court"}`} href={`/teams/${row.team.id}`} title={row.team.name}><TeamLogo team={row.team} size="xs"/><span className="min-w-0 overflow-hidden text-ellipsis whitespace-normal">{row.team.name}</span></Link>
             <div className="mt-1 flex flex-wrap gap-1">
               {outcome === "PENDING" && <span className="border border-amber-300 bg-amber-100 px-1 py-0.5 text-[8px] font-black uppercase text-amber-900 sm:text-[9px]">Tiebreak pending</span>}
               {row.rankStatus === "TIED" && <span className="border border-amber-300 bg-amber-50 px-1 py-0.5 text-[8px] font-black uppercase text-amber-950 sm:text-[9px]">Tie</span>}

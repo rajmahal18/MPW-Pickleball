@@ -12,6 +12,7 @@ const publicPlayerSelect = {
   displayName: true,
   avatarUrl: true,
 } as const;
+const publicTeamSelect = { id: true, name: true, shortName: true, logoUrl: true, brandingPrimary: true, brandingSecondary: true, brandingAccent: true, brandingText: true, brandingSurface: true } as const;
 
 const LIVE_CACHE_TTL_MS = 1_000;
 let liveCache: { tournamentId: string; expiresAt: number; value: unknown[] } | null = null;
@@ -27,8 +28,8 @@ async function loadLiveGames(tournamentId: string) {
     select: {
       id: true, matchupId: true, gameNumber: true, homeScore: true, awayScore: true, status: true, winnerTeamId: true,
       matchup: { select: { courtLabel: true, roundLabel: true } },
-      homeTeam: { select: { id: true, shortName: true } },
-      awayTeam: { select: { id: true, shortName: true } },
+      homeTeam: { select: publicTeamSelect },
+      awayTeam: { select: publicTeamSelect },
       homePair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
       awayPair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
     },

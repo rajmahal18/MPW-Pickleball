@@ -18,12 +18,12 @@ export type FanFavoritePlayer = {
   displayName: string | null;
   avatarUrl: string | null;
   sex: "MALE" | "FEMALE";
-  team: { id: string; name: string; shortName: string } | null;
+  team: { id: string; name: string; shortName: string; logoUrl: string | null; brandingPrimary: string | null; brandingSecondary: string | null; brandingAccent: string | null; brandingText: string | null; brandingSurface: string | null } | null;
 };
 
 type Player = FanFavoritePlayer;
 export type FanFavoriteRanking = { rank: number; votes: number; percentage: number; player?: Player };
-export type FanFavoriteTeamSupport = { team: { id: string; name: string; shortName: string }; votes: number; percentage: number; maleVotes: number; femaleVotes: number };
+export type FanFavoriteTeamSupport = { team: NonNullable<FanFavoritePlayer["team"]>; votes: number; percentage: number; maleVotes: number; femaleVotes: number };
 type Ranking = FanFavoriteRanking;
 export type FanFavoriteSnapshot = {
   votingOpen: boolean;

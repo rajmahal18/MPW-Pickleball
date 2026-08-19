@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, isTerminalMatchupStatus } from "@/lib/tournament/standings";
 import { formatPlayerDisplayName } from "@/lib/player-name";
+import { TeamLogo } from "@/components/TeamIdentity";
 import EventTabs from "@/components/EventTabs";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ function TeamRow({
   matchupWins,
   matchupLosses,
 }: {
-  team: { id: string; name: string; shortName: string; logoUrl: string | null };
+  team: { id: string; name: string; shortName: string; logoUrl: string | null; brandingPrimary: string | null; brandingSecondary: string | null; brandingAccent: string | null; brandingText: string | null; brandingSurface: string | null };
   players: Array<{ firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null }>;
   rankLabel: string | null;
   matchupWins: number;
@@ -123,9 +124,7 @@ function TeamRow({
 }) {
   const hasResults = matchupWins + matchupLosses > 0;
   return <Link href={`/teams/${team.id}`} className="group flex min-w-0 items-center gap-3 rounded-lg border border-line bg-white p-3 hover:border-court/40 hover:bg-court/5 md:p-3.5">
-    {team.logoUrl
-      ? <img src={team.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-full border border-line bg-white object-contain p-1 md:h-12 md:w-12"/>
-      : <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-court/20 bg-court/10 text-[11px] font-black text-court md:h-12 md:w-12">{team.shortName.slice(0, 3)}</div>}
+    <TeamLogo team={team} size="md"/>
     <div className="min-w-0 flex-1">
       <div className="truncate text-sm font-black text-ink group-hover:text-court md:text-base">{team.name}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-gray-500 md:text-xs">

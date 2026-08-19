@@ -144,7 +144,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
         const teamIsPublic = Boolean(player.team?.division.isPublic);
         return <article key={player.id} className="public-card group block p-3 focus-within:ring-2 focus-within:ring-court/30 md:p-4">
           <div className="flex items-center gap-3.5">
-            <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} size="lg"/></Link>
+            <Link href={`/players/${player.id}`} aria-label={`View ${formatPlayerDisplayName(player)}`} className="shrink-0 rounded-full"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="lg"/></Link>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-1.5"><h2 className="truncate text-base font-extrabold tracking-tight text-ink md:text-lg"><Link href={`/players/${player.id}`} className="hover:text-court">{formatPlayerDisplayName(player)}</Link></h2><GenderIndicator sex={player.sex} className="text-lg"/></div>
             </div>

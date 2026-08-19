@@ -196,6 +196,11 @@ model Team {
   name              String
   shortName         String
   logoUrl           String?
+  brandingPrimary   String?
+  brandingSecondary String?
+  brandingAccent    String?
+  brandingText      String?
+  brandingSurface   String?
   divisionId        String
   division          Division                @relation(fields: [divisionId], references: [id], onDelete: Cascade)
   groupId           String?

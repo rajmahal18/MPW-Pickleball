@@ -5,6 +5,8 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName, formatPlayerCompactName } from "@/lib/player-name";
+import { TeamLogo } from "@/components/TeamIdentity";
+import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
 
 export const dynamic = "force-dynamic";
 
@@ -103,21 +105,23 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
   const npd = summary.pointsFor - summary.pointsAgainst;
   const teamIsPublic = Boolean(player.team?.division.isPublic);
   const divisionNames = player.divisionEntries.map((entry) => entry.division.name).join(" · ");
+  const branding = getTeamBranding(teamIsPublic ? player.team : null);
 
   return <main className="public-page mx-auto max-w-6xl px-4 py-6 md:py-10">
     <Link href="/players" className="text-sm font-bold text-court hover:text-ink">← Back to players</Link>
 
     <section className="mt-4 overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-      <div className="bg-gradient-to-br from-ink via-court to-ink px-5 py-6 text-white md:px-8 md:py-8">
+      <div className="relative isolate overflow-hidden px-5 py-6 md:px-8 md:py-8" style={{ ...teamBrandingStyle(teamIsPublic ? player.team : null), color: branding.text, background: `linear-gradient(135deg, ${branding.primary}, ${branding.secondary} 58%, ${branding.primary})` }}>
+        {branding.logoUrl && <img src={branding.logoUrl} alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-8 -right-8 -z-10 h-52 w-52 object-contain opacity-[0.10] sm:-bottom-12 sm:right-4 sm:h-72 sm:w-72"/>}
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          {player.avatarUrl ? <a href={player.avatarUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${formatPlayerDisplayName(player)} profile photo`} className="rounded-full bg-white/10 p-1 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2 focus:ring-offset-ink"><PlayerAvatar {...player} size="xl"/></a> : <div className="rounded-full bg-white/10 p-1"><PlayerAvatar {...player} size="xl"/></div>}
+          {player.avatarUrl ? <a href={player.avatarUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${formatPlayerDisplayName(player)} profile photo`} className="w-fit rounded-full bg-white/10 p-1 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="xl"/></a> : <div className="w-fit rounded-full bg-white/10 p-1"><PlayerAvatar {...player} team={teamIsPublic ? player.team : null} size="xl"/></div>}
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-extrabold uppercase tracking-[.18em] text-gold">Player profile</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[.18em] opacity-85">Player profile</div>
             <div className="mt-1 flex items-center gap-2"><h1 className="text-3xl font-black tracking-tight md:text-5xl">{formatPlayerDisplayName(player)}</h1><GenderIndicator sex={player.sex} className="text-3xl md:text-4xl"/></div>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/80">
-              {teamIsPublic && player.team && <><span>·</span><Link href={`/teams/${player.team.id}`} className="hover:text-gold hover:underline">{player.team.name}</Link></>}
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold opacity-90">
+              {teamIsPublic && player.team && <Link href={`/teams/${player.team.id}`} className="inline-flex items-center gap-2 hover:underline"><TeamLogo team={player.team} size="xs"/>{player.team.name}</Link>}
             </div>
-            {divisionNames && <div className="mt-2 text-xs font-semibold text-white/65">{divisionNames}{teamIsPublic && player.team?.group ? ` · ${player.team.group.name}` : ""}</div>}
+            {divisionNames && <div className="mt-2 text-xs font-semibold opacity-75">{divisionNames}{teamIsPublic && player.team?.group ? ` · ${player.team.group.name}` : ""}</div>}
           </div>
         </div>
       </div>
@@ -137,7 +141,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2"><Link href={`/matches/${game.matchupId}`} className="text-[10px] font-extrabold uppercase tracking-widest text-court hover:text-ink">{game.matchup.division.name} · {matchupContext(game.matchup)} · Match {game.gameNumber}</Link>{game.matchup.courtLabel && <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Court {game.matchup.courtLabel}</span>}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black"><Link href={`/teams/${side.team.id}`} className="hover:text-court">{side.team.shortName}</Link><span className="text-gray-300">vs</span><Link href={`/teams/${side.opponentTeam.id}`} className="hover:text-court">{side.opponentTeam.shortName}</Link></div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-base font-black"><TeamLogo team={side.team} size="xs"/><Link href={`/teams/${side.team.id}`} className="hover:text-court">{side.team.shortName}</Link><span className="text-gray-300">vs</span><TeamLogo team={side.opponentTeam} size="xs"/><Link href={`/teams/${side.opponentTeam.id}`} className="hover:text-court">{side.opponentTeam.shortName}</Link></div>
               <div className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">With <Link href={`/players/${side.partner.id}`} className="font-bold text-ink hover:text-court hover:underline">{formatPlayerCompactName(side.partner)}</Link><span>· Opponents</span><PairLinks pair={side.opponentPair}/></div>
             </div>
             <div className="flex items-center gap-3">

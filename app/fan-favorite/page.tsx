@@ -32,7 +32,7 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
         displayName: true,
         avatarUrl: true,
         sex: true,
-        team: { select: { id: true, name: true, shortName: true } },
+        team: { select: { id: true, name: true, shortName: true, logoUrl: true, brandingPrimary: true, brandingSecondary: true, brandingAccent: true, brandingText: true, brandingSurface: true } },
       },
       orderBy: [{ sex: "asc" }, { team: { shortName: "asc" } }, { firstName: "asc" }],
     }),
@@ -42,7 +42,7 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
 
   const eligiblePlayers = shuffleForPageLoad(players.filter((player) => player.team).map((player) => ({
     ...player,
-    team: { id: player.team!.id, name: player.team!.name, shortName: player.team!.shortName },
+    team: player.team!,
   })));
 
   return <main className="public-page mx-auto max-w-[1500px] px-4 py-6 md:px-5 md:py-10">

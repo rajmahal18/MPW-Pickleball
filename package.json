@@ -8,12 +8,13 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/domain.test.ts",
+    "test": "tsx --test tests/all.test.ts",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "roster:check": "tsx scripts/import-official-player-pool.ts --dry-run",
     "roster:import": "tsx scripts/import-official-player-pool.ts",
+    "branding:backfill": "tsx scripts/backfill-team-branding.ts",
     "verify": "prisma format && prisma validate && prisma generate && npm run typecheck && npm test && npm run build",
     "postinstall": "prisma generate"
   },
@@ -24,7 +25,8 @@
     "lucide-react": "^0.525.0",
     "next": "^15.4.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

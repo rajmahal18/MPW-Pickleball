@@ -11,6 +11,7 @@ const publicPlayerSelect = {
   displayName: true,
   avatarUrl: true,
 } as const;
+const publicTeamSelect = { id: true, name: true, shortName: true, logoUrl: true, brandingPrimary: true, brandingSecondary: true, brandingAccent: true, brandingText: true, brandingSurface: true } as const;
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,8 +28,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       division: { select: { suddenDeathAtTen: true } },
       homeTeamId: true,
       awayTeamId: true,
-      homeTeam: { select: { id: true, name: true, shortName: true } },
-      awayTeam: { select: { id: true, name: true, shortName: true } },
+      homeTeam: { select: publicTeamSelect },
+      awayTeam: { select: publicTeamSelect },
       games: {
         orderBy: { gameNumber: "asc" },
         select: {
@@ -38,8 +39,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
           awayScore: true,
           status: true,
           winnerTeamId: true,
-          homeTeam: { select: { id: true, shortName: true } },
-          awayTeam: { select: { id: true, shortName: true } },
+          homeTeam: { select: publicTeamSelect },
+          awayTeam: { select: publicTeamSelect },
           homePair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
           awayPair: { select: { id: true, playerA: { select: publicPlayerSelect }, playerB: { select: publicPlayerSelect } } },
         },

@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
@@ -22,13 +22,14 @@ function imagePath(filename: string) {
   return { fullPath: path.join(root, filename), contentType };
 }
 
-async function saveImage(file: File, label: string, maxBytes: number) {
+async function saveImage(file: File, label: string, maxBytes: number, suppliedBytes?: Uint8Array) {
   const root = storageRoot();
   if (!root) throw new Error("AVATAR_STORAGE_DIR is required for image uploads in production.");
   if (file.size <= 0 || file.size > maxBytes) throw new Error(`${label} must be between 1 byte and ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
   const rule = allowed.get(file.type);
   if (!rule) throw new Error(`Only JPEG, PNG, and WebP ${label.toLowerCase()} files are allowed.`);
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = suppliedBytes ?? new Uint8Array(await file.arrayBuffer());
+  if (bytes.byteLength !== file.size) throw new Error(`The uploaded ${label.toLowerCase()} is incomplete.`);
   if (!rule.signature(bytes)) throw new Error(`The uploaded ${label.toLowerCase()} signature does not match its declared image type.`);
   await mkdir(root, { recursive: true });
   const filename = `${randomUUID()}.${rule.extension}`;
@@ -42,6 +43,23 @@ export async function saveAvatar(file: File) {
 
 export async function saveChampionImage(file: File) {
   return saveImage(file, "Champion image", 10 * 1024 * 1024);
+}
+
+export async function saveTeamLogo(file: File, bytes?: Uint8Array) {
+  return saveImage(file, "Team logo", 5 * 1024 * 1024, bytes);
+}
+
+export function storedImagePathFromUrl(url: string) {
+  const match = url.match(/^\/api\/public\/avatars\/([a-f0-9-]+\.(?:jpg|png|webp))$/);
+  if (!match) return null;
+  return imagePath(match[1]!).fullPath;
+}
+
+export async function removeManagedImage(url?: string | null) {
+  if (!url) return false;
+  const filePath = storedImagePathFromUrl(url);
+  if (!filePath) return false;
+  try { await unlink(filePath); return true; } catch { return false; }
 }
 
 export async function openAvatar(filename: string) {

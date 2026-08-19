@@ -5,6 +5,8 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName } from "@/lib/player-name";
+import { TeamLogo } from "@/components/TeamIdentity";
+import { getTeamBranding, teamBrandingStyle } from "@/lib/team-branding";
 import { computeStandings } from "@/lib/tournament/standings";
 
 export const dynamic = "force-dynamic";
@@ -77,11 +79,10 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   return <main className="public-page mx-auto max-w-6xl px-4 py-3 md:py-8">
     <Link href={`/teams?division=${encodeURIComponent(team.division.slug)}`} className="text-sm font-bold text-court hover:text-ink">← Back to {team.division.entrantType === "PAIR" ? "pairs" : "teams"}</Link>
 
-    <section className="public-hero mt-2 md:mt-4">
+    <section className="public-hero relative isolate mt-2 overflow-hidden md:mt-4" style={{ ...teamBrandingStyle(team), backgroundColor: getTeamBranding(team).surface }}>
+      {getTeamBranding(team).logoUrl && <img src={getTeamBranding(team).logoUrl!} alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-10 right-2 -z-10 h-48 w-48 object-contain opacity-[0.06]"/>}
       <div className="flex min-w-0 items-start gap-4">
-        {team.logoUrl
-          ? <img src={team.logoUrl} alt="" className="h-16 w-16 shrink-0 rounded-full border border-line bg-white object-contain p-1.5 md:h-20 md:w-20"/>
-          : <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-court/20 bg-court/10 text-sm font-black text-court md:h-20 md:w-20">{team.shortName.slice(0, 3)}</div>}
+        <TeamLogo team={team} size="lg"/>
         <div className="min-w-0">
           <div className="public-kicker">{team.division.name}{team.group ? <> · <Link href={`/groups/${team.group.slug}`} className="hover:text-ink hover:underline">{team.group.name}</Link></> : null}</div>
           <h1 className="public-title">{team.name}</h1>

@@ -10,7 +10,7 @@ type MvpPlayer = {
   displayName: string | null;
   avatarUrl: string | null;
   sex: "MALE" | "FEMALE";
-  team: { id: string; name: string; shortName: string } | null;
+  team: { id: string; name: string; shortName: string; logoUrl?: string | null; brandingPrimary?: string | null; brandingSecondary?: string | null; brandingAccent?: string | null; brandingText?: string | null; brandingSurface?: string | null } | null;
 };
 
 type MvpPair = { id: string; playerA: MvpPlayer; playerB: MvpPlayer };
