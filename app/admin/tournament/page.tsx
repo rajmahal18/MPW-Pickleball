@@ -247,7 +247,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
     <TournamentSetupTabs pairMode={selected.entrantType === "PAIR"}>
       <section id="division-settings" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
         <SectionHeader eyebrow="Division" title="Format & settings">Competition structure and match counts.</SectionHeader>
-        <form action="/api/admin/tournament-structure" method="post" className="space-y-5">
+        <form key={selected.id} action="/api/admin/tournament-structure" method="post" className="space-y-5">
           <input type="hidden" name="action" value="update-division" />
           <input type="hidden" name="divisionId" value={selected.id} />
           <input type="hidden" name="preserveLineupRules" value="1" />
