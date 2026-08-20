@@ -144,6 +144,42 @@ export async function POST(request: Request) {
     const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
     if (!tournament) throw new Error("Tournament not found.");
 
+    if (action === "confirm-pair-division-players") {
+      if (String(data.confirmAttendance || "") !== "yes") throw new Error("Confirm that these paired players are attending before publishing them.");
+      const divisionId = text(data.divisionId, "Division");
+      const division = await prisma.division.findFirst({
+        where: { id: divisionId, tournamentId: tournament.id, entrantType: "PAIR" },
+        select: {
+          id: true,
+          name: true,
+          teams: { select: { pairs: { where: { isActive: true }, select: { playerAId: true, playerBId: true } } } },
+        },
+      });
+      if (!division) throw new Error("Select a valid Executive pair division.");
+      const pairedPlayerIds = [...new Set(division.teams.flatMap((team) => team.pairs.flatMap((pair) => [pair.playerAId, pair.playerBId])))];
+      if (!pairedPlayerIds.length) throw new Error(`${division.name} has no active paired players to confirm.`);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const poolPlayers = await tx.player.findMany({
+          where: { id: { in: pairedPlayerIds }, tournamentId: tournament.id, isActive: true, participationStatus: "POOL" },
+          select: { id: true },
+        });
+        const playerIds = poolPlayers.map((player) => player.id);
+        if (playerIds.length) {
+          await tx.player.updateMany({ where: { id: { in: playerIds } }, data: { participationStatus: "CONFIRMED" } });
+          await tx.divisionPlayer.updateMany({ where: { divisionId: division.id, playerId: { in: playerIds } }, data: { status: "CONFIRMED" } });
+          const existing = await tx.divisionPlayer.findMany({ where: { divisionId: division.id, playerId: { in: playerIds } }, select: { playerId: true } });
+          const existingIds = new Set(existing.map((entry) => entry.playerId));
+          const missingIds = playerIds.filter((playerId) => !existingIds.has(playerId));
+          if (missingIds.length) await tx.divisionPlayer.createMany({ data: missingIds.map((playerId) => ({ divisionId: division.id, playerId, status: "CONFIRMED" as const })) });
+        }
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "PAIR_DIVISION_PLAYERS_CONFIRMED", entityType: "Division", entityId: division.id, afterState: { divisionId: division.id, playerIds, confirmedCount: playerIds.length } });
+        return playerIds.length;
+      });
+      const message = result ? `${result} paired player${result === 1 ? "" : "s"} confirmed for ${division.name}.` : `All active paired players in ${division.name} are already confirmed.`;
+      return NextResponse.redirect(redirectBack(request, "/admin/players", { success: message }), 303);
+    }
+
     if (action === "batch-players") {
       const playerIds = stringList(data.playerIds);
       if (!playerIds.length) throw new Error("Select at least one player.");

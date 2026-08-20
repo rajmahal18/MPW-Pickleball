@@ -18,6 +18,8 @@ import { tournamentStartAtIso } from "@/lib/public-launch";
 import { TeamIdentity } from "@/components/TeamIdentity";
 import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 import { isMvpPublic } from "@/lib/tournament/mvp-visibility";
+import EventTabs from "@/components/EventTabs";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +32,23 @@ function matchupContext(matchup: { groupLabel: string | null; stage: string; rou
   return `${scope} · ${round}`;
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ division?: string }> }) {
+  const [query, divisionFilter] = await Promise.all([searchParams, publicDivisionFilter()]);
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     include: {
       divisions: {
-        where: { isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() },
+        where: divisionFilter,
         include: {
           groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
           teams: true,
           matchups: {
-            include: { homeTeam: true, awayTeam: true, winnerTeam: true, games: { select: { homeScore: true, awayScore: true, status: true } } },
+            include: {
+              homeTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+              awayTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+              winnerTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+              games: { select: { homeScore: true, awayScore: true, status: true } },
+            },
             orderBy: { order: "asc" },
           },
         },
@@ -52,8 +60,10 @@ export default async function Home() {
   if (!tournament) return <main className="public-page mx-auto max-w-7xl p-6">Run the seed script first.</main>;
 
   const mvpVisible = await isMvpPublic(tournament.id);
-  const mvpDivision = tournament.divisions[0] ?? null;
-  const championFinals = tournament.divisions.flatMap((division) => division.matchups
+  const mvpDivision = tournament.divisions.find((division) => division.entrantType === "TEAM" && division.slug === recognitionDivisionSlug()) ?? null;
+  const homepageDivisions = [...tournament.divisions].sort((a, b) => Number(b.id === mvpDivision?.id) - Number(a.id === mvpDivision?.id));
+  const selectedDivision = homepageDivisions.find((division) => division.slug === query.division || division.id === query.division) ?? mvpDivision ?? homepageDivisions[0] ?? null;
+  const championFinals = (mvpDivision ? [mvpDivision] : []).flatMap((division) => division.matchups
     .filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP" && matchup.stage === "FINAL" && matchup.winnerTeamId && matchup.winnerTeam && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"))
     .map((matchup) => ({ division, matchup })));
   const championTeamIds = championFinals.map(({ matchup }) => matchup.winnerTeamId!).filter(Boolean);
@@ -108,22 +118,24 @@ export default async function Home() {
   const femaleFanLeader = femaleFanRanking?.player ? { row: { playerId: femaleFanRanking.player.id, _count: { _all: femaleFanRanking.votes } }, player: femaleFanRanking.player } : undefined;
   const totalFanVotes = fanSnapshot.totalVotes;
 
-  const groupCards = tournament.divisions.flatMap((division) => {
+  const groupCards = (selectedDivision ? [selectedDivision] : []).flatMap((division) => {
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
     const tables = division.groups.map((group) => computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
-    const outcomes = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(groupMatchups), groupMatchups }) : new Map();
+    const outcomes = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.wildcardMode === "STANDARD" ? division.qualifiersPerGroup : 1, division.wildcardMode === "BATTLE" ? division.wildcardBattleSize : division.wildcardMode === "DIRECT" ? 1 : division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(groupMatchups), groupMatchups }) : new Map();
     return division.groups.map((group, index) => ({ division, group, standings: tables[index] ?? [], qualificationByTeam: outcomes }));
   });
-  const wildcardCards = tournament.divisions.flatMap((division) => {
-    if (division.formatType !== "GROUP_KNOCKOUT" || !division.groups.length || !division.wildcardCount) return [];
+  const wildcardCards = (selectedDivision ? [selectedDivision] : []).flatMap((division) => {
+    const wildcardCount = division.wildcardMode === "DIRECT" ? 1 : division.wildcardMode === "STANDARD" ? division.wildcardCount : 0;
+    const qualifiersPerGroup = division.wildcardMode === "DIRECT" ? 1 : division.qualifiersPerGroup;
+    if (division.formatType !== "GROUP_KNOCKOUT" || !division.groups.length || !wildcardCount) return [];
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
     if (!areGroupMatchupsComplete(groupMatchups)) return [];
     const tables = division.groups.map((group) => computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
-    return selectDivisionQualifiers(tables, division.qualifiersPerGroup, division.wildcardCount).wildcards.map((row) => ({ division: division.name, row }));
+    return selectDivisionQualifiers(tables, qualifiersPerGroup, wildcardCount).wildcards.map((row) => ({ division: division.name, row }));
   });
-  const bracketDivisions = tournament.divisions.map((division) => ({
+  const bracketDivisions = (selectedDivision ? [selectedDivision] : []).map((division) => ({
     division,
-    matchups: division.matchups.filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP" && KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
+    matchups: division.matchups.filter((matchup) => KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
   })).filter(({ division, matchups }) => division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION" || matchups.length > 0);
   const mvpMatchups = (mvpDivision?.matchups ?? []).map((matchup) => ({
     stage: matchup.stage,
@@ -157,16 +169,18 @@ export default async function Home() {
     />)}</section> : null}
     {(live.length > 0 || championFinals.length === 0) && <LiveGamesGrid initial={live} tournamentStartAt={tournamentStartAtIso()} serverNow={Date.now()}/>}
 
+    {homepageDivisions.length > 1 && <section><div><div className="label">Competition overview</div><h2 className="text-2xl font-black uppercase">Standings &amp; Brackets</h2><p className="mt-1 hidden text-sm text-gray-500 md:block">Team Event remains the main view. Switch divisions to follow Executive standings and knockout progress.</p></div><EventTabs divisions={homepageDivisions} activeId={selectedDivision?.id ?? ""} basePath="/"/></section>}
+
     {groupCards.length > 0 && <section><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><div className="label">Group-stage divisions</div><h2 className="text-2xl font-black uppercase">Standings</h2></div>{wildcardCards.length > 0 && <div className="flex flex-wrap gap-2">{wildcardCards.map(({ division, row }) => <div key={`${division}-${row.team.id}`} className="border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span className="label text-emerald-700">{division} wildcard · qualified</span><Link href={`/teams/${row.team.id}`} className="ml-2 font-bold hover:text-court hover:underline">{row.team.name}</Link></div>)}</div>}</div><div className="grid gap-5 lg:grid-cols-2">{groupCards.map(({ division, group, standings, qualificationByTeam }) => <div className="panel min-w-0 overflow-hidden" key={group.id}><div className="flex items-center justify-between border-b border-line bg-gray-50/70 p-4"><div><div className="label">{division.name}</div><h3 className="font-black">{group.name}</h3></div><Link href={`/groups/${group.slug}`} className="text-xs font-bold text-court">Full group →</Link></div><StandingsTable rows={standings} qualificationByTeam={qualificationByTeam}/></div>)}</div></section>}
 
     {bracketDivisions.length > 0 && <section>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div><div className="label">Knockout progression</div><h2 className="text-2xl font-black uppercase">Tournament Bracket</h2><p className="mt-1 hidden text-sm text-gray-500 md:block">Live bracket slots update as qualifiers and knockout winners are resolved.</p></div>
-        <Link href="/bracket" className="btn border-flame bg-flame px-3 py-2 text-white hover:bg-white hover:text-flame md:px-4">View Full Bracket</Link>
+        <Link href={selectedDivision ? `/bracket?division=${encodeURIComponent(selectedDivision.slug)}` : "/bracket"} className="btn border-flame bg-flame px-3 py-2 text-white hover:bg-white hover:text-flame md:px-4">View Full Bracket</Link>
       </div>
       <div className="space-y-5">{bracketDivisions.map(({ division, matchups }) => <section key={division.id} className="panel overflow-hidden">
         <div className="border-b border-line px-4 py-3"><div className="label text-court">{division.formatType.replaceAll("_", " ")}</div><h3 className="font-black uppercase">{division.name}</h3></div>
-        {matchups.length ? <BracketBoard matchups={matchups} /> : <div className="p-6 text-sm text-gray-500">Knockout slots are not configured yet. They will appear here as soon as the organizer creates or generates the bracket.</div>}
+        {matchups.length ? <div className="divide-y divide-line">{matchups.some((matchup) => matchup.bracketTrack === "WILDCARD") && <section><div className="border-b border-violet-200 bg-violet-50 px-4 py-3"><div className="label text-violet-700">Qualifier tournament</div><h4 className="font-black uppercase text-violet-950">Battle for the Wildcard</h4></div><BracketBoard matchups={matchups.filter((matchup) => matchup.bracketTrack === "WILDCARD")} pairMode={division.entrantType === "PAIR"} championship={false}/></section>}<section>{matchups.some((matchup) => matchup.bracketTrack === "WILDCARD") && <div className="border-b border-court/20 bg-court/5 px-4 py-3"><div className="label text-court">Main tournament</div><h4 className="font-black uppercase">Championship Bracket</h4></div>}<BracketBoard matchups={matchups.filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP")} pairMode={division.entrantType === "PAIR"}/></section></div> : <div className="p-6 text-sm text-gray-500">Knockout slots are not configured yet. They will appear here as soon as the organizer creates or generates the bracket.</div>}
       </section>)}</div>
     </section>}
 

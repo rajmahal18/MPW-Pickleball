@@ -8,14 +8,16 @@ export default function SubmitButton({
   pendingLabel = "Submitting...",
   className = "btn-primary",
   type = "submit",
+  disabled = false,
 }: {
   children: ReactNode;
   pendingLabel?: string;
   className?: string;
   type?: "submit" | "button";
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
-  return <button type={type} className={className} disabled={pending} aria-disabled={pending}>
+  return <button type={type} className={className} disabled={pending || disabled} aria-disabled={pending || disabled}>
     {pending ? pendingLabel : children}
   </button>;
 }

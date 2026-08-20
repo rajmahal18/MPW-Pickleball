@@ -59,7 +59,7 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
 
   const divisions = await prisma.division.findMany({
     where: { tournamentId: tournament.id },
-    select: { id: true, name: true, sortOrder: true, entrantType: true, sexCategory: true, teams: { select: { id: true, name: true, shortName: true }, orderBy: { shortName: "asc" } } },
+    select: { id: true, name: true, sortOrder: true, entrantType: true, sexCategory: true, teams: { select: { id: true, name: true, shortName: true, pairs: { where: { isActive: true }, select: { playerA: { select: { id: true, isActive: true, participationStatus: true } }, playerB: { select: { id: true, isActive: true, participationStatus: true } } } } }, orderBy: { shortName: "asc" } } },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
@@ -192,6 +192,12 @@ export default async function AdminPlayers({ searchParams }: { searchParams: Pro
         <div className="flex gap-2"><SubmitButton pendingLabel="Filtering…">Apply</SubmitButton><Link href="/admin/players" className="btn-ghost">Clear</Link></div>
       </form>
     </section>
+
+    {pairDivisions.length > 0 && <section className="mt-5 border border-line bg-white p-4"><div className="mb-3"><div className="label text-court">Executive attendance</div><h2 className="text-lg font-black uppercase">Confirm paired players</h2><p className="mt-1 text-xs text-gray-500">Confirms only active players already assigned to an Executive pair. Unassigned pool, unavailable, withdrawn, and other divisions stay unchanged.</p></div><div className="grid gap-3 md:grid-cols-2">{pairDivisions.map((division) => {
+      const pairedPlayers = new Map(division.teams.flatMap((team) => team.pairs.flatMap((pair) => [pair.playerA, pair.playerB])).map((player) => [player.id, player]));
+      const poolCount = [...pairedPlayers.values()].filter((player) => player.isActive && player.participationStatus === "POOL").length;
+      return <form key={division.id} action="/api/admin/master-data" method="post" className="grid gap-3 rounded-lg border border-line bg-paper p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><input type="hidden" name="action" value="confirm-pair-division-players"/><input type="hidden" name="divisionId" value={division.id}/><div className="min-w-0"><div className="truncate font-black">{division.name}</div><div className="text-xs text-gray-500">{pairedPlayers.size} paired · {poolCount} still in pool</div>{poolCount > 0 && <label className="mt-2 flex items-start gap-2 text-xs font-bold text-gray-600"><input type="checkbox" name="confirmAttendance" value="yes" required className="mt-0.5 h-4 w-4 shrink-0"/><span>These paired players are attending and may appear publicly.</span></label>}</div><SubmitButton className="btn-primary w-full px-3 py-2 text-xs sm:w-auto" pendingLabel="Confirming…" disabled={poolCount === 0}>{poolCount ? `Confirm ${poolCount}` : "Confirmed"}</SubmitButton></form>;
+    })}</div></section>}
 
     <details className="mt-5 border border-line bg-white">
       <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-black uppercase text-court"><UserRoundPlus size={16}/> Add player</summary>
