@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Matchup } from "@prisma/client";
-import { compareStandingRows, computeStandings, qualificationOutcomes, selectDivisionQualifiers, selectQualifiers, type StandingRow } from "../lib/tournament/standings";
+import { compareStandingRows, computeStandings, qualificationOutcomes, securedGroupSeedTeamIds, selectDivisionQualifiers, selectQualifiers, shouldRefreshGroupDependencies, type StandingRow } from "../lib/tournament/standings";
 import { calculateMvpRankings, organizerSelectionTie, resolveMvpAward } from "../lib/tournament/mvp";
 import { createSeededRandom } from "../lib/tournament/rng";
 import { normalizeVotingCode } from "../lib/tournament/voting";
@@ -9,8 +9,10 @@ import { deviceTypeFromUserAgent, normalizeReferrerHost, normalizeTrackedPath } 
 import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
 import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
-import { qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
+import { isEarlyQualificationPreview, qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
 import { nextEditableTeamMatchupId } from "../lib/tournament/leader-lineup-access";
+import { DEFAULT_RECOGNITION_DIVISION_SLUG, isRecognitionDivision, recognitionDivisionSlug } from "../lib/tournament/recognition-division";
+import { mvpVisibilityFromState } from "../lib/tournament/mvp-visibility";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -30,6 +32,20 @@ function matchup(
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
 }
+
+test("recognition surfaces stay pinned to the configured main division", () => {
+  assert.equal(recognitionDivisionSlug(undefined), DEFAULT_RECOGNITION_DIVISION_SLUG);
+  assert.equal(recognitionDivisionSlug("  primary-event  "), "primary-event");
+  assert.equal(isRecognitionDivision({ slug: "team-event" }, "team-event"), true);
+  assert.equal(isRecognitionDivision({ slug: "secondary-event" }, "team-event"), false);
+});
+
+test("MVP visibility defaults open and honors the latest persisted toggle state", () => {
+  assert.equal(mvpVisibilityFromState(undefined), true);
+  assert.equal(mvpVisibilityFromState({ visible: true }), true);
+  assert.equal(mvpVisibilityFromState({ visible: false }), false);
+  assert.equal(mvpVisibilityFromState({ unrelated: false }), true);
+});
 
 
 test("team-manager lineup access follows the earliest unsubmitted court-queue matchup", () => {
@@ -207,6 +223,35 @@ test("early wildcard and equality cases remain conservatively alive", () => {
   assert.equal(outcomes.get("D"), "CONTENDING");
 });
 
+test("an exact group seed resolves early only when no remaining result can dislodge it", () => {
+  const rows = [
+    { team: team("A", "Alpha", "A"), gameWins: 8 },
+    { team: team("B", "Bravo", "A"), gameWins: 0 },
+    { team: team("C", "Charlie", "A"), gameWins: 0 },
+  ].map((row, index) => ({ ...row, points: 0, headToHeadPoints: 0, differential: 0, gameLosses: 0, played: row.gameWins, won: row.gameWins, lost: 0, totalPointsScored: 0, totalPointsConceded: 0, rank: index + 1, rankLabel: String(index + 1), rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false })) as unknown as StandingRow[];
+  const remaining = [{ homeTeamId: "B", awayTeamId: "C", homeWins: 0, awayWins: 0, gamesPerMatchup: 7, status: "SCHEDULED" }] as never;
+  assert.equal(securedGroupSeedTeamIds(rows, remaining, 2).get(1), "A");
+
+  const tiedCeiling = rows.map((row) => row.team.id === "B" ? { ...row, gameWins: 1 } : row);
+  assert.equal(securedGroupSeedTeamIds(tiedCeiling, remaining, 2).has(1), false);
+});
+
+test("decided group result changes refresh dependencies, including completed-score corrections", () => {
+  assert.equal(shouldRefreshGroupDependencies("GROUP", false, true), true);
+  assert.equal(shouldRefreshGroupDependencies("GROUP", true, true), true);
+  assert.equal(shouldRefreshGroupDependencies("GROUP", true, false), true);
+  assert.equal(shouldRefreshGroupDependencies("GROUP", false, false), false);
+  assert.equal(shouldRefreshGroupDependencies("SEMIFINAL", true, true), false);
+});
+
+test("mapped Quarterfinal teams remain preview-only until all group matchups finish", () => {
+  const mapped = { stage: "QUARTERFINAL", homeQualificationSource: "GROUP:A:1", awayQualificationSource: "GROUP:B:2" };
+  assert.equal(isEarlyQualificationPreview(mapped, false), true);
+  assert.equal(isEarlyQualificationPreview(mapped, true), false);
+  assert.equal(isEarlyQualificationPreview({ stage: "QUARTERFINAL" }, false), false);
+  assert.equal(isEarlyQualificationPreview({ ...mapped, stage: "SEMIFINAL" }, false), false);
+});
+
 test("division qualifiers stay empty while group stage is incomplete", () => {
   const table = [
     { team: team("A1", "A Winner", "A"), points: 3, headToHeadPoints: 0, differential: 1, gameWins: 1, gameLosses: 0, played: 0, won: 0, lost: 0, rank: 1, rankLabel: "1", rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false },
@@ -354,7 +399,9 @@ test("MVP rankings stay sex-separated, expose components, and require 3 matches 
   assert.equal(result.male[0]!.eligible, true);
   assert.equal(result.male[0]!.components.winRate, 100);
   assert.equal(result.weights.wins, 0.10);
-  assert.equal(result.weights.strengthOfSchedule, 0.20);
+  assert.equal(result.weights.strengthOfSchedule, 0.175);
+  assert.equal(result.weights.pointDifferential, 0.175);
+  assert.ok(Math.abs(Object.values(result.weights).reduce((sum, weight) => sum + weight, 0) - 1) < Number.EPSILON * 2);
   assert.equal(result.minimumMatches, 3);
 });
 

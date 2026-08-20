@@ -1,5 +1,6 @@
 import type { SexCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 
 export type FanFavoritePublicPlayer = {
   id: string;
@@ -72,7 +73,7 @@ async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavorit
       isActive: true,
       participationStatus: "CONFIRMED",
       teamId: { not: null },
-      team: { division: { isPublic: true } },
+      team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
     },
     select: playerSelect,
   });

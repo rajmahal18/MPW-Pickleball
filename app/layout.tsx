@@ -6,6 +6,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import PublicMotion from "@/components/PublicMotion";
 import { getCurrentUser } from "@/lib/auth";
 import PublicVisitorTracker from "@/components/PublicVisitorTracker";
+import { isPublishedTournamentMvpPublic } from "@/lib/tournament/mvp-visibility";
 
 export const metadata: Metadata = {
   title: "MPW Pickleball Championship",
@@ -18,6 +19,6 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const user = await getCurrentUser();
-  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}><Header user={user}/><PublicMotion/>{!user && <PublicVisitorTracker/>}{children}{user && <MobileBottomNav dashboardHref={user.role === "TEAM_MANAGER" ? "/leader" : "/admin"}/>}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
+  const [user, mvpVisible] = await Promise.all([getCurrentUser(), isPublishedTournamentMvpPublic()]);
+  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}><Header user={user} mvpVisible={mvpVisible}/><PublicMotion/>{!user && <PublicVisitorTracker/>}{children}{user && <MobileBottomNav dashboardHref={user.role === "TEAM_MANAGER" ? "/leader" : "/admin"}/>}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
 }

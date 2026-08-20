@@ -7,6 +7,7 @@ import { requestData, requestIp } from "@/lib/request";
 import { hashNetworkIdentifier, hashVotingCode, normalizeVotingCode, votingCodeHint } from "@/lib/tournament/voting";
 import { writeAudit } from "@/lib/audit";
 import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 import { FAN_FAVORITE_VOTE_COOLDOWN_SECONDS } from "@/lib/tournament/config";
 
 const VOTE_COOLDOWN_MS = FAN_FAVORITE_VOTE_COOLDOWN_SECONDS * 1000;
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
             isActive: true,
             participationStatus: "CONFIRMED",
             teamId: { not: null },
-            team: { division: { isPublic: true } },
+            team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
           },
           select: { id: true, sex: true },
         });

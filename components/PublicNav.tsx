@@ -16,7 +16,7 @@ const primaryItems: NavItem[] = [
   { href: "/bracket", label: "Bracket", matches: (pathname) => pathname.startsWith("/bracket") },
 ];
 
-const moreItems: NavItem[] = [
+const baseMoreItems: NavItem[] = [
   { href: "/format", label: "Format", matches: (pathname) => pathname.startsWith("/format") },
   { href: "/fan-favorite", label: "Fan Favorite", matches: (pathname) => pathname.startsWith("/fan-favorite") },
   { href: "/mvp", label: "MVP", matches: (pathname) => pathname.startsWith("/mvp") },
@@ -51,17 +51,18 @@ function MoreButton({ open, active, className = "", onClick }: { open: boolean; 
   </button>;
 }
 
-function MoreMenu({ pathname, close, className = "" }: { pathname: string; close: () => void; className?: string }) {
+function MoreMenu({ pathname, close, items, className = "" }: { pathname: string; close: () => void; items: NavItem[]; className?: string }) {
   return <div role="menu" className={`z-50 w-52 overflow-hidden rounded-xl border border-line bg-white p-1.5 text-sm font-bold shadow-xl ${className}`}>
-    {moreItems.map((item) => <div role="none" key={item.href}><NavLink item={item} pathname={pathname} menu onClick={close}/></div>)}
+    {items.map((item) => <div role="none" key={item.href}><NavLink item={item} pathname={pathname} menu onClick={close}/></div>)}
   </div>;
 }
 
-export default function PublicNav() {
+export default function PublicNav({ mvpVisible = true }: { mvpVisible?: boolean }) {
   const pathname = usePathname();
   const rootRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreItems = mvpVisible ? baseMoreItems : baseMoreItems.filter((item) => item.href !== "/mvp");
   const moreActive = moreItems.some((item) => item.matches(pathname));
   const closeMore = () => setMoreOpen(false);
 
@@ -93,10 +94,10 @@ export default function PublicNav() {
       <MoreButton open={moreOpen} active={moreActive} onClick={() => setMoreOpen((open) => !open)} className="md:hidden"/>
       <div className="relative hidden shrink-0 md:block">
         <MoreButton open={moreOpen} active={moreActive} onClick={() => setMoreOpen((open) => !open)}/>
-        {moreOpen && <MoreMenu pathname={pathname} close={closeMore} className="absolute left-0 top-full mt-2"/>}
+        {moreOpen && <MoreMenu pathname={pathname} close={closeMore} items={moreItems} className="absolute left-0 top-full mt-2"/>}
       </div>
     </nav>
 
-    {moreOpen && <MoreMenu pathname={pathname} close={closeMore} className="absolute right-0 top-full mt-2 md:hidden"/>}
+    {moreOpen && <MoreMenu pathname={pathname} close={closeMore} items={moreItems} className="absolute right-0 top-full mt-2 md:hidden"/>}
   </div>;
 }

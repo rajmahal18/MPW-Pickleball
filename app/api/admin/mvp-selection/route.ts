@@ -4,6 +4,7 @@ import { requireSuperadmin } from "@/lib/permissions";
 import { assertSameOrigin, redirectBack, requestData } from "@/lib/request";
 import { calculateMvpRankings, organizerSelectionTie } from "@/lib/tournament/mvp";
 import { writeAudit } from "@/lib/audit";
+import { isRecognitionDivision } from "@/lib/tournament/recognition-division";
 
 export async function POST(request: Request) {
   assertSameOrigin(request);
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
 
     const division = await prisma.division.findUnique({ where: { id: divisionId }, select: { id: true, slug: true, tournamentId: true, sexCategory: true } });
     if (!division) throw new Error("Division not found.");
+    if (!isRecognitionDivision(division)) throw new Error("MVP recognition is not enabled for this division.");
     if (division.sexCategory && division.sexCategory !== sexCategory) throw new Error("That MVP category does not apply to this event.");
 
     if (action === "clear") {

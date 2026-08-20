@@ -12,6 +12,9 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import MythicalPairPoster from "@/components/MythicalPairPoster";
 import { getCurrentUser } from "@/lib/auth";
 import { MVP_COMPONENT_WEIGHTS, MVP_MIN_MATCHES, MVP_POINT_DIFF_CAP } from "@/lib/tournament/config";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
+import { isMvpPublic } from "@/lib/tournament/mvp-visibility";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +24,18 @@ type AwardState = ReturnType<typeof resolveMvpAward>;
 export default async function MvpPage({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
+  const [user, mvpVisible] = await Promise.all([
+    getCurrentUser(),
+    tournament ? isMvpPublic(tournament.id) : Promise.resolve(false),
+  ]);
+  if (!mvpVisible && user?.role !== "SUPERADMIN") notFound();
   const divisions = tournament ? await prisma.division.findMany({
-    where: { tournamentId: tournament.id, isPublic: true },
+    where: { tournamentId: tournament.id, isPublic: true, slug: recognitionDivisionSlug() },
     select: { id: true, name: true, slug: true, entrantType: true, sexCategory: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   }) : [];
   const selected = divisions.find((division) => division.slug === query.division || division.id === query.division) ?? divisions[0] ?? null;
-  const [games, matchups, selections, user] = tournament && selected ? await Promise.all([
+  const [games, matchups, selections] = tournament && selected ? await Promise.all([
     prisma.game.findMany({
       where: { matchup: { tournamentId: tournament.id, divisionId: selected.id }, status: { in: ["COMPLETED", "FORFEITED"] } },
       include: {
@@ -38,8 +46,7 @@ export default async function MvpPage({ searchParams }: { searchParams: Promise<
     }),
     prisma.matchup.findMany({ where: { tournamentId: tournament.id, divisionId: selected.id }, select: { stage: true, homeTeamId: true, awayTeamId: true, winnerTeamId: true, status: true } }),
     prisma.mvpSelection.findMany({ where: { tournamentId: tournament.id, divisionId: selected.id }, select: { sexCategory: true, playerId: true, selectedAt: true } }),
-    getCurrentUser(),
-  ]) : [[], [], [], null];
+  ]) : [[], [], []];
   const revision = tournament ? await getPublicTournamentRevision(tournament.id) : "none:0";
   const rankings = calculateMvpRankings(games, matchups);
   const selectionBySex = new Map(selections.map((selection) => [selection.sexCategory, selection]));
@@ -81,16 +88,16 @@ function FormulaDisclosure() {
     </summary>
     <div className="grid gap-5 border-t border-line p-4 md:p-5 xl:grid-cols-2">
       <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="border-b border-line text-[10px] font-black uppercase tracking-wider text-gray-500"><th className="pb-2">Factor</th><th className="pb-2">Weight</th><th className="pb-2">Component score (0–100)</th></tr></thead><tbody className="divide-y divide-line">
-        <FormulaRow factor="Wins" weight={Math.round(MVP_COMPONENT_WEIGHTS.wins * 100)} formula="Wins ÷ most wins in the current category × 100"/>
-        <FormulaRow factor="Win rate" weight={Math.round(MVP_COMPONENT_WEIGHTS.winRate * 100)} formula="Wins ÷ matches played × 100"/>
-        <FormulaRow factor="Participation / trust" weight={Math.round(MVP_COMPONENT_WEIGHTS.participation * 100)} formula="Matches played ÷ most matches played in the category × 100"/>
-        <FormulaRow factor="Playoff impact" weight={Math.round(MVP_COMPONENT_WEIGHTS.playoffImpact * 100)} formula="Actual playoff leverage ÷ highest current playoff leverage × 100"/>
-        <FormulaRow factor="Strength of schedule" weight={Math.round(MVP_COMPONENT_WEIGHTS.strengthOfSchedule * 100)} formula="Combined record of all opponents faced against the rest of the field"/>
-        <FormulaRow factor="Point differential" weight={Math.round(MVP_COMPONENT_WEIGHTS.pointDifferential * 100)} formula={`Average point diff mapped from -${MVP_POINT_DIFF_CAP}…+${MVP_POINT_DIFF_CAP}; 0 diff = 50`}/>
-        <FormulaRow factor="Team finish" weight={Math.round(MVP_COMPONENT_WEIGHTS.teamFinish * 100)} formula="QF 35 · SF 55 · 3rd 65 · finalist 75 · champion 100"/>
+        <FormulaRow factor="Wins" weight={MVP_COMPONENT_WEIGHTS.wins * 100} formula="Wins ÷ most wins in the current category × 100"/>
+        <FormulaRow factor="Win rate" weight={MVP_COMPONENT_WEIGHTS.winRate * 100} formula="Wins ÷ matches played × 100"/>
+        <FormulaRow factor="Participation / trust" weight={MVP_COMPONENT_WEIGHTS.participation * 100} formula="Matches played ÷ most matches played in the category × 100"/>
+        <FormulaRow factor="Playoff impact" weight={MVP_COMPONENT_WEIGHTS.playoffImpact * 100} formula="Actual playoff leverage ÷ highest current playoff leverage × 100"/>
+        <FormulaRow factor="Strength of schedule" weight={MVP_COMPONENT_WEIGHTS.strengthOfSchedule * 100} formula="Combined record of all opponents faced against the rest of the field"/>
+        <FormulaRow factor="Point differential" weight={MVP_COMPONENT_WEIGHTS.pointDifferential * 100} formula={`Average point diff mapped from -${MVP_POINT_DIFF_CAP}…+${MVP_POINT_DIFF_CAP}; 0 diff = 50`}/>
+        <FormulaRow factor="Team finish" weight={MVP_COMPONENT_WEIGHTS.teamFinish * 100} formula="QF 35 · SF 55 · 3rd 65 · finalist 75 · champion 100"/>
       </tbody></table></div>
       <div className="space-y-3 text-sm leading-6 text-gray-600">
-        <p><strong className="text-ink">MVP Index =</strong> 10% Wins + 20% Win Rate + 10% Participation + 20% Playoff Impact + 20% Strength of Schedule + 15% Point Differential + 5% Team Finish.</p>
+        <p><strong className="text-ink">MVP Index =</strong> 10% Wins + 20% Win Rate + 10% Participation + 20% Playoff Impact + 17.5% Strength of Schedule + 17.5% Point Differential + 5% Team Finish.</p>
         <p><strong className="text-ink">Strength of schedule:</strong> every opponent faced counts, whether the player won or lost. For each opponent, matches against the player being evaluated are removed first; the remaining opponent wins/losses are then pooled. Opponents with more independent results naturally carry more evidence.</p>
         <p><strong className="text-ink">Playoff leverage:</strong> QF appearance +1 and win +1; SF +2/+2; Battle for 3rd +2/+2; Grand Final +3/+3. Credit is earned only when the player actually plays that match.</p>
         <p><strong className="text-ink">Eligibility:</strong> at least {MVP_MIN_MATCHES} completed matches for the formal award. Until anyone qualifies, the same ranking remains visible as provisional.</p>
@@ -192,7 +199,7 @@ function FactorBreakdown({ row }: { row: MvpRow }) {
   return <div>
     <div className="mb-2 flex items-center justify-between"><span className="label">Index breakdown</span><span className="text-xs font-bold text-gray-400">score × weight = contribution</span></div>
     <div className="divide-y divide-line border-y border-line">{factors.map(([label, score, weight, detail]) => <div key={label} className="grid grid-cols-[minmax(110px,1fr)_68px_54px] items-center gap-3 py-2 text-xs sm:grid-cols-[minmax(140px,1fr)_minmax(90px,.7fr)_58px_62px]">
-      <div className="min-w-0"><div><strong className="text-ink">{label}</strong><span className="ml-1.5 text-[10px] font-bold text-gray-400">{Math.round(weight * 100)}%</span></div>{detail && <div className="mt-0.5 text-[10px] font-semibold leading-4 text-gray-400">{detail}</div>}</div>
+      <div className="min-w-0"><div><strong className="text-ink">{label}</strong><span className="ml-1.5 text-[10px] font-bold text-gray-400">{formatNumber(weight * 100)}%</span></div>{detail && <div className="mt-0.5 text-[10px] font-semibold leading-4 text-gray-400">{detail}</div>}</div>
       <div className="hidden h-1.5 overflow-hidden rounded-full bg-gray-200 sm:block"><div className="h-full rounded-full bg-court" style={{ width: `${Math.max(0, Math.min(100, score))}%` }}/></div>
       <div className="text-right font-bold text-gray-600">{formatNumber(score)}</div>
       <div className="text-right font-black text-court">+{formatNumber(score * weight)}</div>
@@ -211,7 +218,7 @@ function StageContext({ row }: { row: MvpRow }) {
   </div>;
 }
 
-function FormulaRow({ factor, weight, formula }: { factor: string; weight: number; formula: string }) { return <tr><td className="py-2.5 font-black text-ink">{factor}</td><td className="py-2.5 font-black text-court">{weight}%</td><td className="py-2.5 text-gray-600">{formula}</td></tr>; }
+function FormulaRow({ factor, weight, formula }: { factor: string; weight: number; formula: string }) { return <tr><td className="py-2.5 font-black text-ink">{factor}</td><td className="py-2.5 font-black text-court">{formatNumber(weight)}%</td><td className="py-2.5 text-gray-600">{formula}</td></tr>; }
 function formatNumber(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, ""); }
 function signed(value: number) { const formatted = formatNumber(value); return value > 0 ? `+${formatted}` : formatted; }
 function stageName(stage: string) { if (stage === "QUARTERFINAL") return "QF"; if (stage === "SEMIFINAL") return "SF"; if (stage === "THIRD_PLACE") return "3rd Place"; if (stage === "FINAL") return "GF"; if (stage === "ROUND_ROBIN") return "Round Robin"; if (stage === "GROUP") return "Group"; return stage.replaceAll("_", " "); }

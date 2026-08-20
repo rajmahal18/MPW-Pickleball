@@ -21,11 +21,11 @@ Each factor is normalized to a 0-100 component score. The final Index is also on
 | Win rate | 20% | `wins / matches played * 100` |
 | Participation / trust | 10% | `matches played / most matches played in the same sex category * 100` |
 | Playoff impact | 20% | `player playoff leverage / highest current playoff leverage in the same sex category * 100` |
-| Strength of schedule | 20% | Pooled record of all opponents faced against the rest of the field |
-| Point differential | 15% | Average point differential mapped to 0-100; even differential is 50 and the configured +/- cap maps to 0/100 |
+| Strength of schedule | 17.5% | Pooled record of all opponents faced against the rest of the field |
+| Point differential | 17.5% | Average point differential mapped to 0-100; even differential is 50 and the configured +/- cap maps to 0/100 |
 | Team finish | 5% | QF 35, SF 55, 3rd 65, finalist 75, champion 100 |
 
-`MVP Index = 0.10(Wins) + 0.20(Win Rate) + 0.10(Participation) + 0.20(Playoff Impact) + 0.20(SOS) + 0.15(Point Differential) + 0.05(Team Finish)`
+`MVP Index = 0.10(Wins) + 0.20(Win Rate) + 0.10(Participation) + 0.20(Playoff Impact) + 0.175(SOS) + 0.175(Point Differential) + 0.05(Team Finish)`
 
 The category-relative components are intentionally normalized **within Male or Female**, because the two awards are separate races.
 

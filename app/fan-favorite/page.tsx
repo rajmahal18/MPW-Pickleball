@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import FanFavoriteExperience from "@/components/FanFavoriteExperience";
 import { getFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
 import { getPublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
         isActive: true,
         participationStatus: "CONFIRMED",
         teamId: { not: null },
-        team: { division: { isPublic: true } },
+        team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
       },
       select: {
         id: true,

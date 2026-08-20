@@ -1,5 +1,9 @@
 # 2026-08-18 Fan Favorite fairness / MVP UI / visitor analytics patch
 
+- Superadmin can hide or restore public MVP presentation without deleting results or changing the production schema. Visibility is persisted through the existing audit log, defaults to visible, removes public navigation/homepage MVP surfaces, and keeps a direct Superadmin preview available while hidden.
+- Recognition and homepage presentation are schema-free and pinned to `RECOGNITION_DIVISION_SLUG` (default `team-event`). Other public divisions remain available through competition tabs but do not enter MVP, Fan Favorite, or homepage standings/bracket/highlights. This requires no production migration.
+- MVP Strength of Schedule and Point Differential now carry equal 17.5% weights. The remaining component weights are unchanged, keeping the complete MVP Index at 100%.
+
 - Fan Favorite now enforces a **30-second cooldown per anonymous browser only after a successfully accepted vote**. Invalid, reused, unreleased, revoked, or otherwise rejected codes do not start the cooldown. Broad IP/global/code flood guards remain separate.
 - Fan Favorite candidate order is shuffled server-side on each real page request/refresh. This changes display order only; player IDs, teams, vote counts, rankings, and stored data are untouched.
 - Removed the QR-scanning/rendering workflow. Voting remains code-based through typed/copied public or manual codes.

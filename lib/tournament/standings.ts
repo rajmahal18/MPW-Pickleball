@@ -44,6 +44,10 @@ export function areGroupMatchupsComplete(matchups: Array<Pick<Matchup, "status">
   return matchups.length > 0 && matchups.every((matchup) => isTerminalMatchupStatus(matchup.status));
 }
 
+export function shouldRefreshGroupDependencies(stage: string, terminalBefore: boolean, terminalAfter: boolean) {
+  return stage === "GROUP" && (terminalBefore || terminalAfter);
+}
+
 /**
  * Group ranking order uses the official pair-match tiebreak sequence:
  *    A. total pair-match wins
@@ -300,6 +304,31 @@ export function selectDivisionQualifiers(
 export type QualificationOutcome = "QUALIFIED" | "CLINCHED" | "ELIMINATED" | "CONTENDING" | "PENDING";
 
 type QualificationMatchup = Pick<StandingMatchup, "homeTeamId" | "awayTeamId" | "homeWins" | "awayWins" | "gamesPerMatchup" | "status">;
+
+export function securedGroupSeedTeamIds(
+  table: StandingRow[],
+  matchups: QualificationMatchup[],
+  maximumSeed: number,
+) {
+  const remainingWins = new Map<string, number>();
+  for (const matchup of matchups) {
+    if (!matchup.homeTeamId || !matchup.awayTeamId || isTerminalMatchupStatus(matchup.status)) continue;
+    const remaining = Math.max(0, matchup.gamesPerMatchup - matchup.homeWins - matchup.awayWins);
+    remainingWins.set(matchup.homeTeamId, (remainingWins.get(matchup.homeTeamId) ?? 0) + remaining);
+    remainingWins.set(matchup.awayTeamId, (remainingWins.get(matchup.awayTeamId) ?? 0) + remaining);
+  }
+
+  const secured = new Map<number, string>();
+  for (const row of table) {
+    const rivals = table.filter((other) => other.team.id !== row.team.id);
+    const maximumWins = row.gameWins + (remainingWins.get(row.team.id) ?? 0);
+    const guaranteedAhead = rivals.filter((other) => other.gameWins > maximumWins).length;
+    const possiblyAheadOrTied = rivals.filter((other) => other.gameWins + (remainingWins.get(other.team.id) ?? 0) >= row.gameWins).length;
+    const exactRank = guaranteedAhead + 1;
+    if (exactRank <= maximumSeed && possiblyAheadOrTied === guaranteedAhead) secured.set(exactRank, row.team.id);
+  }
+  return secured;
+}
 
 /**
  * Conservative early qualification bounds.

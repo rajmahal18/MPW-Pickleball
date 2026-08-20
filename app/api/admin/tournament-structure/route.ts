@@ -9,7 +9,7 @@ import { computeStandings } from "@/lib/tournament/standings";
 import { defaultCategoryPattern, gamesForStage } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
 import { preparePairEntrantMatchup, preparePairEntrantDivision } from "@/lib/tournament/pair-entrants";
-import { qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
+import { isEarlyQualificationPreview, qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 
 const FORMATS = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
 const STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
@@ -104,7 +104,7 @@ async function tournamentQueueState(tournamentId: string) {
     prisma.matchup.findMany({
       where: { tournamentId },
       include: {
-        division: { select: { name: true, sortOrder: true } },
+        division: { select: { name: true, sortOrder: true, matchups: { where: { stage: "GROUP" }, select: { status: true } } } },
         homeTeam: { select: { name: true, shortName: true } },
         awayTeam: { select: { name: true, shortName: true } },
         games: { select: { status: true, homeScore: true, awayScore: true } },
@@ -128,6 +128,8 @@ async function tournamentQueueState(tournamentId: string) {
     roundLabel: matchup.roundLabel,
     status: matchup.status,
   });
+  const groupStageComplete = (matchup: (typeof matchups)[number]) => matchup.division.matchups.length > 0
+    && matchup.division.matchups.every((groupMatchup) => groupMatchup.status === "COMPLETED" || groupMatchup.status === "FORFEITED");
 
   return {
     activeCourtCount: tournament?.activeCourtCount ?? 0,
@@ -135,7 +137,7 @@ async function tournamentQueueState(tournamentId: string) {
       .filter((matchup) => matchup.queuePosition !== null && !["COMPLETED", "FORFEITED"].includes(matchup.status))
       .map(serialize),
     availableMatchups: matchups
-      .filter((matchup) => matchup.queuePosition === null && matchup.homeTeamId && matchup.awayTeamId && !matchupHasRecordedPlay(matchup))
+      .filter((matchup) => matchup.queuePosition === null && matchup.homeTeamId && matchup.awayTeamId && !matchupHasRecordedPlay(matchup) && !isEarlyQualificationPreview(matchup, groupStageComplete(matchup)))
       .map(serialize),
   };
 }
@@ -1060,6 +1062,13 @@ export async function POST(request: Request) {
       const matchup = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
       if (!matchup || matchup.tournamentId !== tournament.id) throw new Error("Matchup not found.");
       if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("Assign both teams before adding this matchup to the queue.");
+      if (matchup.stage === "QUARTERFINAL" && (matchup.homeQualificationSource || matchup.awayQualificationSource)) {
+        const [groupCount, unfinishedGroups] = await Promise.all([
+          prisma.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP" } }),
+          prisma.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP", status: { notIn: ["COMPLETED", "FORFEITED"] } } }),
+        ]);
+        if (groupCount === 0 || unfinishedGroups > 0) throw new Error("This Quarterfinal is a standings preview until the group stage is complete.");
+      }
       if (matchupHasRecordedPlay(matchup)) throw new Error("A started or completed matchup cannot be newly queued.");
       if (matchup.queuePosition !== null) throw new Error("This matchup is already in the queue.");
       await prisma.$transaction(async (tx) => {

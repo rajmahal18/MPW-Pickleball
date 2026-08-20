@@ -5,8 +5,8 @@ export const MVP_COMPONENT_WEIGHTS = {
   winRate: 0.20,
   participation: 0.10,
   playoffImpact: 0.20,
-  strengthOfSchedule: 0.20,
-  pointDifferential: 0.15,
+  strengthOfSchedule: 0.175,
+  pointDifferential: 0.175,
   teamFinish: 0.05,
 } as const;
 

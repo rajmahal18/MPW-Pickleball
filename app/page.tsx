@@ -16,6 +16,8 @@ import { Crown, Heart } from "lucide-react";
 import { getFanFavoriteSnapshot } from "@/lib/tournament/fan-favorite";
 import { tournamentStartAtIso } from "@/lib/public-launch";
 import { TeamIdentity } from "@/components/TeamIdentity";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
+import { isMvpPublic } from "@/lib/tournament/mvp-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,7 @@ export default async function Home() {
     where: { isPublished: true },
     include: {
       divisions: {
-        where: { isPublic: true },
+        where: { isPublic: true, slug: recognitionDivisionSlug() },
         include: {
           groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
           teams: true,
@@ -49,6 +51,7 @@ export default async function Home() {
   });
   if (!tournament) return <main className="public-page mx-auto max-w-7xl p-6">Run the seed script first.</main>;
 
+  const mvpVisible = await isMvpPublic(tournament.id);
   const mvpDivision = tournament.divisions[0] ?? null;
   const championFinals = tournament.divisions.flatMap((division) => division.matchups
     .filter((matchup) => matchup.stage === "FINAL" && matchup.winnerTeamId && matchup.winnerTeam && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"))
@@ -56,7 +59,7 @@ export default async function Home() {
   const championTeamIds = championFinals.map(({ matchup }) => matchup.winnerTeamId!).filter(Boolean);
 
   const [live, upcoming, fanSnapshot, mvpGames, championPlayers, mvpSelections, revision] = await Promise.all([
-    prisma.game.findMany({
+    mvpVisible ? prisma.game.findMany({
       where: { status: { in: ["LIVE", "INTERRUPTED"] }, matchup: { tournamentId: tournament.id, division: { isPublic: true } } },
       select: {
         id: true, matchupId: true, gameNumber: true, homeScore: true, awayScore: true, status: true, winnerTeamId: true,
@@ -67,7 +70,7 @@ export default async function Home() {
         awayPair: { select: { id: true, playerA: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } }, playerB: { select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true } } } },
       },
       orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { gameNumber: "asc" }],
-    }),
+    }) : Promise.resolve([]),
     prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: true, awayTeam: true }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
     getFanFavoriteSnapshot(tournament.id),
     prisma.game.findMany({
@@ -95,7 +98,7 @@ export default async function Home() {
       },
       orderBy: [{ sex: "asc" }, { firstName: "asc" }, { lastName: "asc" }],
     }),
-    mvpDivision ? prisma.mvpSelection.findMany({ where: { tournamentId: tournament.id, divisionId: mvpDivision.id }, select: { sexCategory: true, playerId: true } }) : Promise.resolve([]),
+    mvpVisible && mvpDivision ? prisma.mvpSelection.findMany({ where: { tournamentId: tournament.id, divisionId: mvpDivision.id }, select: { sexCategory: true, playerId: true } }) : Promise.resolve([]),
     getPublicTournamentRevision(tournament.id),
   ]);
 
@@ -137,17 +140,17 @@ export default async function Home() {
   return <main className="public-page"><TournamentSync initialRevision={revision}/><section className="overflow-hidden border-b border-line bg-ink text-white">
     <div className="relative">
       <picture><source srcSet="/finalbanner.webp" type="image/webp"/><img src="/finalbanner.png" width={2428} height={648} fetchPriority="high" decoding="async" alt="MPW Dink and Dash 2026 event banner" className="block h-auto w-full" /></picture>
-      <div className="absolute inset-0 hidden md:block"><div className="mx-auto flex h-full max-w-7xl items-end justify-end px-4 pb-5 lg:pb-6"><HeroActions desktop /></div></div>
+      <div className="absolute inset-0 hidden md:block"><div className="mx-auto flex h-full max-w-7xl items-end justify-end px-4 pb-5 lg:pb-6"><HeroActions desktop mvpVisible={mvpVisible}/></div></div>
     </div>
-    <div className="mx-auto max-w-7xl px-3 py-3 md:hidden"><HeroActions /></div>
+    <div className="mx-auto max-w-7xl px-3 py-3 md:hidden"><HeroActions mvpVisible={mvpVisible}/></div>
   </section><div className="mx-auto max-w-7xl space-y-7 px-4 py-6 md:space-y-10 md:py-8">
     {championFinals.length ? <section className="space-y-5">{championFinals.map(({ division, matchup }) => <ChampionCelebrationPoster
       key={matchup.id}
       divisionName={division.name}
       team={matchup.winnerTeam!}
       players={championPlayers.filter((player) => player.teamId === matchup.winnerTeamId || player.pairAsA.some((pair) => pair.teamId === matchup.winnerTeamId) || player.pairAsB.some((pair) => pair.teamId === matchup.winnerTeamId))}
-      maleMvp={division.id === mvpDivision?.id ? maleMvpState.winner : undefined}
-      femaleMvp={division.id === mvpDivision?.id ? femaleMvpState.winner : undefined}
+      maleMvp={mvpVisible && division.id === mvpDivision?.id ? maleMvpState.winner : undefined}
+      femaleMvp={mvpVisible && division.id === mvpDivision?.id ? femaleMvpState.winner : undefined}
       maleFan={maleFanLeader}
       femaleFan={femaleFanLeader}
       championImageUrl={division.championImageTeamId === matchup.winnerTeamId ? division.championImageUrl : null}
@@ -168,17 +171,17 @@ export default async function Home() {
     </section>}
 
     <section className="grid gap-6 lg:grid-cols-2"><div><div className="mb-4"><div className="label">Next on court</div><h2 className="text-2xl font-black uppercase">Upcoming matchups</h2></div><div className="space-y-3">{upcoming.length ? upcoming.map((matchup, index) => <article key={matchup.id} className="panel flex items-center justify-between gap-3 p-4 hover:border-emerald-400"><div className="min-w-0 flex-1"><Link href={`/matches/${matchup.id}`} className="label hover:text-court">Next #{index + 1} · {matchup.division.name} · {matchupContext(matchup)} · Court {matchup.courtLabel || "TBA"}</Link><div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">{matchup.homeTeam ? <TeamIdentity team={matchup.homeTeam} variant="compact"/> : <span className="font-black">TBD</span>}<span className="text-xs font-black text-gray-400">VS</span>{matchup.awayTeam ? <TeamIdentity team={matchup.awayTeam} variant="compact"/> : <span className="font-black">TBD</span>}</div><div className="mt-1 text-xs text-gray-500">{matchup.gamesPerMatchup} match{matchup.gamesPerMatchup === 1 ? "" : "es"}</div></div><div className="flex shrink-0 flex-col items-end gap-2"><StatusBadge status={matchup.status} compact/><Link href={`/matches/${matchup.id}`} className="text-[10px] font-black uppercase tracking-wider text-court hover:text-ink">Open →</Link></div></article>) : <div className="panel p-6 text-sm text-gray-500">The court queue is clear for now.</div>}</div></div><div><div className="mb-4 flex items-end justify-between gap-3"><div><div className="label text-flame">Public voting</div><h2 className="text-2xl font-black">Fan Favorite</h2></div></div><FanFavoriteHomeCard male={maleFanLeader} female={femaleFanLeader} totalVotes={totalFanVotes}/></div></section>
-    <section><div className="mb-4"><div className="label">MVP · {mvpDivision?.name ?? "Current event"}</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(maleMvpState.winner || femaleMvpState.winner) ? <MythicalPairPoster male={maleMvpState.winner} female={femaleMvpState.winner} compact/> : <div className="panel p-6 text-sm text-gray-500">{mvp.male.length || mvp.female.length ? (maleMvpState.pendingOrganizerSelection || femaleMvpState.pendingOrganizerSelection ? "The formal MVP lead is a locked-pair tie awaiting organizer selection. Open the MVP rankings for details." : "The current MVP lead is tied provisionally. Both candidates remain visible in the MVP rankings.") : "No completed matches yet."}</div>}</section>
+    {mvpVisible && <section><div className="mb-4"><div className="label">MVP · {mvpDivision?.name ?? "Current event"}</div><h2 className="text-2xl font-black uppercase">Current MVP leaders</h2></div>{(maleMvpState.winner || femaleMvpState.winner) ? <MythicalPairPoster male={maleMvpState.winner} female={femaleMvpState.winner} compact/> : <div className="panel p-6 text-sm text-gray-500">{mvp.male.length || mvp.female.length ? (maleMvpState.pendingOrganizerSelection || femaleMvpState.pendingOrganizerSelection ? "The formal MVP lead is a locked-pair tie awaiting organizer selection. Open the MVP rankings for details." : "The current MVP lead is tied provisionally. Both candidates remain visible in the MVP rankings.") : "No completed matches yet."}</div>}</section>}
   </div></main>;
 }
 
-function HeroActions({ desktop = false }: { desktop?: boolean }) {
+function HeroActions({ desktop = false, mvpVisible = true }: { desktop?: boolean; mvpVisible?: boolean }) {
   const secondary = "btn min-h-10 min-w-0 border-white/60 bg-ink/40 px-3 text-center text-xs leading-tight text-white shadow-panel backdrop-blur-sm hover:bg-white hover:text-ink lg:px-4 lg:text-sm";
   return <div className={desktop ? "flex flex-wrap justify-end gap-2" : "grid grid-cols-2 gap-2"}>
     <Link href="/bracket" className="btn min-h-10 min-w-0 border-flame bg-flame px-3 text-center text-xs leading-tight text-white shadow-panel hover:bg-white hover:text-flame lg:px-4 lg:text-sm">View Bracket</Link>
     <Link href="/format" className={secondary}>Format Guide</Link>
     <Link href="/fan-favorite" className={secondary}>Vote Fan Favorite</Link>
-    <Link href="/mvp" className={secondary}>MVP Rankings</Link>
+    {mvpVisible && <Link href="/mvp" className={secondary}>MVP Rankings</Link>}
   </div>;
 }
 

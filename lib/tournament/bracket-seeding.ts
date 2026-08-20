@@ -4,6 +4,15 @@ export type QualificationSource =
 
 export type QualificationSourceOption = { value: string; label: string };
 
+export function isEarlyQualificationPreview(
+  matchup: { stage: string; homeQualificationSource?: string | null; awayQualificationSource?: string | null },
+  groupStageComplete: boolean,
+) {
+  return matchup.stage === "QUARTERFINAL"
+    && !groupStageComplete
+    && Boolean(matchup.homeQualificationSource || matchup.awayQualificationSource);
+}
+
 function ordinal(value: number) {
   const mod100 = value % 100;
   if (mod100 >= 11 && mod100 <= 13) return `${value}th`;

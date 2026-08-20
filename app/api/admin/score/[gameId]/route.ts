@@ -6,6 +6,7 @@ import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { recalculateMatchup, recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
 import { assertValidCompletedScore, scoreRuleForStage } from "@/lib/tournament/rules";
+import { shouldRefreshGroupDependencies } from "@/lib/tournament/standings";
 
 type ScoreStatus = "SCHEDULED" | "LIVE" | "COMPLETED" | "FORFEITED" | "INTERRUPTED";
 type ScoreState = {
@@ -83,6 +84,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         const game = await tx.game.findUnique({ where: { id: gameId }, include: { matchup: { include: { division: { select: { suddenDeathAtTen: true } }, lineups: { include: { slots: true } } } } } });
         if (!game) throw new Error("Match not found.");
         if (expectedVersion !== null && game.version !== expectedVersion) throw new Error("The score changed in another session. Reload this match before submitting again.");
+        if (game.matchup.stage === "QUARTERFINAL" && (game.matchup.homeQualificationSource || game.matchup.awayQualificationSource)) {
+          const [groupCount, unfinishedGroups] = await Promise.all([
+            tx.matchup.count({ where: { divisionId: game.matchup.divisionId, stage: "GROUP" } }),
+            tx.matchup.count({ where: { divisionId: game.matchup.divisionId, stage: "GROUP", status: { notIn: ["COMPLETED", "FORFEITED"] } } }),
+          ]);
+          if (groupCount === 0 || unfinishedGroups > 0) throw new Error("This Quarterfinal is a standings preview until the group stage is complete.");
+        }
 
         const scoreRule = scoreRuleForStage(game.matchup.stage, game.matchup.division.suddenDeathAtTen);
         const untouchedAfterClinch = game.matchup.status === "COMPLETED"
@@ -207,7 +215,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         } else {
           const matchupAfter = await recalculateMatchup(tx, game.matchupId);
           const matchupWasDecided = game.matchup.status === "COMPLETED" || game.matchup.status === "FORFEITED";
-          const needsTournamentRecalc = matchupWasDecided || matchupAfter.status === "COMPLETED" || matchupAfter.status === "FORFEITED";
+          const terminalAfter = next.status === "COMPLETED" || next.status === "FORFEITED";
+          const groupResultChanged = shouldRefreshGroupDependencies(game.matchup.stage, terminalBefore, terminalAfter);
+          const needsTournamentRecalc = groupResultChanged || matchupWasDecided || matchupAfter.status === "COMPLETED" || matchupAfter.status === "FORFEITED";
           if (needsTournamentRecalc) await recalculateTournament(tx, game.matchup.tournamentId, { actorId: user.id, reason: action });
         }
 

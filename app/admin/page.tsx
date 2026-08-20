@@ -10,6 +10,7 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
+import { isMvpPublic } from "@/lib/tournament/mvp-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const query = await searchParams;
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, season: true, simulationMode: true, isPublished: true } });
   if (!tournament) return <main className="admin-shell">No tournament.</main>;
+  const mvpVisible = await isMvpPublic(tournament.id);
 
   const [matchups, matchupStatusGroups, liveGames, completedPairGames, pendingLineups, completedMatchups, votes, suspicious, voteGroups, revision] = await Promise.all([
     prisma.matchup.findMany({
@@ -131,6 +133,10 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6"><Stat label="Ongoing matchups" value={liveMatchups} tone={liveMatchups ? "live" : "neutral"}/><Stat label="Live pair matches" value={liveGames} tone={liveGames ? "live" : "neutral"}/><Stat label="Pending lineups" value={pendingLineups} tone={pendingLineups ? "warn" : "neutral"}/><Stat label="Ready to play" value={readyMatchups} tone={readyMatchups ? "good" : "neutral"}/><Stat label="Completed pair matches" value={completedPairGames} tone="neutral"/><Stat label="Completed matchups" value={completedMatchups} tone="neutral"/></div>
     <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500"><span className="border border-line bg-white px-3 py-2"><strong className="text-ink">{votes}</strong> Fan Favorite votes</span><span className="border border-line bg-white px-3 py-2"><strong className="text-ink">{suspicious}</strong> rejected vote attempts</span></div>
     <div className={`mt-6 grid gap-3 md:gap-4 ${user.role === "SUPERADMIN" ? "grid-cols-2 xl:grid-cols-4" : "grid-cols-1 md:grid-cols-2"}`}><Quick href="#live-scoring" title="Live Scoring" text="Open active matches and encode points without page reloads."/>{user.role === "SUPERADMIN" && <><Quick href="/admin/tournament" title="Tournament Setup" text="Divisions, teams, lineup rules, court queue, and matchups."/><Quick href="/admin/players" title="Player Pool" text="Attendance, team assignment, and division eligibility."/><Quick href="/admin/voting" title="Voting" text="Fan Favorite voting codes and controls."/></>}</div>
+    {user.role === "SUPERADMIN" && <section className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-line bg-white px-4 py-3">
+      <div><div className="label">Public MVP</div><div className="text-sm font-bold">{mvpVisible ? "Visible to spectators" : "Hidden from spectators"}</div></div>
+      <form action="/api/admin/settings" method="post"><input type="hidden" name="action" value={mvpVisible ? "hide-mvp" : "show-mvp"}/><SubmitButton className={mvpVisible ? "btn-ghost px-3 py-2 text-xs" : "btn-primary px-3 py-2 text-xs"} pendingLabel="Updating…">{mvpVisible ? "Hide MVP" : "Show MVP"}</SubmitButton></form>
+    </section>}
     <section id="live-scoring" className="panel mt-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
         <div>

@@ -1,6 +1,6 @@
 import type { MatchupStage, Prisma } from "@prisma/client";
-import { areGroupMatchupsComplete, computeStandings, selectDivisionQualifiers, type StandingRow } from "@/lib/tournament/standings";
-import { resolveQualificationSource } from "@/lib/tournament/bracket-seeding";
+import { areGroupMatchupsComplete, computeStandings, securedGroupSeedTeamIds, selectDivisionQualifiers, type StandingRow } from "@/lib/tournament/standings";
+import { parseQualificationSource, resolveQualificationSource } from "@/lib/tournament/bracket-seeding";
 import { writeAudit } from "@/lib/audit";
 import { gamesForStage, winsNeededForMatchup } from "@/lib/tournament/rules";
 import { compactTournamentQueue } from "@/lib/tournament/queue";
@@ -207,8 +207,7 @@ async function configureAutoKnockout(
   return { supported: true, stage: "QUARTERFINAL" as MatchupStage };
 }
 
-async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId: string) {
-  const futureStages: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"];
+async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId: string, futureStages: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]) {
   const future = await db.matchup.findMany({ where: { divisionId, stage: { in: futureStages } }, include: { games: true } });
   let cleared = 0;
   for (const matchup of future) {
@@ -218,6 +217,37 @@ async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId
     }
   }
   return cleared;
+}
+
+async function populateSecuredQuarterfinalSeeds(
+  db: Prisma.TransactionClient,
+  divisionId: string,
+  securedByGroup: Map<string, Map<number, string>>,
+) {
+  const quarters = await db.matchup.findMany({
+    where: { divisionId, stage: "QUARTERFINAL" },
+    include: { games: true },
+    orderBy: { order: "asc" },
+  });
+  const hasConfiguredSources = quarters.some((quarter) => quarter.homeQualificationSource || quarter.awayQualificationSource);
+  if (!hasConfiguredSources) return false;
+
+  const resolveEarly = (value: string | null) => {
+    const source = parseQualificationSource(value);
+    if (!source || source.type === "WILDCARD") return null;
+    return securedByGroup.get(source.groupId)?.get(source.rank) ?? null;
+  };
+  for (const quarter of quarters) {
+    if (matchupHasStarted(quarter)) continue;
+    const homeTeamId = quarter.homeQualificationSource ? resolveEarly(quarter.homeQualificationSource) : quarter.homeTeamId;
+    const awayTeamId = quarter.awayQualificationSource ? resolveEarly(quarter.awayQualificationSource) : quarter.awayTeamId;
+    await assignTeams(db, quarter.id, homeTeamId, awayTeamId);
+    await db.matchup.update({
+      where: { id: quarter.id },
+      data: { status: "SCHEDULED", queuePosition: null, courtLabel: null, scheduledAt: null },
+    });
+  }
+  return true;
 }
 
 export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId: string) {
@@ -300,7 +330,16 @@ export async function recalculateTournament(
         autoKnockoutSupported = configured.supported;
       }
     } else if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && !allGroupComplete) {
-      await clearFutureKnockoutSlots(db, division.id);
+      const securedByGroup = new Map(division.groups.map((group) => [
+        group.id,
+        securedGroupSeedTeamIds(
+          groupStandings.find((entry) => entry.groupId === group.id)?.rows ?? [],
+          groupMatchups.filter((matchup) => matchup.groupLabel === group.name),
+          division.qualifiersPerGroup,
+        ),
+      ]));
+      const populated = await populateSecuredQuarterfinalSeeds(db, division.id, securedByGroup);
+      await clearFutureKnockoutSlots(db, division.id, populated ? ["SEMIFINAL", "FINAL", "THIRD_PLACE"] : ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]);
     }
 
     // PAIR events have fixed entrants, so newly assigned knockout slots never wait for a manager lineup.

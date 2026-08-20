@@ -13,7 +13,7 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import { computeStandings, type StandingRow } from "@/lib/tournament/standings";
 import { displayStatus } from "@/components/StatusBadge";
 import { categoryLabel, defaultCategoryPattern } from "@/lib/tournament/rules";
-import { qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
+import { isEarlyQualificationPreview, qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 import { TeamLogo } from "@/components/TeamIdentity";
 
 export const dynamic = "force-dynamic";
@@ -168,8 +168,20 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
     include: { division: { select: { name: true, sortOrder: true } }, homeTeam: { select: { name: true, shortName: true } }, awayTeam: { select: { name: true, shortName: true } }, games: { select: { status: true, homeScore: true, awayScore: true } } },
     orderBy: [{ queuePosition: { sort: "asc", nulls: "last" } }, { division: { sortOrder: "asc" } }, { order: "asc" }],
   });
+  const groupStageCompleteByDivision = new Map<string, boolean>();
+  for (const matchup of tournamentMatchups) {
+    if (groupStageCompleteByDivision.has(matchup.divisionId)) continue;
+    const groupRows = tournamentMatchups.filter(
+      (candidate) => candidate.divisionId === matchup.divisionId && candidate.stage === "GROUP",
+    );
+    groupStageCompleteByDivision.set(
+      matchup.divisionId,
+      groupRows.length > 0
+        && groupRows.every((candidate) => candidate.status === "COMPLETED" || candidate.status === "FORFEITED"),
+    );
+  }
   const queuedMatchups = tournamentMatchups.filter((matchup) => matchup.queuePosition !== null && !["COMPLETED", "FORFEITED"].includes(matchup.status));
-  const availableQueueMatchups = tournamentMatchups.filter((matchup) => matchup.queuePosition === null && matchup.homeTeamId && matchup.awayTeamId && !matchupLocked(matchup));
+  const availableQueueMatchups = tournamentMatchups.filter((matchup) => matchup.queuePosition === null && matchup.homeTeamId && matchup.awayTeamId && !matchupLocked(matchup) && !isEarlyQualificationPreview(matchup, groupStageCompleteByDivision.get(matchup.divisionId) ?? false));
 
   const confirmedEntries = selected.playerEntries.filter((entry) => entry.status === "CONFIRMED" && entry.player.isActive && entry.player.participationStatus === "CONFIRMED");
   const pairPlayerIds = new Set(selected.teams.flatMap((team) => team.pairs.flatMap((pair) => [pair.playerAId, pair.playerBId])));

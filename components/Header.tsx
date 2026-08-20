@@ -7,7 +7,7 @@ import PublicNav from "@/components/PublicNav";
 
 type HeaderUser = { role: "SUPERADMIN" | "ADMIN" | "TEAM_MANAGER" } | null;
 
-export default function Header({ user }: { user: HeaderUser }) {
+export default function Header({ user, mvpVisible = true }: { user: HeaderUser; mvpVisible?: boolean }) {
   const pathname = usePathname();
   if (pathname === "/countdown") return null;
   const dashboardHref = user?.role === "TEAM_MANAGER" ? "/leader" : "/admin";
@@ -18,7 +18,7 @@ export default function Header({ user }: { user: HeaderUser }) {
         <img src="/favicon.png" alt="MPW Pickleball" className="h-8 w-8 object-contain md:h-9 md:w-9"/>
         <span className="truncate text-sm sm:text-base">MPW <span className="text-court">Pickleball</span></span>
       </Link>
-      <PublicNav/>
+      <PublicNav mvpVisible={mvpVisible}/>
       <div className="flex shrink-0 items-center gap-2 md:order-3 md:ml-auto">
         {user && <div className="hidden md:block"><Link href={dashboardHref} className="btn-ghost px-3 py-2 text-xs"><LayoutDashboard size={15}/>Dashboard</Link></div>}
         {user ? <form action="/api/auth/logout" method="post">
