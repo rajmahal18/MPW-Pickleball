@@ -7,18 +7,28 @@ import PublicMotion from "@/components/PublicMotion";
 import { getCurrentUser } from "@/lib/auth";
 import PublicVisitorTracker from "@/components/PublicVisitorTracker";
 import { isPublishedTournamentMvpPublic } from "@/lib/tournament/mvp-visibility";
+import { isPrivateDivisionPreviewEnabled } from "@/lib/public-preview";
+import PublicPreviewBanner from "@/components/PublicPreviewBanner";
 
 export const metadata: Metadata = {
   title: "MPW Pickleball Championship",
   description: "Live scores, standings, bracket, Fan Favorite voting, and transparent MVP statistics.",
-  icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
-  },
+  icons: { icon: "/favicon.png", shortcut: "/favicon.png", apple: "/favicon.png" },
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const [user, mvpVisible] = await Promise.all([getCurrentUser(), isPublishedTournamentMvpPublic()]);
-  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}><Header user={user} mvpVisible={mvpVisible}/><PublicMotion/>{!user && <PublicVisitorTracker/>}{children}{user && <MobileBottomNav dashboardHref={user.role === "TEAM_MANAGER" ? "/leader" : "/admin"}/>}<footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer></body></html>;
+  const [user, mvpVisible, previewEnabled] = await Promise.all([
+    getCurrentUser(),
+    isPublishedTournamentMvpPublic(),
+    isPrivateDivisionPreviewEnabled(),
+  ]);
+  return <html lang="en"><body className={user ? "pb-24 md:pb-0" : undefined}>
+    <Header user={user} mvpVisible={mvpVisible}/>
+    {user?.role === "SUPERADMIN" && <PublicPreviewBanner enabled={previewEnabled}/>}
+    <PublicMotion/>
+    {!user && <PublicVisitorTracker/>}
+    {children}
+    {user && <MobileBottomNav dashboardHref={user.role === "TEAM_MANAGER" ? "/leader" : "/admin"}/>}
+    <footer className="mt-14 border-t border-line bg-white"><div className="mx-auto max-w-7xl px-4 py-6 text-xs text-gray-500">MPW Dink and Dash Pickleball Tournament · Tournament operations</div></footer>
+  </body></html>;
 }

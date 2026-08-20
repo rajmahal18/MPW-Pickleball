@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { buildDivisionGuide } from "@/lib/tournament/format-guide";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,12 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
 }
 
 export default async function FormatPage() {
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     include: {
       divisions: {
-        where: { isPublic: true },
+        where: divisionFilter,
         include: {
           groups: { include: { teams: true }, orderBy: { name: "asc" } },
           teams: { include: { pairs: { where: { isActive: true }, select: { playerAId: true, playerBId: true, isActive: true } } } },
@@ -28,9 +30,9 @@ export default async function FormatPage() {
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">Run the seed script first.</main>;
 
   const [playerCount, teamCount, gameCount] = await Promise.all([
-    prisma.player.count({ where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED", divisionEntries: { some: { status: "CONFIRMED", division: { isPublic: true } } } } }),
-    prisma.team.count({ where: { division: { tournamentId: tournament.id, isPublic: true } } }),
-    prisma.game.count({ where: { matchup: { tournamentId: tournament.id, division: { isPublic: true } } } }),
+    prisma.player.count({ where: { tournamentId: tournament.id, isActive: true, participationStatus: "CONFIRMED", divisionEntries: { some: { status: "CONFIRMED", division: divisionFilter } } } }),
+    prisma.team.count({ where: { division: { tournamentId: tournament.id, ...divisionFilter } } }),
+    prisma.game.count({ where: { matchup: { tournamentId: tournament.id, division: divisionFilter } } }),
   ]);
 
   return <main className="public-page mx-auto max-w-7xl px-4 py-5 md:py-8">

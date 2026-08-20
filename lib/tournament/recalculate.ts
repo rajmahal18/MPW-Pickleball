@@ -291,13 +291,13 @@ export async function recalculateMatchup(db: Prisma.TransactionClient, matchupId
 export async function recalculateTournament(
   db: Prisma.TransactionClient,
   tournamentId: string,
-  audit?: { actorId?: string | null; simulationRunId?: string | null; reason?: string },
+  audit?: { actorId?: string | null; simulationRunId?: string | null; reason?: string; divisionId?: string },
 ) {
-  const matchupIds = await db.matchup.findMany({ where: { tournamentId }, select: { id: true } });
+  const matchupIds = await db.matchup.findMany({ where: { tournamentId, ...(audit?.divisionId ? { divisionId: audit.divisionId } : {}) }, select: { id: true } });
   for (const matchup of matchupIds) await recalculateMatchup(db, matchup.id);
 
   const divisions = await db.division.findMany({
-    where: { tournamentId },
+    where: { tournamentId, ...(audit?.divisionId ? { id: audit.divisionId } : {}) },
     include: {
       groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
       matchups: { include: { games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: [{ stage: "asc" }, { order: "asc" }] },
@@ -348,7 +348,7 @@ export async function recalculateTournament(
     results.push({ divisionId: division.id, allGroupComplete, qualifierIds, autoKnockoutSupported, unresolvedQualificationSlots });
   }
 
-  await compactTournamentQueue(db, tournamentId);
+  if (!audit?.divisionId) await compactTournamentQueue(db, tournamentId);
 
   if (audit) {
     await writeAudit(db, {

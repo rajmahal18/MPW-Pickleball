@@ -18,6 +18,7 @@ export type SimulationOptions = {
   divisionId?: string;
   stage?: "GROUP" | "ROUND_ROBIN" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL" | "THIRD_PLACE" | "CUSTOM";
   autoGeneratePairs?: boolean;
+  scopeDivisionId?: string;
 };
 
 function simulationScore(
@@ -299,7 +300,7 @@ async function legacyGroupDivisionId(db: Prisma.TransactionClient, tournamentId:
   return division.id;
 }
 
-async function resetScenarioState(db: Prisma.TransactionClient, tournamentId: string, divisionId: string) {
+export async function resetScenarioState(db: Prisma.TransactionClient, tournamentId: string, divisionId: string) {
   const division = await db.division.findUniqueOrThrow({ where: { id: divisionId }, select: { autoProgression: true } });
   const matchups = await db.matchup.findMany({ where: { tournamentId, divisionId }, select: { id: true, stage: true, homeTeamId: true, awayTeamId: true } });
   await db.scoreEvent.deleteMany({ where: { game: { matchup: { tournamentId, divisionId } } } });
@@ -394,7 +395,7 @@ async function simulateGroupPattern(
       );
     }
   }
-  await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: pattern });
+  await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: pattern, divisionId: options.scopeDivisionId });
 }
 
 async function simulateKnockoutStages(
@@ -409,7 +410,7 @@ async function simulateKnockoutStages(
 ) {
   let simulated = 0;
   for (const stage of stages) {
-    await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}` });
+    await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}`, divisionId: options.scopeDivisionId });
     const matchups = await db.matchup.findMany({
       where: {
         tournamentId,
@@ -430,7 +431,7 @@ async function simulateKnockoutStages(
         actorId,
         simulationRunId,
       );
-      await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}` });
+      await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}`, divisionId: options.scopeDivisionId });
       simulated += 1;
     }
   }
@@ -625,7 +626,7 @@ export async function executeSimulation(
             : ["FINAL"];
     let simulated = 0;
     for (const currentStage of stages) {
-      await recalculateTournament(db, tournamentId, { actorId, simulationRunId });
+      await recalculateTournament(db, tournamentId, { actorId, simulationRunId, divisionId: options.scopeDivisionId });
       const matchups = await db.matchup.findMany({
         where: {
           tournamentId,
@@ -639,7 +640,7 @@ export async function executeSimulation(
       for (const matchup of matchups) {
         if (matchup.status === "COMPLETED" || matchup.status === "FORFEITED") continue;
         await simulateOneMatchup(db, matchup.id, options, random, actorId, simulationRunId);
-        await recalculateTournament(db, tournamentId, { actorId, simulationRunId });
+        await recalculateTournament(db, tournamentId, { actorId, simulationRunId, divisionId: options.scopeDivisionId });
         simulated += 1;
       }
     }
@@ -653,6 +654,13 @@ export async function executeSimulation(
     await db.votingCode.deleteMany({ where: { tournamentId } });
     await db.votingCodeBatch.deleteMany({ where: { tournamentId } });
     result.votingReset = true;
+  } else if (options.kind === "RESET_DIVISION") {
+    if (!options.divisionId) throw new Error("Select a division to reset.");
+    const division = await db.division.findFirst({ where: { id: options.divisionId, tournamentId }, select: { id: true } });
+    if (!division) throw new Error("Division not found.");
+    await resetScenarioState(db, tournamentId, division.id);
+    result.divisionId = division.id;
+    result.divisionReset = true;
   } else if (options.kind === "QUICK_SCENARIO") {
     const scenario = options.targetId || "MID_GROUP_STAGE";
     if (scenario === "FRESH_TOURNAMENT" || scenario === "LINEUPS_PENDING") {
@@ -736,7 +744,7 @@ export async function executeSimulation(
     throw new Error(`Unsupported simulation kind: ${options.kind}`);
   }
 
-  await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: options.kind });
+  await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: options.kind, divisionId: options.scopeDivisionId });
   await writeAudit(db, {
     tournamentId,
     actorId,

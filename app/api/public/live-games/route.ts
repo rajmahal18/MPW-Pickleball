@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPublishedTournamentId } from "@/lib/tournament/public-tournament";
+import { isPrivateDivisionPreviewEnabled } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +16,17 @@ const publicPlayerSelect = {
 const publicTeamSelect = { id: true, name: true, shortName: true, logoUrl: true, brandingPrimary: true, brandingSecondary: true, brandingAccent: true, brandingText: true, brandingSurface: true } as const;
 
 const LIVE_CACHE_TTL_MS = 1_000;
-let liveCache: { tournamentId: string; expiresAt: number; value: unknown[] } | null = null;
-let liveInflight: { tournamentId: string; promise: Promise<unknown[]> } | null = null;
+let liveCache: { cacheKey: string; expiresAt: number; value: unknown[] } | null = null;
+let liveInflight: { cacheKey: string; promise: Promise<unknown[]> } | null = null;
 
-async function loadLiveGames(tournamentId: string) {
+async function loadLiveGames(tournamentId: string, previewEnabled: boolean) {
+  const cacheKey = `${tournamentId}:${previewEnabled ? "preview" : "public"}`;
   const now = Date.now();
-  if (liveCache?.tournamentId === tournamentId && liveCache.expiresAt > now) return liveCache.value;
-  if (liveInflight?.tournamentId === tournamentId) return liveInflight.promise;
+  if (liveCache?.cacheKey === cacheKey && liveCache.expiresAt > now) return liveCache.value;
+  if (liveInflight?.cacheKey === cacheKey) return liveInflight.promise;
 
   const promise = prisma.game.findMany({
-    where: { status: { in: ["LIVE", "INTERRUPTED"] }, matchup: { tournamentId, division: { isPublic: true } } },
+    where: { status: { in: ["LIVE", "INTERRUPTED"] }, matchup: { tournamentId, division: previewEnabled ? {} : { isPublic: true } } },
     select: {
       id: true, matchupId: true, gameNumber: true, homeScore: true, awayScore: true, status: true, winnerTeamId: true,
       matchup: { select: { courtLabel: true, roundLabel: true } },
@@ -35,20 +37,20 @@ async function loadLiveGames(tournamentId: string) {
     },
     orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { gameNumber: "asc" }],
   }).then((games) => {
-    liveCache = { tournamentId, expiresAt: Date.now() + LIVE_CACHE_TTL_MS, value: games };
+    liveCache = { cacheKey, expiresAt: Date.now() + LIVE_CACHE_TTL_MS, value: games };
     return games;
   }).finally(() => {
     if (liveInflight?.promise === promise) liveInflight = null;
   });
 
-  liveInflight = { tournamentId, promise };
+  liveInflight = { cacheKey, promise };
   return promise;
 }
 
 export async function GET() {
-  const tournamentId = await getPublishedTournamentId();
+  const [tournamentId, previewEnabled] = await Promise.all([getPublishedTournamentId(), isPrivateDivisionPreviewEnabled()]);
   if (!tournamentId) return NextResponse.json([]);
-  return NextResponse.json(await loadLiveGames(tournamentId), {
+  return NextResponse.json(await loadLiveGames(tournamentId, previewEnabled), {
     headers: { "Cache-Control": "no-store, max-age=0" },
   });
 }

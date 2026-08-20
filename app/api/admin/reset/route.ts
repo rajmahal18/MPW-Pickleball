@@ -30,6 +30,9 @@ export async function POST(request: Request) {
   }
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
   if (!tournament) return new NextResponse("Tournament not found", { status: 404 });
+  if (process.env.NODE_ENV === "production" && scope !== "VOTING") {
+    return new NextResponse("Tournament-wide resets are locked in production. Use the private-division lab reset in Simulation Center.", { status: 403 });
+  }
   if (process.env.NODE_ENV === "production" && !tournament.destructiveToolsEnabled) {
     return new NextResponse("Destructive reset tools are disabled in production.", { status: 403 });
   }

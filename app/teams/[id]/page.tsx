@@ -8,6 +8,7 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import { TeamHeroArtwork, TeamIdentity } from "@/components/TeamIdentity";
 import { teamHeroStyle } from "@/lib/team-branding";
 import { computeStandings } from "@/lib/tournament/standings";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,9 @@ const STATUS_PRIORITY: Record<string, number> = {
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const divisionFilter = await publicDivisionFilter();
   const team = await prisma.team.findFirst({
-    where: { id, division: { isPublic: true, tournament: { isPublished: true } } },
+    where: { id, division: { ...divisionFilter, tournament: { isPublished: true } } },
     include: {
       group: true,
       division: true,

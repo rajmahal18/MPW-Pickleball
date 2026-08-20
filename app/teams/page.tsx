@@ -5,17 +5,19 @@ import { formatPlayerDisplayName } from "@/lib/player-name";
 import { TeamIdentity } from "@/components/TeamIdentity";
 import { teamCardStyle } from "@/lib/team-branding";
 import EventTabs from "@/components/EventTabs";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ division?: string }> }) {
   const query = await searchParams;
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     orderBy: { createdAt: "desc" },
     include: {
       divisions: {
-        where: { isPublic: true },
+        where: divisionFilter,
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         include: {
           groups: {

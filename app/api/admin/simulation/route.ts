@@ -7,6 +7,7 @@ import { assertSameOrigin, requestData, redirectBack } from "@/lib/request";
 import { captureTournamentSnapshot } from "@/lib/tournament/snapshot";
 import { executeSimulation, type SimulationOptions } from "@/lib/tournament/simulation";
 import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
+import { isProductionPrivateLabDivision, isProductionPrivateLabKind } from "@/lib/tournament/private-division-lab";
 
 function jsonSafe(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -19,10 +20,6 @@ export async function POST(request: Request) {
   const tournament = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
   if (!tournament) return new NextResponse("Tournament not found", { status: 404 });
   if (!tournament.simulationMode) return new NextResponse("Simulation Mode is disabled.", { status: 409 });
-  if (process.env.NODE_ENV === "production" && !tournament.destructiveToolsEnabled) {
-    return new NextResponse("Destructive simulation tools are disabled in production.", { status: 403 });
-  }
-
   const data = await requestData(request);
   const winnerValues = ["HOME", "AWAY", "RANDOM"] as const;
   const scoreStyleValues = ["RANDOM", "DOMINANT", "CLOSE", "DEUCE"] as const;
@@ -45,6 +42,23 @@ export async function POST(request: Request) {
     stage: stageValues.find((value) => value === String(data.stage || "")),
     autoGeneratePairs: data.autoGeneratePairs === "on",
   };
+  let productionLabDivisionId: string | null = null;
+  if (process.env.NODE_ENV === "production") {
+    if (!isProductionPrivateLabKind(options.kind)) return new NextResponse("Production lab mode allows private-division match simulation only.", { status: 403 });
+    let divisionId = options.divisionId;
+    if (options.kind === "GAME" && options.targetId) {
+      divisionId = (await prisma.game.findFirst({ where: { id: options.targetId, matchup: { tournamentId: tournament.id } }, select: { matchup: { select: { divisionId: true } } } }))?.matchup.divisionId;
+    }
+    if (options.kind === "MATCHUP" && options.targetId) {
+      divisionId = (await prisma.matchup.findFirst({ where: { id: options.targetId, tournamentId: tournament.id }, select: { divisionId: true } }))?.divisionId;
+    }
+    if (!divisionId) return new NextResponse("Select one private Executive division. All-divisions simulation is blocked in production.", { status: 403 });
+    const division = await prisma.division.findFirst({ where: { id: divisionId, tournamentId: tournament.id }, select: { id: true, slug: true, isPublic: true } });
+    if (!division || !isProductionPrivateLabDivision(division)) return new NextResponse("Only private non-Team-Event divisions may be simulated in production.", { status: 403 });
+    options.divisionId = division.id;
+    options.scopeDivisionId = division.id;
+    productionLabDivisionId = division.id;
+  }
   const run = await prisma.simulationRun.create({
     data: {
       tournamentId: tournament.id,
@@ -57,7 +71,7 @@ export async function POST(request: Request) {
   });
 
   try {
-    const checkpoint = await prisma.$transaction(async (tx) => {
+    const checkpoint = productionLabDivisionId ? null : await prisma.$transaction(async (tx) => {
       const snapshot = await captureTournamentSnapshot(tx, tournament.id);
       const created = await tx.checkpoint.create({
         data: {
@@ -85,7 +99,7 @@ export async function POST(request: Request) {
     );
     await prisma.simulationRun.update({
       where: { id: run.id },
-      data: { status: "COMPLETED", result: jsonSafe({ ...result, checkpointId: checkpoint.id }), completedAt: new Date() },
+      data: { status: "COMPLETED", result: jsonSafe({ ...result, checkpointId: checkpoint?.id ?? null, productionPrivateLab: Boolean(productionLabDivisionId) }), completedAt: new Date() },
     });
     if (
       options.kind === "FAN_VOTING" ||

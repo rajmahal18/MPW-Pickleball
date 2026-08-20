@@ -13,6 +13,7 @@ import { isEarlyQualificationPreview, qualificationSourceOptions, resolveQualifi
 import { nextEditableTeamMatchupId } from "../lib/tournament/leader-lineup-access";
 import { DEFAULT_RECOGNITION_DIVISION_SLUG, isRecognitionDivision, recognitionDivisionSlug } from "../lib/tournament/recognition-division";
 import { mvpVisibilityFromState } from "../lib/tournament/mvp-visibility";
+import { isProductionPrivateLabDivision, isProductionPrivateLabKind } from "../lib/tournament/private-division-lab";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -32,6 +33,14 @@ function matchup(
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
 }
+
+test("production lab permits only private non-recognition divisions and scoped match operations", () => {
+  assert.equal(isProductionPrivateLabDivision({ slug: "executive-men", isPublic: false }), true);
+  assert.equal(isProductionPrivateLabDivision({ slug: "team-event", isPublic: false }), false);
+  assert.equal(isProductionPrivateLabDivision({ slug: "executive-men", isPublic: true }), false);
+  for (const kind of ["GAME", "MATCHUP", "STAGE", "ENTIRE_TOURNAMENT", "RESET_DIVISION"]) assert.equal(isProductionPrivateLabKind(kind), true);
+  for (const kind of ["QUICK_SCENARIO", "FAN_VOTING", "RESET_VOTING"]) assert.equal(isProductionPrivateLabKind(kind), false);
+});
 
 test("recognition surfaces stay pinned to the configured main division", () => {
   assert.equal(recognitionDivisionSlug(undefined), DEFAULT_RECOGNITION_DIVISION_SLUG);

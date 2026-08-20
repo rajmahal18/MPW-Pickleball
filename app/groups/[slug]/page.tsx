@@ -7,11 +7,13 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
 import { TeamIdentity } from "@/components/TeamIdentity";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 export default async function GroupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const group = await prisma.group.findFirst({ where: { slug, tournament: { isPublished: true }, division: { isPublic: true } }, include: { tournament: true, division: true, standingOverrides: true, teams: { include: { group: true } } } });
+  const divisionFilter = await publicDivisionFilter();
+  const group = await prisma.group.findFirst({ where: { slug, tournament: { isPublished: true }, division: divisionFilter }, include: { tournament: true, division: true, standingOverrides: true, teams: { include: { group: true } } } });
   if (!group) notFound();
   const [matchups, divisionGroups, allGroupMatchups, revision] = await Promise.all([
     prisma.matchup.findMany({ where: { divisionId: group.divisionId, stage: "GROUP", groupLabel: group.name }, include: { homeTeam: true, awayTeam: true, games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: [{ updatedAt: "desc" }, { order: "desc" }] }),

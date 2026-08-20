@@ -5,17 +5,19 @@ import StandingsTable from "@/components/StandingsTable";
 import TournamentSync from "@/components/TournamentSync";
 import EventTabs from "@/components/EventTabs";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
 export default async function GroupsIndexPage({ searchParams }: { searchParams: Promise<{ division?: string }> }) {
   const query = await searchParams;
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({
     where: { isPublished: true },
     orderBy: { createdAt: "desc" },
     include: {
       divisions: {
-        where: { isPublic: true },
+        where: divisionFilter,
         include: {
           groups: {
             include: { standingOverrides: true, teams: { include: { group: true }, orderBy: { shortName: "asc" } } },

@@ -7,6 +7,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { formatPlayerDisplayName, formatPlayerCompactName } from "@/lib/player-name";
 import { TeamHeroArtwork, TeamIdentity, TeamLogo } from "@/components/TeamIdentity";
 import { getTeamBranding, teamHeroStyle } from "@/lib/team-branding";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,10 @@ function matchupContext(matchup: { groupLabel: string | null; stage: string; rou
   return `${scope} · ${round}`;
 }
 
-async function loadHistory(playerId: string, tournamentId: string) {
+async function loadHistory(playerId: string, tournamentId: string, divisionFilter: { isPublic?: true }) {
   return prisma.game.findMany({
     where: {
-      matchup: { tournamentId, division: { isPublic: true } },
+      matchup: { tournamentId, division: divisionFilter },
       status: { in: ["LIVE", "INTERRUPTED", "COMPLETED", "FORFEITED"] },
       OR: [
         { homePair: { OR: [{ playerAId: playerId }, { playerBId: playerId }] } },
@@ -71,6 +72,7 @@ function PairLinks({ pair }: { pair: HistoryGame["homePair"] }) {
 
 export default async function PublicPlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
   if (!tournament) notFound();
 
@@ -81,18 +83,18 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
       isActive: true,
       participationStatus: "CONFIRMED",
       OR: [
-        { divisionEntries: { some: { status: "CONFIRMED", division: { isPublic: true } } } },
-        { team: { division: { isPublic: true } } },
+        { divisionEntries: { some: { status: "CONFIRMED", division: divisionFilter } } },
+        { team: { division: divisionFilter } },
       ],
     },
     include: {
       team: { include: { division: true, group: true } },
-      divisionEntries: { where: { status: "CONFIRMED", division: { isPublic: true } }, include: { division: true } },
+      divisionEntries: { where: { status: "CONFIRMED", division: divisionFilter }, include: { division: true } },
     },
   });
   if (!player) notFound();
 
-  const history = await loadHistory(player.id, tournament.id);
+  const history = await loadHistory(player.id, tournament.id, divisionFilter);
   const decided = history.filter((game) => game.status === "COMPLETED" || game.status === "FORFEITED");
   const summary = decided.reduce((acc, game) => {
     const side = sideFor(game, player.id);
@@ -103,7 +105,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ i
     return acc;
   }, { wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 });
   const npd = summary.pointsFor - summary.pointsAgainst;
-  const teamIsPublic = Boolean(player.team?.division.isPublic);
+  const teamIsPublic = Boolean(player.team && (player.team.division.isPublic || !("isPublic" in divisionFilter)));
   const divisionNames = player.divisionEntries.map((entry) => entry.division.name).join(" · ");
   const branding = getTeamBranding(teamIsPublic ? player.team : null);
 

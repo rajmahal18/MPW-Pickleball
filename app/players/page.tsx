@@ -9,6 +9,7 @@ import PublicAutoSubmitForm from "@/components/PublicAutoSubmitForm";
 import { TeamIdentity } from "@/components/TeamIdentity";
 import { teamCardStyle } from "@/lib/team-branding";
 import EventTabs from "@/components/EventTabs";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -48,19 +49,20 @@ export default async function Players({ searchParams }: { searchParams: Promise<
   const sort = SORTS.some((option) => option.value === query.sort) ? query.sort! : "first";
   const pageSize = 36;
   const currentPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
+  const divisionFilter = await publicDivisionFilter();
 
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-8">No published tournament.</main>;
 
   const divisions = await prisma.division.findMany({
-    where: { tournamentId: tournament.id, isPublic: true },
+    where: { tournamentId: tournament.id, ...divisionFilter },
     select: { id: true, name: true, slug: true, entrantType: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
   const selectedDivision = divisions.find((division) => division.id === divisionId || division.slug === divisionId) ?? divisions[0] ?? null;
   const safeDivisionId = selectedDivision?.id ?? "";
   const publicTeams = await prisma.team.findMany({
-    where: { division: { tournamentId: tournament.id, isPublic: true }, ...(safeDivisionId ? { divisionId: safeDivisionId } : {}) },
+    where: { division: { tournamentId: tournament.id, ...divisionFilter }, ...(safeDivisionId ? { divisionId: safeDivisionId } : {}) },
     select: { id: true, name: true, shortName: true, divisionId: true, division: { select: { name: true } } },
     orderBy: [{ division: { sortOrder: "asc" } }, { shortName: "asc" }],
   });
@@ -74,7 +76,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
     divisionEntries: {
       some: {
         status: "CONFIRMED",
-        division: { isPublic: true, ...(safeDivisionId ? { id: safeDivisionId } : {}) },
+        division: { ...divisionFilter, ...(safeDivisionId ? { id: safeDivisionId } : {}) },
       },
     },
     ...(safeTeamId ? (selectedDivision?.entrantType === "PAIR" ? { OR: [{ pairAsA: { some: { teamId: safeTeamId, isActive: true } } }, { pairAsB: { some: { teamId: safeTeamId, isActive: true } } }] } : { teamId: safeTeamId }) : {}),
@@ -92,7 +94,7 @@ export default async function Players({ searchParams }: { searchParams: Promise<
 
   const playerInclude = {
     team: { include: { group: true, division: true } },
-    divisionEntries: { where: { status: "CONFIRMED" as const, division: { isPublic: true } }, include: { division: true } },
+    divisionEntries: { where: { status: "CONFIRMED" as const, division: divisionFilter }, include: { division: true } },
     pairAsA: { where: { isActive: true, team: { divisionId: safeDivisionId || undefined } }, include: { team: { include: { division: true, group: true } }, playerB: true } },
     pairAsB: { where: { isActive: true, team: { divisionId: safeDivisionId || undefined } }, include: { team: { include: { division: true, group: true } }, playerA: true } },
   } satisfies Prisma.PlayerInclude;

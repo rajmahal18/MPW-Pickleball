@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,9 @@ const publicPlayerSelect = {
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const divisionFilter = await publicDivisionFilter();
   const game = await prisma.game.findFirst({
-    where: { id, matchup: { tournament: { isPublished: true }, division: { isPublic: true } } },
+    where: { id, matchup: { tournament: { isPublished: true }, division: divisionFilter } },
     select: {
       id: true,
       matchupId: true,

@@ -3,13 +3,15 @@ import { prisma } from "@/lib/prisma";
 import LiveMatchBoard from "@/components/LiveMatchBoard";
 import StatusBadge from "@/components/StatusBadge";
 import { TeamIdentity } from "@/components/TeamIdentity";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
 export default async function MatchupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const divisionFilter = await publicDivisionFilter();
   const matchup = await prisma.matchup.findFirst({
-    where: { id, division: { isPublic: true }, tournament: { isPublished: true } },
+    where: { id, division: divisionFilter, tournament: { isPublished: true } },
     include: {
       division: true,
       homeTeam: true,

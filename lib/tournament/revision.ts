@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { getPublishedTournamentId } from "@/lib/tournament/public-tournament";
+import { isPrivateDivisionPreviewEnabled } from "@/lib/public-preview";
 
 const PUBLIC_REVISION_TTL_MS = 900;
-let publicRevisionCache: { tournamentId: string; expiresAt: number; revision: string } | null = null;
-let publicRevisionInflight: { tournamentId: string; promise: Promise<string> } | null = null;
+let publicRevisionCache: { cacheKey: string; expiresAt: number; revision: string } | null = null;
+let publicRevisionInflight: { cacheKey: string; promise: Promise<string> } | null = null;
 
 export async function getPublicTournamentRevision(tournamentId: string) {
+  const previewEnabled = await isPrivateDivisionPreviewEnabled();
   const latest = await prisma.matchup.findFirst({
-    where: { tournamentId, division: { isPublic: true } },
+    where: { tournamentId, division: previewEnabled ? {} : { isPublic: true } },
     orderBy: { updatedAt: "desc" },
     select: { updatedAt: true },
   });
@@ -15,24 +17,25 @@ export async function getPublicTournamentRevision(tournamentId: string) {
 }
 
 export async function getLatestPublishedPublicTournamentRevision() {
-  const tournamentId = await getPublishedTournamentId();
+  const [tournamentId, previewEnabled] = await Promise.all([getPublishedTournamentId(), isPrivateDivisionPreviewEnabled()]);
   if (!tournamentId) return "none:0";
+  const cacheKey = `${tournamentId}:${previewEnabled ? "preview" : "public"}`;
 
   const now = Date.now();
-  if (publicRevisionCache?.tournamentId === tournamentId && publicRevisionCache.expiresAt > now) {
+  if (publicRevisionCache?.cacheKey === cacheKey && publicRevisionCache.expiresAt > now) {
     return publicRevisionCache.revision;
   }
-  if (publicRevisionInflight?.tournamentId === tournamentId) return publicRevisionInflight.promise;
+  if (publicRevisionInflight?.cacheKey === cacheKey) return publicRevisionInflight.promise;
 
   const promise = getPublicTournamentRevision(tournamentId)
     .then((revision) => {
-      publicRevisionCache = { tournamentId, expiresAt: Date.now() + PUBLIC_REVISION_TTL_MS, revision };
+      publicRevisionCache = { cacheKey, expiresAt: Date.now() + PUBLIC_REVISION_TTL_MS, revision };
       return revision;
     })
     .finally(() => {
       if (publicRevisionInflight?.promise === promise) publicRevisionInflight = null;
     });
 
-  publicRevisionInflight = { tournamentId, promise };
+  publicRevisionInflight = { cacheKey, promise };
   return promise;
 }

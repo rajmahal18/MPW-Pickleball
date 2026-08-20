@@ -13,6 +13,7 @@ import GenderIndicator from "@/components/GenderIndicator";
 import EventTabs from "@/components/EventTabs";
 import { TeamLogo } from "@/components/TeamIdentity";
 import type { TeamBrandingSource } from "@/lib/team-branding";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -103,11 +104,12 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
   const readyFilter = activeTab === "READY";
   const pageSize = 60;
   const currentPage = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
 
   if (!tournament) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">Run the seed script first.</main>;
 
-  const divisions = await prisma.division.findMany({ where: { tournamentId: tournament.id, isPublic: true }, select: { id: true, name: true, slug: true, entrantType: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  const divisions = await prisma.division.findMany({ where: { tournamentId: tournament.id, ...divisionFilter }, select: { id: true, name: true, slug: true, entrantType: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
   const selectedDivision = divisions.find((division) => division.slug === query.division || division.id === query.division) ?? divisions[0] ?? null;
   if (!selectedDivision) return <main className="public-page mx-auto max-w-7xl px-4 py-3 md:py-8">No public event is configured.</main>;
 

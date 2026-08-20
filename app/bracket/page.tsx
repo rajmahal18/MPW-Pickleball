@@ -4,6 +4,7 @@ import BracketBoard, { KNOCKOUT_STAGES } from "@/components/BracketBoard";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import { winsNeededForMatchup } from "@/lib/tournament/rules";
 import EventTabs from "@/components/EventTabs";
+import { publicDivisionFilter } from "@/lib/public-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,10 @@ function knockoutSeriesLabel(matches: number) {
 
 export default async function Bracket({ searchParams }: { searchParams: Promise<{ success?: string; division?: string }> }) {
   const query = await searchParams;
+  const divisionFilter = await publicDivisionFilter();
   const tournament = await prisma.tournament.findFirst({ where: { isPublished: true }, orderBy: { createdAt: "desc" } });
   const allDivisions = tournament ? await prisma.division.findMany({
-    where: { tournamentId: tournament.id, isPublic: true },
+    where: { tournamentId: tournament.id, ...divisionFilter },
     include: {
       matchups: {
         where: { stage: { in: [...KNOCKOUT_STAGES] } },
