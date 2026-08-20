@@ -1,5 +1,13 @@
 # 2026-08-18 Fan Favorite fairness / MVP UI / visitor analytics patch
 
+## Multi-track Executive knockout formats — 2026-08-20
+
+- Matchups now carry an additive `bracketTrack`; existing/live rows backfill to `CHAMPIONSHIP`. This allows one division to own an independent `WILDCARD` knockout without merging QF/SF/Final progression or rewriting Team Event history.
+- Pair divisions choose a wildcard path: configured qualifiers, direct best remaining seed, or a separate 2/4/8-entry battle beginning at Final/SF/QF. Battle entrants are selected by group-finish tier (all available 2nd seeds before 3rd seeds), then compared by the official cross-group tiebreaks; its winner resolves the remaining Championship source.
+- First-round qualification-source mapping supports both Quarterfinals (8 qualifiers) and direct Semifinals (4 qualifiers). This permits explicit crossover mappings such as Group A 1st vs Group B 2nd and Group B 1st vs Group A 2nd.
+- Battle for 3rd remains a live division toggle: enabling creates/populates the Championship bronze match from actual semifinal losers; disabling removes only untouched bronze structure and is blocked after recorded bronze play.
+- Public Executive brackets render Wildcard and Championship progressions separately. Executive QFs use standard adjacent feeds; Team Event preserves its organizer-supplied crossed QF feed. MVP and Fan Favorite remain server-pinned to the Team Event division and `TEAM` entrant type.
+
 - Superadmins can enable a cookie-backed public preview that includes private divisions across public event tabs, detail pages, live polling, and the dynamic format guide. The server revalidates the Superadmin session for every preview request; anonymous visitors remain restricted to `Division.isPublic = true`.
 - Production simulation operates as a private-division lab: only an explicitly resolved private, non-recognition division can be simulated or reset. Team Event/public divisions, all-division runs, Quick Scenarios, voting simulations, tournament-wide checkpoints/undo, and non-voting global resets are server-blocked in production; dependency recalculation is scoped to the lab division.
 - Superadmin can hide or restore public MVP presentation without deleting results or changing the production schema. Visibility is persisted through the existing audit log, defaults to visible, removes public navigation/homepage MVP surfaces, and keeps a direct Superadmin preview available while hidden.

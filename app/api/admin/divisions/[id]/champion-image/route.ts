@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     assertSameOrigin(request);
     const division = await prisma.division.findUnique({
       where: { id },
-      include: { matchups: { where: { stage: "FINAL" }, select: { status: true, winnerTeamId: true } } },
+      include: { matchups: { where: { stage: "FINAL", bracketTrack: "CHAMPIONSHIP" }, select: { status: true, winnerTeamId: true } } },
     });
     if (!division) throw new Error("Division not found.");
     const championFinal = division.matchups.find((matchup) => matchup.winnerTeamId && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"));

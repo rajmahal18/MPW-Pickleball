@@ -46,7 +46,7 @@ export default async function GroupsIndexPage({ searchParams }: { searchParams: 
         <div className="mt-4 space-y-6 md:mt-7 md:space-y-8">
           {divisions.map((division) => {
             const tables = division.groups.map((group) => computeStandings(group.teams, division.matchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
-            const qualificationByTeam = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(division.matchups) }) : new Map();
+            const qualificationByTeam = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.wildcardMode === "STANDARD" ? division.qualifiersPerGroup : 1, division.wildcardMode === "BATTLE" ? division.wildcardBattleSize : division.wildcardMode === "DIRECT" ? 1 : division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(division.matchups) }) : new Map();
             return <section key={division.id}>
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div><div className="public-kicker">Division</div><h2 className="text-2xl font-black">{division.name}</h2></div>

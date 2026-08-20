@@ -30,7 +30,7 @@ export default async function MvpPage({ searchParams }: { searchParams: Promise<
   ]);
   if (!mvpVisible && user?.role !== "SUPERADMIN") notFound();
   const divisions = tournament ? await prisma.division.findMany({
-    where: { tournamentId: tournament.id, isPublic: true, slug: recognitionDivisionSlug() },
+    where: { tournamentId: tournament.id, isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() },
     select: { id: true, name: true, slug: true, entrantType: true, sexCategory: true },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   }) : [];

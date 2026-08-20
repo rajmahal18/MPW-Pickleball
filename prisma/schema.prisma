@@ -155,6 +155,8 @@ model Division {
   qualifiersPerGroup      Int                 @default(1)
   wildcardCount           Int                 @default(0)
   autoProgression         Boolean             @default(false)
+  wildcardMode            String              @default("STANDARD")
+  wildcardBattleSize      Int                 @default(8)
   thirdPlaceEnabled       Boolean             @default(false)
   suddenDeathAtTen        Boolean             @default(false)
   advancementRule        String?
@@ -351,6 +353,7 @@ model Matchup {
   awayTeam        Team?         @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: SetNull)
   homeQualificationSource String?
   awayQualificationSource String?
+  bracketTrack     String        @default("CHAMPIONSHIP")
   status          MatchupStatus @default(LINEUP_PENDING)
   scheduledAt     DateTime?
   courtLabel      String?
@@ -365,8 +368,8 @@ model Matchup {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  @@unique([divisionId, stage, order])
-  @@index([tournamentId, divisionId, stage, groupLabel, order])
+  @@unique([divisionId, bracketTrack, stage, order])
+  @@index([tournamentId, divisionId, bracketTrack, stage, groupLabel, order])
   @@index([tournamentId, status, scheduledAt])
   @@index([tournamentId, queuePosition])
 }

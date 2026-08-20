@@ -4,6 +4,7 @@ import { createSeededRandom, pickOne, randomInteger } from "@/lib/tournament/rng
 import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
 import { categoriesForStage, scoreRuleForStage, winsNeededForMatchup, type MatchScoreRule } from "@/lib/tournament/rules";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 
 export type SimulationOptions = {
   kind: string;
@@ -409,12 +410,15 @@ async function simulateKnockoutStages(
   simulationRunId: string,
 ) {
   let simulated = 0;
-  for (const stage of stages) {
+  const division = await db.division.findUniqueOrThrow({ where: { id: divisionId }, select: { wildcardMode: true } });
+  const tracks = division.wildcardMode === "BATTLE" ? ["WILDCARD", "CHAMPIONSHIP"] : ["CHAMPIONSHIP"];
+  for (const bracketTrack of tracks) for (const stage of stages) {
     await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Quick scenario ${stage}`, divisionId: options.scopeDivisionId });
     const matchups = await db.matchup.findMany({
       where: {
         tournamentId,
         divisionId,
+        bracketTrack,
         stage,
         homeTeamId: { not: null },
         awayTeamId: { not: null },
@@ -444,7 +448,7 @@ async function simulateVotingAttemptScenario(
   kind: "REUSED" | "REVOKED",
   count: number,
 ) {
-  const player = await db.player.findFirstOrThrow({ where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } } });
+  const player = await db.player.findFirstOrThrow({ where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } } });
   for (let index = 0; index < count; index += 1) {
     const plain = generateVotingCode();
     const code = await db.votingCode.create({
@@ -547,7 +551,7 @@ async function simulateVoting(
   simulationRunId: string,
 ) {
   const players = await db.player.findMany({
-    where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null } },
+    where: { tournamentId, isActive: true, participationStatus: "CONFIRMED", teamId: { not: null }, team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } },
     select: { id: true, sex: true },
   });
   if (!players.length) throw new Error("No eligible players found.");

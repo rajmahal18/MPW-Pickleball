@@ -1,6 +1,7 @@
 export type QualificationSource =
   | { type: "GROUP"; groupId: string; rank: number }
-  | { type: "WILDCARD"; rank: number };
+  | { type: "WILDCARD"; rank: number }
+  | { type: "BRACKET_WINNER"; track: string };
 
 export type QualificationSourceOption = { value: string; label: string };
 
@@ -31,6 +32,10 @@ export function wildcardQualificationSource(rank: number) {
   return `WILDCARD:${rank}`;
 }
 
+export function bracketWinnerQualificationSource(track: string) {
+  return `BRACKET_WINNER:${track}`;
+}
+
 export function parseQualificationSource(value: string | null | undefined): QualificationSource | null {
   if (!value) return null;
   const parts = value.split(":");
@@ -41,6 +46,9 @@ export function parseQualificationSource(value: string | null | undefined): Qual
   if (parts[0] === "WILDCARD" && parts.length === 2) {
     const rank = Number(parts[1]);
     if (Number.isInteger(rank) && rank > 0) return { type: "WILDCARD", rank };
+  }
+  if (parts[0] === "BRACKET_WINNER" && parts.length === 2 && parts[1]) {
+    return { type: "BRACKET_WINNER", track: parts[1] };
   }
   return null;
 }
@@ -66,10 +74,12 @@ export function resolveQualificationSource<T extends { team: { id: string }; ran
   sourceValue: string | null | undefined,
   groupTables: Array<{ groupId: string; rows: T[] }>,
   wildcards: T[],
+  bracketWinners: ReadonlyMap<string, string> = new Map(),
 ) {
   const source = parseQualificationSource(sourceValue);
   if (!source) return null;
   if (source.type === "WILDCARD") return wildcards[source.rank - 1]?.team.id ?? null;
+  if (source.type === "BRACKET_WINNER") return bracketWinners.get(source.track) ?? null;
   const table = groupTables.find((entry) => entry.groupId === source.groupId)?.rows ?? [];
   const row = table.find((entry) => entry.rank === source.rank) ?? table[source.rank - 1];
   return row?.team.id ?? null;

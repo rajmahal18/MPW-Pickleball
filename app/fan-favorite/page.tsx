@@ -23,7 +23,7 @@ export default async function FanFavorite({ searchParams }: { searchParams: Prom
         isActive: true,
         participationStatus: "CONFIRMED",
         teamId: { not: null },
-        team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
+        team: { division: { isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() } },
       },
       select: {
         id: true,

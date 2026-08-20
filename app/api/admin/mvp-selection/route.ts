@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!divisionId) throw new Error("Division is required.");
     if (sexCategory !== "MALE" && sexCategory !== "FEMALE") throw new Error("Invalid MVP category.");
 
-    const division = await prisma.division.findUnique({ where: { id: divisionId }, select: { id: true, slug: true, tournamentId: true, sexCategory: true } });
+    const division = await prisma.division.findUnique({ where: { id: divisionId }, select: { id: true, slug: true, entrantType: true, tournamentId: true, sexCategory: true } });
     if (!division) throw new Error("Division not found.");
     if (!isRecognitionDivision(division)) throw new Error("MVP recognition is not enabled for this division.");
     if (division.sexCategory && division.sexCategory !== sexCategory) throw new Error("That MVP category does not apply to this event.");

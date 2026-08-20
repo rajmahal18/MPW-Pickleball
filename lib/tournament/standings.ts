@@ -282,18 +282,18 @@ export function selectDivisionQualifiers(
     direct.push(...table.filter((row) => row.rankStatus === "RESOLVED" && row.rank <= safePerGroup));
     remaining.push(...table.filter((row) => row.rank > safePerGroup && (!row.tieGroupKey || !blockedTieKeys.has(row.tieGroupKey))));
   }
-  const wildcardPool = remaining.sort((first, second) => compareCrossGroupRows(first, second) || first.team.name.localeCompare(second.team.name));
+  const wildcardPool = remaining.sort((first, second) => first.rank - second.rank || compareCrossGroupRows(first, second) || first.team.name.localeCompare(second.team.name));
   const safeWildcardCount = Math.max(0, wildcardCount);
   const wildcards = wildcardPool.slice(0, safeWildcardCount);
   if (safeWildcardCount > 0 && wildcardPool.length > safeWildcardCount) {
     const cutoff = wildcardPool[safeWildcardCount - 1]!;
     const next = wildcardPool[safeWildcardCount]!;
-    if (compareCrossGroupRows(cutoff, next) === 0) {
+    if (cutoff.rank === next.rank && compareCrossGroupRows(cutoff, next) === 0) {
       const tieKey = crossGroupTieKey(cutoff);
       unresolved.push({
         scope: "WILDCARD",
         rank: safeWildcardCount,
-        teamIds: wildcardPool.filter((row) => crossGroupTieKey(row) === tieKey).map((row) => row.team.id),
+        teamIds: wildcardPool.filter((row) => row.rank === cutoff.rank && crossGroupTieKey(row) === tieKey).map((row) => row.team.id),
       });
     }
   }

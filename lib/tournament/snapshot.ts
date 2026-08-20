@@ -8,7 +8,7 @@ function jsonSafe<T>(value: T) {
 export async function captureTournamentSnapshot(db: Prisma.TransactionClient, tournamentId: string) {
   const [tournament, divisions, matchups, lineups, lineupSlots, games, scoreEvents, votingCodeBatches, votingCodes, fanVotes, voteAttempts] = await Promise.all([
     db.tournament.findUniqueOrThrow({ where: { id: tournamentId } }),
-    db.division.findMany({ where: { tournamentId }, select: { id: true, championImageUrl: true, championImageTeamId: true } }),
+    db.division.findMany({ where: { tournamentId }, select: { id: true, championImageUrl: true, championImageTeamId: true, wildcardMode: true, wildcardBattleSize: true } }),
     db.matchup.findMany({ where: { tournamentId }, orderBy: { order: "asc" } }),
     db.lineup.findMany({ where: { matchup: { tournamentId } } }),
     db.lineupSlot.findMany({ where: { lineup: { matchup: { tournamentId } } } }),
@@ -21,7 +21,7 @@ export async function captureTournamentSnapshot(db: Prisma.TransactionClient, to
   ]);
 
   return jsonSafe({
-    version: 6,
+    version: 7,
     capturedAt: new Date().toISOString(),
     tournament: {
       id: tournament.id,
@@ -54,7 +54,7 @@ type Snapshot = {
     destructiveToolsEnabled: boolean;
     activeCourtCount?: number;
   };
-  divisions?: Array<{ id: string; championImageUrl?: string | null; championImageTeamId?: string | null }>;
+  divisions?: Array<{ id: string; championImageUrl?: string | null; championImageTeamId?: string | null; wildcardMode?: string; wildcardBattleSize?: number }>;
   matchups: Array<Record<string, unknown>>;
   lineups: Array<Record<string, unknown>>;
   lineupSlots: Array<Record<string, unknown>>;
@@ -67,6 +67,7 @@ type Snapshot = {
 };
 
 const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+const BRACKET_TRACKS = ["CHAMPIONSHIP", "WILDCARD"] as const;
 const MATCHUP_STATUSES = ["SCHEDULED", "LINEUP_PENDING", "READY", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
 const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
 const VOTING_CODE_STATUSES = ["UNUSED", "ISSUED", "USED", "REVOKED", "REPLACED"] as const;
@@ -89,7 +90,7 @@ export async function restoreTournamentSnapshot(
   rawSnapshot: Prisma.JsonValue,
 ) {
   const snapshot = rawSnapshot as unknown as Snapshot;
-  if (!snapshot || ![1, 2, 3, 4, 5, 6].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7].includes(snapshot.version) || snapshot.tournament?.id !== tournamentId) {
     throw new Error("Checkpoint is incompatible with this tournament.");
   }
 
@@ -117,7 +118,7 @@ export async function restoreTournamentSnapshot(
   for (const divisionSnapshot of snapshot.divisions ?? []) {
     const division = await db.division.findUnique({ where: { id: divisionSnapshot.id }, select: { tournamentId: true } });
     if (division?.tournamentId === tournamentId) {
-      await db.division.update({ where: { id: divisionSnapshot.id }, data: { championImageUrl: divisionSnapshot.championImageUrl ?? null, championImageTeamId: divisionSnapshot.championImageTeamId ?? null } });
+      await db.division.update({ where: { id: divisionSnapshot.id }, data: { championImageUrl: divisionSnapshot.championImageUrl ?? null, championImageTeamId: divisionSnapshot.championImageTeamId ?? null, ...(divisionSnapshot.wildcardMode !== undefined ? { wildcardMode: divisionSnapshot.wildcardMode } : {}), ...(divisionSnapshot.wildcardBattleSize !== undefined ? { wildcardBattleSize: divisionSnapshot.wildcardBattleSize } : {}) } });
     }
   }
 
@@ -151,6 +152,7 @@ export async function restoreTournamentSnapshot(
         awayTeamId: (value.awayTeamId as string | null) ?? null,
         homeQualificationSource: (value.homeQualificationSource as string | null) ?? null,
         awayQualificationSource: (value.awayQualificationSource as string | null) ?? null,
+        bracketTrack: value.bracketTrack === undefined ? "CHAMPIONSHIP" : enumValue(value.bracketTrack, BRACKET_TRACKS, "bracket track"),
         status: enumValue(value.status, MATCHUP_STATUSES, "team matchup status"),
         scheduledAt: asDate(value.scheduledAt),
         courtLabel: (value.courtLabel as string | null) ?? null,

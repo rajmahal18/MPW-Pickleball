@@ -11,6 +11,7 @@ import TournamentSync from "@/components/TournamentSync";
 import { getPublicTournamentRevision } from "@/lib/tournament/revision";
 import StatusBadge from "@/components/StatusBadge";
 import { isMvpPublic } from "@/lib/tournament/mvp-visibility";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 
 export const dynamic = "force-dynamic";
 
@@ -64,18 +65,18 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     prisma.game.count({ where: { matchup: { tournamentId: tournament.id }, status: "COMPLETED" } }),
     prisma.matchup.count({ where: { tournamentId: tournament.id, status: "LINEUP_PENDING", homeTeamId: { not: null }, awayTeamId: { not: null } } }),
     prisma.matchup.count({ where: { tournamentId: tournament.id, status: "COMPLETED", homeTeamId: { not: null }, awayTeamId: { not: null } } }),
-    prisma.fanVote.count({ where: { tournamentId: tournament.id } }),
+    prisma.fanVote.count({ where: { tournamentId: tournament.id, player: { team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } } } }),
     prisma.voteAttempt.count({ where: { tournamentId: tournament.id, success: false } }),
     prisma.fanVote.groupBy({
       by: ["playerId", "sexCategory"],
-      where: { tournamentId: tournament.id },
+      where: { tournamentId: tournament.id, player: { team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } } },
       _count: { _all: true },
       orderBy: [{ sexCategory: "asc" }, { _count: { playerId: "desc" } }, { playerId: "asc" }],
     }),
     tournament.isPublished ? getPublicTournamentRevision(tournament.id) : Promise.resolve("none:0"),
   ]);
   const rankedPlayers = await prisma.player.findMany({
-    where: { id: { in: voteGroups.map((row) => row.playerId) } },
+    where: { id: { in: voteGroups.map((row) => row.playerId) }, team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } },
     select: { id: true, firstName: true, middleInitial: true, lastName: true, displayName: true, avatarUrl: true, team: { select: { shortName: true, name: true } } },
   });
   const playerById = new Map(rankedPlayers.map((player) => [player.id, player]));

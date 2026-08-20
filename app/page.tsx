@@ -35,7 +35,7 @@ export default async function Home() {
     where: { isPublished: true },
     include: {
       divisions: {
-        where: { isPublic: true, slug: recognitionDivisionSlug() },
+        where: { isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() },
         include: {
           groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
           teams: true,
@@ -54,7 +54,7 @@ export default async function Home() {
   const mvpVisible = await isMvpPublic(tournament.id);
   const mvpDivision = tournament.divisions[0] ?? null;
   const championFinals = tournament.divisions.flatMap((division) => division.matchups
-    .filter((matchup) => matchup.stage === "FINAL" && matchup.winnerTeamId && matchup.winnerTeam && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"))
+    .filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP" && matchup.stage === "FINAL" && matchup.winnerTeamId && matchup.winnerTeam && (matchup.status === "COMPLETED" || matchup.status === "FORFEITED"))
     .map((matchup) => ({ division, matchup })));
   const championTeamIds = championFinals.map(({ matchup }) => matchup.winnerTeamId!).filter(Boolean);
 
@@ -123,7 +123,7 @@ export default async function Home() {
   });
   const bracketDivisions = tournament.divisions.map((division) => ({
     division,
-    matchups: division.matchups.filter((matchup) => KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
+    matchups: division.matchups.filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP" && KNOCKOUT_STAGES.includes(matchup.stage as (typeof KNOCKOUT_STAGES)[number])),
   })).filter(({ division, matchups }) => division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION" || matchups.length > 0);
   const mvpMatchups = (mvpDivision?.matchups ?? []).map((matchup) => ({
     stage: matchup.stage,

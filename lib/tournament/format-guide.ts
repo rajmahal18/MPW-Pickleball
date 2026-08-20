@@ -12,6 +12,8 @@ type GuideDivision = {
   suddenDeathAtTen: boolean;
   qualifiersPerGroup: number;
   wildcardCount: number;
+  wildcardMode: string;
+  wildcardBattleSize: number;
   autoProgression: boolean;
   advancementRule: string | null;
   guideNotes: string | null;
@@ -76,7 +78,11 @@ export function buildDivisionGuide(division: GuideDivision) {
   if (division.groups.length) {
     rules.push(`${division.groups.length} group${division.groups.length === 1 ? "" : "s"}, with ${division.teams.length} ${entrantNoun}${division.teams.length === 1 ? "" : "s"} currently assigned.`);
     if (division.formatType === "GROUP_KNOCKOUT") {
-      rules.push(`${division.qualifiersPerGroup} qualifier${division.qualifiersPerGroup === 1 ? "" : "s"} per group${division.wildcardCount ? ` plus ${division.wildcardCount} wildcard slot${division.wildcardCount === 1 ? "" : "s"}` : ""}.`);
+      rules.push(division.wildcardMode === "BATTLE"
+        ? `Group winners enter the Championship bracket. The best ${division.wildcardBattleSize} remaining standings rows enter a separate single-elimination tournament for the remaining wildcard slot.`
+        : division.wildcardMode === "DIRECT"
+          ? "Group winners plus the best remaining standings row advance directly to the Championship bracket."
+          : `${division.qualifiersPerGroup} qualifier${division.qualifiersPerGroup === 1 ? "" : "s"} per group${division.wildcardCount ? ` plus ${division.wildcardCount} wildcard slot${division.wildcardCount === 1 ? "" : "s"}` : ""}.`);
     }
   } else {
     rules.push(`${division.teams.length} ${entrantNoun}${division.teams.length === 1 ? "" : "s"} currently configured; groups are not required.`);

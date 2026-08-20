@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             isActive: true,
             participationStatus: "CONFIRMED",
             teamId: { not: null },
-            team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
+            team: { division: { isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() } },
           },
           select: { id: true, sex: true },
         });

@@ -73,7 +73,7 @@ async function loadFanFavoriteSnapshot(tournamentId: string): Promise<FanFavorit
       isActive: true,
       participationStatus: "CONFIRMED",
       teamId: { not: null },
-      team: { division: { isPublic: true, slug: recognitionDivisionSlug() } },
+      team: { division: { isPublic: true, entrantType: "TEAM", slug: recognitionDivisionSlug() } },
     },
     select: playerSelect,
   });

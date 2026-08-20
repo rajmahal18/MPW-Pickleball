@@ -9,11 +9,12 @@ import { deviceTypeFromUserAgent, normalizeReferrerHost, normalizeTrackedPath } 
 import { formatPlayerCompactName, formatPlayerDisplayName, formatPlayerFullName } from "../lib/player-name";
 import { assertValidCompletedScore, categoriesForStage, defaultCategoryPattern, gamesForStage, scoreRuleForStage, winsNeededForMatchup } from "../lib/tournament/rules";
 import { publicUrl, redirectBack } from "../lib/request";
-import { isEarlyQualificationPreview, qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
+import { bracketWinnerQualificationSource, isEarlyQualificationPreview, qualificationSourceOptions, resolveQualificationSource } from "../lib/tournament/bracket-seeding";
 import { nextEditableTeamMatchupId } from "../lib/tournament/leader-lineup-access";
 import { DEFAULT_RECOGNITION_DIVISION_SLUG, isRecognitionDivision, recognitionDivisionSlug } from "../lib/tournament/recognition-division";
 import { mvpVisibilityFromState } from "../lib/tournament/mvp-visibility";
 import { isProductionPrivateLabDivision, isProductionPrivateLabKind } from "../lib/tournament/private-division-lab";
+import { downstreamSourceIndexes, sourceDisplayOrder } from "../lib/tournament/knockout-progression";
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;
@@ -28,7 +29,7 @@ function matchup(
 ): Matchup & { games: Array<{ homeScore: number; awayScore: number; status: "COMPLETED" }> } {
   return {
     id, tournamentId: "t", divisionId: "d", stage: "GROUP", groupLabel: "Group A", roundLabel: id, roundNumber: 1, order: 1,
-    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, homeQualificationSource: null, awayQualificationSource: null, status: "COMPLETED", scheduledAt: null, courtLabel: null, queuePosition: null,
+    gamesPerMatchup: homeWins + awayWins || Math.max(1, scores.length), homeTeamId, awayTeamId, homeQualificationSource: null, awayQualificationSource: null, bracketTrack: "CHAMPIONSHIP", status: "COMPLETED", scheduledAt: null, courtLabel: null, queuePosition: null,
     winnerTeamId: homeWins === awayWins ? null : homeWins > awayWins ? homeTeamId : awayTeamId, homeWins, awayWins, version: 0, createdAt: new Date(), updatedAt: new Date(),
     games: scores.map(([homeScore, awayScore]) => ({ homeScore, awayScore, status: "COMPLETED" as const })),
   };
@@ -42,11 +43,21 @@ test("production lab permits only private non-recognition divisions and scoped m
   for (const kind of ["QUICK_SCENARIO", "FAN_VOTING", "RESET_VOTING"]) assert.equal(isProductionPrivateLabKind(kind), false);
 });
 
+test("eight-entry bracket feed stays visually stable before and after QF results", () => {
+  assert.deepEqual(downstreamSourceIndexes(4, 2), [[0, 2], [1, 3]]);
+  assert.deepEqual(sourceDisplayOrder(4, 2), [0, 2, 1, 3]);
+  assert.deepEqual(downstreamSourceIndexes(4, 2, "STANDARD"), [[0, 1], [2, 3]]);
+  assert.deepEqual(sourceDisplayOrder(4, 2, "STANDARD"), [0, 1, 2, 3]);
+  assert.deepEqual(downstreamSourceIndexes(2, 1), [[0, 1]]);
+  assert.deepEqual(sourceDisplayOrder(2, 1), [0, 1]);
+});
+
 test("recognition surfaces stay pinned to the configured main division", () => {
   assert.equal(recognitionDivisionSlug(undefined), DEFAULT_RECOGNITION_DIVISION_SLUG);
   assert.equal(recognitionDivisionSlug("  primary-event  "), "primary-event");
-  assert.equal(isRecognitionDivision({ slug: "team-event" }, "team-event"), true);
-  assert.equal(isRecognitionDivision({ slug: "secondary-event" }, "team-event"), false);
+  assert.equal(isRecognitionDivision({ slug: "team-event", entrantType: "TEAM" }, "team-event"), true);
+  assert.equal(isRecognitionDivision({ slug: "team-event", entrantType: "PAIR" }, "team-event"), false);
+  assert.equal(isRecognitionDivision({ slug: "secondary-event", entrantType: "TEAM" }, "team-event"), false);
 });
 
 test("MVP visibility defaults open and honors the latest persisted toggle state", () => {
@@ -664,4 +675,38 @@ test("quarterfinal qualification sources are configurable and resolve from group
   assert.equal(resolveQualificationSource("GROUP:gb:2", tables, wildcards), "B2");
   assert.equal(resolveQualificationSource("WILDCARD:1", tables, wildcards), "W1");
   assert.equal(resolveQualificationSource("GROUP:missing:1", tables, wildcards), null);
+});
+
+test("a separate wildcard tournament winner resolves as a Championship seed source", () => {
+  const source = bracketWinnerQualificationSource("WILDCARD");
+  assert.equal(source, "BRACKET_WINNER:WILDCARD");
+  assert.equal(resolveQualificationSource(source, [], [], new Map([["WILDCARD", "play-in-winner"]])), "play-in-winner");
+  assert.equal(resolveQualificationSource(source, [], []), null);
+});
+
+test("wildcard tournament entrants are every second seed plus the best third seed", () => {
+  const tables = ["A", "B", "C"].map((group, groupIndex) => [
+    { team: team(`${group}1`, `${group} 1`, group), rank: 1, points: 9, differential: 9, gameWins: 3, totalPointsScored: 33 },
+    { team: team(`${group}2`, `${group} 2`, group), rank: 2, points: 6, differential: 5, gameWins: 2, totalPointsScored: 28 },
+    { team: team(`${group}3`, `${group} 3`, group), rank: 3, points: 3, differential: groupIndex, gameWins: 1, totalPointsScored: 20 + groupIndex },
+  ]) as unknown as StandingRow[][];
+  const selected = selectDivisionQualifiers(tables, 2, 1);
+  assert.deepEqual(selected.direct.filter((entry) => entry.rank === 2).map((entry) => entry.team.id), ["A2", "B2", "C2"]);
+  assert.equal(selected.wildcards[0]?.rank, 3);
+  assert.equal(selected.wildcards.length, 1);
+});
+
+test("wildcard battle sizes preserve group-finish tiers before comparing lower seeds", () => {
+  const tables = ["A", "B", "C", "D", "E", "F", "G"].map((group, index) => [
+    { team: team(`${group}1`, `${group} 1`, group), rank: 1, points: 9, differential: 10, gameWins: 3, totalPointsScored: 33 },
+    { team: team(`${group}2`, `${group} 2`, group), rank: 2, points: 6, differential: index, gameWins: 2, totalPointsScored: 25 + index },
+    { team: team(`${group}3`, `${group} 3`, group), rank: 3, points: 6, differential: 100 + index, gameWins: 2, totalPointsScored: 40 + index },
+  ]) as unknown as StandingRow[][];
+  const finalists = selectDivisionQualifiers(tables, 1, 2).wildcards;
+  const semifinalists = selectDivisionQualifiers(tables, 1, 4).wildcards;
+  const quarterfinalists = selectDivisionQualifiers(tables, 1, 8).wildcards;
+  assert.ok(finalists.every((entry) => entry.rank === 2));
+  assert.ok(semifinalists.every((entry) => entry.rank === 2));
+  assert.equal(quarterfinalists.filter((entry) => entry.rank === 2).length, 7);
+  assert.equal(quarterfinalists.filter((entry) => entry.rank === 3).length, 1);
 });

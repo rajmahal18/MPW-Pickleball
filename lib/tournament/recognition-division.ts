@@ -5,8 +5,8 @@ export function recognitionDivisionSlug(value = process.env.RECOGNITION_DIVISION
 }
 
 export function isRecognitionDivision(
-  division: { slug: string },
+  division: { slug: string; entrantType?: string },
   configuredSlug = recognitionDivisionSlug(),
 ) {
-  return division.slug === configuredSlug;
+  return division.slug === configuredSlug && (!division.entrantType || division.entrantType === "TEAM");
 }

@@ -21,7 +21,11 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
     include: {
       matchups: {
         where: { stage: { in: [...KNOCKOUT_STAGES] } },
-        include: { homeTeam: true, awayTeam: true, winnerTeam: true },
+        include: {
+          homeTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+          awayTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+          winnerTeam: { include: { pairs: { where: { isActive: true }, take: 1, include: { playerA: true, playerB: true } } } },
+        },
         orderBy: [{ stage: "asc" }, { order: "asc" }],
       },
     },
@@ -50,7 +54,16 @@ export default async function Bracket({ searchParams }: { searchParams: Promise<
             {division.thirdPlaceEnabled && <span className="shrink-0 border border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">Battle for 3rd on</span>}
           </div>
         </div>
-        {division.matchups.length ? <BracketBoard matchups={division.matchups} /> : <div className="p-8 text-center text-sm text-gray-500">No knockout matchups are configured yet for this division.</div>}
+        {division.matchups.length ? <div className="divide-y divide-line">
+          {division.matchups.some((matchup) => matchup.bracketTrack === "WILDCARD") && <section>
+            <div className="border-b border-violet-200 bg-violet-50 px-4 py-3 md:px-5"><div className="label text-violet-700">Qualifier tournament</div><h3 className="font-black uppercase text-violet-950">Battle for the Wildcard</h3><p className="mt-1 text-xs text-violet-800">The best remaining group-stage finishers compete for one Championship bracket slot.</p></div>
+            <BracketBoard matchups={division.matchups.filter((matchup) => matchup.bracketTrack === "WILDCARD")} pairMode={division.entrantType === "PAIR"} championship={false}/>
+          </section>}
+          <section>
+            {division.matchups.some((matchup) => matchup.bracketTrack === "WILDCARD") && <div className="border-b border-court/20 bg-court/5 px-4 py-3 md:px-5"><div className="label text-court">Main tournament</div><h3 className="font-black uppercase text-ink">Championship Bracket</h3></div>}
+            <BracketBoard matchups={division.matchups.filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP")} pairMode={division.entrantType === "PAIR"}/>
+          </section>
+        </div> : <div className="p-8 text-center text-sm text-gray-500">No knockout matchups are configured yet for this division.</div>}
       </section>)}
     </div>
     {!divisions.length && <div className="panel mt-8 p-10 text-center text-gray-500">No public event is configured.</div>}

@@ -10,10 +10,14 @@ type Props = {
   divisionId: string;
   options: QualificationSourceOption[];
   initial: SeedPair[];
+  stage?: "QUARTERFINAL" | "SEMIFINAL";
 };
 
-export default function QuarterfinalSeedMapper({ divisionId, options, initial }: Props) {
-  const [slots, setSlots] = useState<SeedPair[]>(() => Array.from({ length: 4 }, (_, index) => ({
+export default function QuarterfinalSeedMapper({ divisionId, options, initial, stage = "QUARTERFINAL" }: Props) {
+  const slotCount = stage === "QUARTERFINAL" ? 4 : 2;
+  const shortLabel = stage === "QUARTERFINAL" ? "QF" : "SF";
+  const stageLabel = stage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal";
+  const [slots, setSlots] = useState<SeedPair[]>(() => Array.from({ length: slotCount }, (_, index) => ({
     home: initial[index]?.home ?? "",
     away: initial[index]?.away ?? "",
   })));
@@ -30,7 +34,7 @@ export default function QuarterfinalSeedMapper({ divisionId, options, initial }:
     return <label className="block">
       <span className="label">{label}</span>
       <select
-        name={`qf-${index + 1}-${side}`}
+        name={`seed-${index + 1}-${side}`}
         value={currentValue}
         onChange={(event) => update(index, side, event.target.value)}
         className="mt-1 w-full rounded-md border border-line bg-white p-3 text-sm font-bold outline-none transition focus:border-court focus:ring-2 focus:ring-court/10"
@@ -44,12 +48,13 @@ export default function QuarterfinalSeedMapper({ divisionId, options, initial }:
   const remaining = Math.max(0, options.length - new Set(selected).size);
 
   return <form action="/api/admin/tournament-structure" method="post" className="mt-4 space-y-3">
-    <input type="hidden" name="action" value="configure-quarterfinal-seeds"/>
+    <input type="hidden" name="action" value="configure-bracket-seeds"/>
     <input type="hidden" name="divisionId" value={divisionId}/>
+    <input type="hidden" name="stage" value={stage}/>
     <div className="grid gap-3 lg:grid-cols-2">
-      {Array.from({ length: 4 }, (_, index) => <div key={index} className="rounded-lg border border-line bg-white p-3">
+      {Array.from({ length: slotCount }, (_, index) => <div key={index} className="rounded-lg border border-line bg-white p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-xs font-black uppercase text-ink">Quarterfinal {index + 1}</div>
+          <div className="text-xs font-black uppercase text-ink">{stageLabel} {index + 1}</div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{slots[index]?.home && slots[index]?.away ? "Ready" : "Needs seeds"}</span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -60,7 +65,7 @@ export default function QuarterfinalSeedMapper({ divisionId, options, initial }:
     </div>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-xs text-gray-500">Selected seed sources disappear from the other boxes. <strong>{remaining}</strong> source{remaining === 1 ? "" : "s"} left.</p>
-      <SubmitButton className="btn-primary rounded-md" pendingLabel="Saving bracket...">Save QF bracket map</SubmitButton>
+      <SubmitButton className="btn-primary rounded-md" pendingLabel="Saving bracket...">Save {shortLabel} bracket map</SubmitButton>
     </div>
   </form>;
 }

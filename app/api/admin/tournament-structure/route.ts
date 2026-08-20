@@ -278,6 +278,8 @@ export async function POST(request: Request) {
         qualifiersPerGroup: number(data.qualifiersPerGroup, "Qualifiers per group", 0, 16),
         wildcardCount: number(data.wildcardCount, "Wildcard count", 0, 16),
         autoProgression: data.autoProgression === "on",
+        wildcardMode: nextEntrantType === "PAIR" && ["STANDARD", "DIRECT", "BATTLE"].includes(String(data.wildcardMode)) ? String(data.wildcardMode) : "STANDARD",
+        wildcardBattleSize: [2, 4, 8].includes(Number(data.wildcardBattleSize)) ? Number(data.wildcardBattleSize) : before.wildcardBattleSize,
         thirdPlaceEnabled: data.thirdPlaceEnabled === "on",
         suddenDeathAtTen: data.suddenDeathAtTen === "on",
         advancementRule: optionalText(data.advancementRule),
@@ -292,7 +294,45 @@ export async function POST(request: Request) {
         });
         if (playedThirdPlace) throw new Error("Battle for 3rd already has recorded play and cannot be disabled.");
       }
+      if (before.wildcardMode === "BATTLE" && (next.wildcardMode !== "BATTLE" || before.wildcardBattleSize !== next.wildcardBattleSize)) {
+        const playedPlayIn = await prisma.matchup.findFirst({
+          where: { divisionId, bracketTrack: "WILDCARD", OR: [{ status: { in: ["COMPLETED", "FORFEITED", "LIVE", "INTERRUPTED"] } }, { games: { some: { OR: [{ status: { not: "SCHEDULED" } }, { homeScore: { not: 0 } }, { awayScore: { not: 0 } }] } } }] },
+          select: { id: true },
+        });
+        if (playedPlayIn) throw new Error("The wildcard tournament already has recorded play, so its mode and entry size are locked.");
+      }
+      if (next.wildcardMode !== "STANDARD") {
+        const groupCount = await prisma.group.count({ where: { divisionId } });
+        if (![2, 4, 8].includes(groupCount + 1)) throw new Error("The group winners plus one wildcard must form a supported 2, 4, or 8-entry Championship bracket.");
+      }
+      if (before.wildcardMode !== next.wildcardMode || before.wildcardBattleSize !== next.wildcardBattleSize) {
+        const playedChampionship = await prisma.matchup.findFirst({
+          where: { divisionId, bracketTrack: "CHAMPIONSHIP", stage: { in: ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] }, OR: [{ status: { in: ["COMPLETED", "FORFEITED", "LIVE", "INTERRUPTED"] } }, { games: { some: { OR: [{ status: { not: "SCHEDULED" } }, { homeScore: { not: 0 } }, { awayScore: { not: 0 } }] } } }] },
+          select: { id: true },
+        });
+        if (playedChampionship) throw new Error("Wildcard mode and battle size cannot change after Championship knockout play has started.");
+      }
       await prisma.$transaction(async (tx) => {
+        if (before.wildcardMode === "BATTLE" && (next.wildcardMode !== "BATTLE" || before.wildcardBattleSize !== next.wildcardBattleSize)) {
+          await tx.matchup.deleteMany({ where: { divisionId, bracketTrack: "WILDCARD" } });
+        }
+        if (before.wildcardMode !== next.wildcardMode) {
+          const nextWildcardSource = next.wildcardMode === "BATTLE"
+            ? "BRACKET_WINNER:WILDCARD"
+            : next.wildcardMode === "DIRECT" || next.wildcardCount > 0
+              ? "WILDCARD:1"
+              : null;
+          for (const field of ["homeQualificationSource", "awayQualificationSource"] as const) {
+            await tx.matchup.updateMany({
+              where: {
+                divisionId,
+                bracketTrack: "CHAMPIONSHIP",
+                [field]: before.wildcardMode === "BATTLE" ? "BRACKET_WINNER:WILDCARD" : "WILDCARD:1",
+              },
+              data: { [field]: nextWildcardSource },
+            });
+          }
+        }
         await tx.division.update({ where: { id: divisionId }, data: next });
         await syncFutureKnockoutGameCounts(tx, { id: divisionId, defaultGamesPerMatchup: next.defaultGamesPerMatchup, knockoutGamesPerMatchup: next.knockoutGamesPerMatchup });
         await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: `Division settings changed: ${next.name}` });
@@ -856,52 +896,61 @@ export async function POST(request: Request) {
       return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${assigned} ungrouped teams distributed across groups.` }), 303);
     }
 
-    if (action === "configure-quarterfinal-seeds") {
+    if (action === "configure-bracket-seeds") {
       const divisionId = text(data.divisionId, "Division ID");
+      const firstStage = data.stage === "SEMIFINAL" ? "SEMIFINAL" : "QUARTERFINAL";
+      const slotCount = firstStage === "QUARTERFINAL" ? 4 : 2;
+      const requiredSources = slotCount * 2;
       const division = await prisma.division.findUnique({
         where: { id: divisionId },
         include: { groups: { select: { id: true, name: true } } },
       });
       if (!division || division.tournamentId !== tournament.id) throw new Error("Division not found.");
-      if (division.formatType !== "GROUP_KNOCKOUT") throw new Error("Quarterfinal seed mapping is available for group-to-knockout divisions.");
+      if (division.formatType !== "GROUP_KNOCKOUT") throw new Error("Seed mapping is available for group-to-knockout divisions.");
       if (!division.autoProgression) throw new Error("Enable Auto progression before using standings-based Quarterfinal seed mapping.");
-      const expectedQualifiers = division.groups.length * Math.max(0, division.qualifiersPerGroup) + Math.max(0, division.wildcardCount);
-      if (expectedQualifiers !== 8) throw new Error(`Configure exactly 8 qualifiers before using the Quarterfinal seed map. Current total: ${expectedQualifiers}.`);
+      const expectedQualifiers = division.wildcardMode === "DIRECT" || division.wildcardMode === "BATTLE"
+        ? division.groups.length + 1
+        : division.groups.length * Math.max(0, division.qualifiersPerGroup) + Math.max(0, division.wildcardCount);
+      if (expectedQualifiers !== requiredSources) throw new Error(`Configure exactly ${requiredSources} Championship qualifiers before using this seed map. Current total: ${expectedQualifiers}.`);
 
-      const allowed = new Set(qualificationSourceOptions(division.groups, division.qualifiersPerGroup, division.wildcardCount).map((option) => option.value));
-      const requested = Array.from({ length: 4 }, (_, index) => ({
-        home: text(data[`qf-${index + 1}-home`], `Quarterfinal ${index + 1} top seed`, 160),
-        away: text(data[`qf-${index + 1}-away`], `Quarterfinal ${index + 1} bottom seed`, 160),
+      const options = division.wildcardMode === "DIRECT" || division.wildcardMode === "BATTLE"
+        ? [...qualificationSourceOptions(division.groups, 1, division.wildcardMode === "DIRECT" ? 1 : 0), ...(division.wildcardMode === "BATTLE" ? [{ value: "BRACKET_WINNER:WILDCARD", label: "Wildcard tournament winner" }] : [])]
+        : qualificationSourceOptions(division.groups, division.qualifiersPerGroup, division.wildcardCount);
+      const allowed = new Set(options.map((option) => option.value));
+      const requested = Array.from({ length: slotCount }, (_, index) => ({
+        home: text(data[`seed-${index + 1}-home`], `${firstStage} ${index + 1} top seed`, 160),
+        away: text(data[`seed-${index + 1}-away`], `${firstStage} ${index + 1} bottom seed`, 160),
       }));
       const sourceValues = requested.flatMap((slot) => [slot.home, slot.away]);
       if (sourceValues.some((value) => !allowed.has(value))) throw new Error("One or more Quarterfinal seed sources is no longer valid for this division.");
       if (new Set(sourceValues).size !== sourceValues.length) throw new Error("Each Quarterfinal seed source can only be used once.");
 
-      const existing = await prisma.matchup.findMany({ where: { tournamentId: tournament.id, divisionId, stage: "QUARTERFINAL" }, include: { games: true }, orderBy: { order: "asc" } });
-      if (existing.length > 4) throw new Error("This division has more than four Quarterfinal matchups. Remove extra future QFs before using the 8-team seed map.");
-      if (existing.some(matchupHasRecordedPlay)) throw new Error("Quarterfinal seed mapping is locked because QF play has already started.");
+      const existing = await prisma.matchup.findMany({ where: { tournamentId: tournament.id, divisionId, bracketTrack: "CHAMPIONSHIP", stage: firstStage }, include: { games: true }, orderBy: { order: "asc" } });
+      if (existing.length > slotCount) throw new Error(`This division has too many ${firstStage.toLowerCase()} matchups for this seed map.`);
+      if (existing.some(matchupHasRecordedPlay)) throw new Error("Seed mapping is locked because this knockout round has already started.");
 
       await prisma.$transaction(async (tx) => {
         const rows = [...existing];
-        const maxOrder = await tx.matchup.aggregate({ where: { divisionId, stage: "QUARTERFINAL" }, _max: { order: true } });
+        const maxOrder = await tx.matchup.aggregate({ where: { divisionId, bracketTrack: "CHAMPIONSHIP", stage: firstStage }, _max: { order: true } });
         let nextOrder = (maxOrder._max.order ?? 0) + 1;
-        while (rows.length < 4) {
+        while (rows.length < slotCount) {
           const sequence = rows.length + 1;
           rows.push(await tx.matchup.create({
             data: {
               tournamentId: tournament.id,
               divisionId,
-              stage: "QUARTERFINAL",
-              roundLabel: `Quarterfinal ${sequence}`,
+              bracketTrack: "CHAMPIONSHIP",
+              stage: firstStage,
+              roundLabel: `${firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} ${sequence}`,
               roundNumber: 1,
               order: nextOrder++,
-              gamesPerMatchup: gamesForStage(division, "QUARTERFINAL"),
+              gamesPerMatchup: gamesForStage(division, firstStage),
               status: "SCHEDULED",
             },
             include: { games: true },
           }));
         }
-        for (let index = 0; index < 4; index += 1) {
+        for (let index = 0; index < slotCount; index += 1) {
           const row = rows[index]!;
           await tx.game.deleteMany({ where: { matchupId: row.id } });
           await tx.lineup.deleteMany({ where: { matchupId: row.id } });
@@ -923,10 +972,10 @@ export async function POST(request: Request) {
             },
           });
         }
-        await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: "Quarterfinal seed map updated" });
-        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "QUARTERFINAL_SEED_MAP_UPDATED", entityType: "Division", entityId: divisionId, afterState: { sources: requested } });
+        await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: `${firstStage} seed map updated` });
+        await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "KNOCKOUT_SEED_MAP_UPDATED", entityType: "Division", entityId: divisionId, afterState: { stage: firstStage, sources: requested } });
       }, TOURNAMENT_TRANSACTION_OPTIONS);
-      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: "Quarterfinal bracket map saved." }), 303);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} bracket map saved.` }), 303);
     }
 
     if (action === "generate-all-group-round-robins") {
@@ -1198,7 +1247,7 @@ export async function POST(request: Request) {
               homeWins: 0,
               awayWins: 0,
               winnerTeamId: null,
-              ...((before.stage === "QUARTERFINAL" && (requestedStage !== "QUARTERFINAL" || competitorsChanged)) ? { homeQualificationSource: null, awayQualificationSource: null } : {}),
+              ...((["QUARTERFINAL", "SEMIFINAL"].includes(before.stage) && (requestedStage !== before.stage || competitorsChanged)) ? { homeQualificationSource: null, awayQualificationSource: null } : {}),
               ...(!homeTeamId || !awayTeamId ? { queuePosition: null, courtLabel: null, scheduledAt: null } : {}),
               version: { increment: 1 },
             },

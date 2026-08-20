@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
 
 export type VotingBatchSummary = {
   id: string;
@@ -48,18 +49,18 @@ export async function getVotingAdminSnapshot(tournamentId: string): Promise<Voti
     }),
     prisma.fanVote.groupBy({
       by: ["playerId"],
-      where: { tournamentId },
+      where: { tournamentId, player: { team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } } },
       _count: { _all: true },
     }),
     prisma.team.findMany({
-      where: { division: { tournamentId } },
+      where: { division: { tournamentId, entrantType: "TEAM", slug: recognitionDivisionSlug() } },
       select: { id: true, name: true, shortName: true },
       orderBy: { shortName: "asc" },
     }),
   ]);
 
   const players = groupedVotes.length ? await prisma.player.findMany({
-    where: { id: { in: groupedVotes.map((row) => row.playerId) } },
+    where: { id: { in: groupedVotes.map((row) => row.playerId) }, team: { division: { entrantType: "TEAM", slug: recognitionDivisionSlug() } } },
     select: { id: true, team: { select: { id: true, name: true, shortName: true } } },
   }) : [];
   const playerTeam = new Map(players.map((player) => [player.id, player.team]));
