@@ -7,10 +7,9 @@ export default function ScoreBadge({ home, away, status }: { home:number; away:n
     : loser
       ? "border-red-200 bg-red-50 text-red-800"
       : "border-ink bg-ink text-white";
-  return <div className="flex items-center gap-2 font-black tabular-nums">
-    <span className={`grid h-9 min-w-9 place-items-center border px-2 ${scoreClass(homeWon, awayWon)}`}>{home}</span>
+  return <div className="flex items-center gap-1 text-sm font-black tabular-nums sm:gap-2 sm:text-base">
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 sm:h-9 sm:min-w-9 sm:px-2 ${scoreClass(homeWon, awayWon)}`}>{home}</span>
     <span className="text-gray-400">:</span>
-    <span className={`grid h-9 min-w-9 place-items-center border px-2 ${scoreClass(awayWon, homeWon)}`}>{away}</span>
-    {status === "LIVE" && <span className="ml-1 animate-pulse rounded-full bg-flame/10 px-2 py-1 text-[10px] uppercase tracking-widest text-flame">Live</span>}
+    <span className={`grid h-8 min-w-8 place-items-center border px-1.5 sm:h-9 sm:min-w-9 sm:px-2 ${scoreClass(awayWon, homeWon)}`}>{away}</span>
   </div>;
 }

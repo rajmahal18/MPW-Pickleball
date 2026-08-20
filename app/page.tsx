@@ -108,7 +108,7 @@ export default async function Home() {
   const groupCards = tournament.divisions.flatMap((division) => {
     const groupMatchups = division.matchups.filter((matchup) => matchup.stage === "GROUP");
     const tables = division.groups.map((group) => computeStandings(group.teams, groupMatchups.filter((matchup) => matchup.groupLabel === group.name), group.standingOverrides));
-    const outcomes = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(groupMatchups) }) : new Map();
+    const outcomes = division.formatType === "GROUP_KNOCKOUT" ? qualificationOutcomes(tables, division.qualifiersPerGroup, division.wildcardCount, { groupStageComplete: areGroupMatchupsComplete(groupMatchups), groupMatchups }) : new Map();
     return division.groups.map((group, index) => ({ division, group, standings: tables[index] ?? [], qualificationByTeam: outcomes }));
   });
   const wildcardCards = tournament.divisions.flatMap((division) => {

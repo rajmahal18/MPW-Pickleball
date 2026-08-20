@@ -297,16 +297,66 @@ export function selectDivisionQualifiers(
   return { direct, wildcards: unresolved.some((tie) => tie.scope === "WILDCARD") ? [] : wildcards, qualifiers: unresolved.length ? direct : qualifiers, unresolved };
 }
 
-export type QualificationOutcome = "QUALIFIED" | "ELIMINATED" | "PENDING";
+export type QualificationOutcome = "QUALIFIED" | "CLINCHED" | "ELIMINATED" | "CONTENDING" | "PENDING";
+
+type QualificationMatchup = Pick<StandingMatchup, "homeTeamId" | "awayTeamId" | "homeWins" | "awayWins" | "gamesPerMatchup" | "status">;
+
+/**
+ * Conservative early qualification bounds.
+ *
+ * Pair-match wins are the first standings criterion. A team is therefore safely
+ * clinched when too few group rivals can even tie its current win total, and is
+ * safely eliminated when enough rivals already exceed its best possible total.
+ * Equality remains CONTENDING because NPD, total points, and head-to-head can
+ * still decide it. Early wildcard conclusions are deliberately not guessed.
+ */
+function earlyQualificationOutcomes(
+  groupTables: StandingRow[][],
+  qualifiersPerGroup: number,
+  wildcardCount: number,
+  matchups: QualificationMatchup[],
+) {
+  const outcomes = new Map<string, QualificationOutcome>();
+  const remainingWins = new Map<string, number>();
+  for (const matchup of matchups) {
+    if (!matchup.homeTeamId || !matchup.awayTeamId || isTerminalMatchupStatus(matchup.status)) continue;
+    const remaining = Math.max(0, matchup.gamesPerMatchup - matchup.homeWins - matchup.awayWins);
+    remainingWins.set(matchup.homeTeamId, (remainingWins.get(matchup.homeTeamId) ?? 0) + remaining);
+    remainingWins.set(matchup.awayTeamId, (remainingWins.get(matchup.awayTeamId) ?? 0) + remaining);
+  }
+
+  const directSlots = Math.max(0, qualifiersPerGroup);
+  for (const table of groupTables) {
+    for (const row of table) {
+      const rivals = table.filter((other) => other.team.id !== row.team.id);
+      const currentWins = row.gameWins;
+      const maximumWins = currentWins + (remainingWins.get(row.team.id) ?? 0);
+      const rivalsAbleToReachCurrent = rivals.filter((other) => other.gameWins + (remainingWins.get(other.team.id) ?? 0) >= currentWins).length;
+      const rivalsAlreadyBeyondMaximum = rivals.filter((other) => other.gameWins > maximumWins).length;
+      const directClinched = directSlots > 0 && rivalsAbleToReachCurrent < directSlots;
+      const directEliminated = directSlots === 0 || rivalsAlreadyBeyondMaximum >= directSlots;
+      outcomes.set(row.team.id, directClinched
+        ? "CLINCHED"
+        : directEliminated && wildcardCount <= 0
+          ? "ELIMINATED"
+          : "CONTENDING");
+    }
+  }
+  return outcomes;
+}
 
 export function qualificationOutcomes(
   groupTables: StandingRow[][],
   qualifiersPerGroup: number,
   wildcardCount: number,
-  options: { groupStageComplete: boolean },
+  options: { groupStageComplete: boolean; groupMatchups?: QualificationMatchup[] },
 ) {
   const outcomes = new Map<string, QualificationOutcome>();
-  if (!options.groupStageComplete) return outcomes;
+  if (!options.groupStageComplete) {
+    return options.groupMatchups
+      ? earlyQualificationOutcomes(groupTables, qualifiersPerGroup, wildcardCount, options.groupMatchups)
+      : outcomes;
+  }
 
   const selection = selectDivisionQualifiers(groupTables, qualifiersPerGroup, wildcardCount, { groupStageComplete: true });
   const qualifiedIds = new Set(selection.qualifiers.map((row) => row.team.id));

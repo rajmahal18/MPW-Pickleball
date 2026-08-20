@@ -32,7 +32,7 @@ function matchup(
 }
 
 
-test("team-manager lineup access follows the earliest unfinished court-queue matchup", () => {
+test("team-manager lineup access follows the earliest unsubmitted court-queue matchup", () => {
   const rows = [
     { id: "later", status: "LINEUP_PENDING", queuePosition: 8, order: 8 },
     { id: "next", status: "LINEUP_PENDING", queuePosition: 3, order: 3 },
@@ -53,6 +53,22 @@ test("team-manager lineups stay closed when no unfinished matchup is in the cour
   assert.equal(nextEditableTeamMatchupId([
     { id: "unscheduled", status: "LINEUP_PENDING", queuePosition: null, order: 1 },
   ]), null);
+});
+
+test("next lineup opens after a majority of the earlier submitted matchup is decided", () => {
+  const rows = [
+    { id: "current", status: "LIVE", queuePosition: 1, order: 1, lineupSubmitted: true, decidedMatches: 4, gamesPerMatchup: 7 },
+    { id: "next", status: "LINEUP_PENDING", queuePosition: 2, order: 2, lineupSubmitted: false, decidedMatches: 0, gamesPerMatchup: 7 },
+  ];
+  assert.equal(nextEditableTeamMatchupId(rows), "next");
+});
+
+test("earlier submitted matchup blocks the next lineup before a majority is decided", () => {
+  const rows = [
+    { id: "current", status: "LIVE", queuePosition: 1, order: 1, lineupSubmitted: true, decidedMatches: 3, gamesPerMatchup: 7 },
+    { id: "next", status: "LINEUP_PENDING", queuePosition: 2, order: 2, lineupSubmitted: false, decidedMatches: 0, gamesPerMatchup: 7 },
+  ];
+  assert.equal(nextEditableTeamMatchupId(rows), null);
 });
 
 test("standings apply pair-match wins, NPD, total points, and head-to-head", () => {
@@ -161,6 +177,34 @@ test("qualification outcome colors follow configured qualifiers only after group
   assert.equal(complete.get("B2"), "QUALIFIED");
   assert.equal(complete.get("B3"), "ELIMINATED");
   assert.equal(qualificationOutcomes(tables, 2, 0, { groupStageComplete: false }).size, 0);
+});
+
+test("early qualification bounds clinch and eliminate only mathematically certain teams", () => {
+  const table = [
+    { team: team("A", "Alpha", "A"), gameWins: 8 },
+    { team: team("B", "Bravo", "A"), gameWins: 8 },
+    { team: team("C", "Charlie", "A"), gameWins: 0 },
+    { team: team("D", "Delta", "A"), gameWins: 0 },
+  ].map((row, index) => ({ ...row, points: 0, headToHeadPoints: 0, differential: 0, gameLosses: 0, played: row.gameWins, won: row.gameWins, lost: 0, totalPointsScored: 0, totalPointsConceded: 0, rank: index + 1, rankLabel: String(index + 1), rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false })) as unknown as StandingRow[];
+  const remaining = [{ homeTeamId: "C", awayTeamId: "D", homeWins: 0, awayWins: 0, gamesPerMatchup: 7, status: "SCHEDULED" }] as never;
+  const outcomes = qualificationOutcomes([table], 2, 0, { groupStageComplete: false, groupMatchups: remaining });
+  assert.equal(outcomes.get("A"), "CLINCHED");
+  assert.equal(outcomes.get("B"), "CLINCHED");
+  assert.equal(outcomes.get("C"), "ELIMINATED");
+  assert.equal(outcomes.get("D"), "ELIMINATED");
+});
+
+test("early wildcard and equality cases remain conservatively alive", () => {
+  const table = [
+    { team: team("A", "Alpha", "A"), gameWins: 8 },
+    { team: team("B", "Bravo", "A"), gameWins: 8 },
+    { team: team("C", "Charlie", "A"), gameWins: 1 },
+    { team: team("D", "Delta", "A"), gameWins: 0 },
+  ].map((row, index) => ({ ...row, points: 0, headToHeadPoints: 0, differential: 0, gameLosses: 0, played: row.gameWins, won: row.gameWins, lost: 0, totalPointsScored: 0, totalPointsConceded: 0, rank: index + 1, rankLabel: String(index + 1), rankStatus: "RESOLVED", tieGroupKey: null, tiebreakApplied: false })) as unknown as StandingRow[];
+  const remaining = [{ homeTeamId: "C", awayTeamId: "D", homeWins: 0, awayWins: 0, gamesPerMatchup: 7, status: "SCHEDULED" }] as never;
+  const outcomes = qualificationOutcomes([table], 2, 1, { groupStageComplete: false, groupMatchups: remaining });
+  assert.equal(outcomes.get("C"), "CONTENDING");
+  assert.equal(outcomes.get("D"), "CONTENDING");
 });
 
 test("division qualifiers stay empty while group stage is incomplete", () => {

@@ -54,19 +54,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
       if (!matchup || ![matchup.homeTeamId, matchup.awayTeamId].includes(teamId)) throw new Error("You cannot manage this team matchup.");
       if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("This matchup does not have both teams assigned yet.");
+      const submittedLineup = matchup.lineups.find((lineup) => lineup.teamId === teamId);
+      if (submittedLineup) throw new Error("This lineup has already been submitted and can no longer be changed.");
 
       const teamSchedule = await tx.matchup.findMany({
         where: {
           tournamentId: matchup.tournamentId,
           OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }],
         },
-        select: { id: true, status: true, queuePosition: true, order: true },
+        select: { id: true, status: true, queuePosition: true, order: true, gamesPerMatchup: true, games: { select: { status: true } }, lineups: { where: { teamId }, select: { id: true } } },
       });
-      const nextEditableId = nextEditableTeamMatchupId(teamSchedule);
+      const nextEditableId = nextEditableTeamMatchupId(teamSchedule.map((item) => ({
+        ...item,
+        lineupSubmitted: item.lineups.length > 0,
+        decidedMatches: item.games.filter((game) => game.status === "COMPLETED" || game.status === "FORFEITED").length,
+      })));
       if (nextEditableId !== matchup.id) {
         throw new Error(nextEditableId
-          ? "This lineup is locked until your earlier scheduled matchup is completed."
-          : "This lineup is locked until the facilitator places your next matchup in the court schedule.");
+          ? "Submit your earlier open lineup first."
+          : "This lineup stays locked until the majority of your earlier matchup is decided and this matchup is queued.");
       }
 
       const required = Math.max(1, matchup.gamesPerMatchup);
@@ -146,23 +152,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         resolvedPairIds.push(created.id);
       }
 
-      const before = matchup.lineups.find((lineup) => lineup.teamId === teamId) as LineupWithSlots | undefined;
-      let lineupId: string;
-      if (!before) {
-        if (lockedSlots.size) throw new Error("Recorded matches exist but this team's saved lineup is missing. Ask an admin to review the matchup before editing.");
-        const created = await tx.lineup.create({
-          data: { matchupId: id, teamId, slots: { create: resolvedPairIds.map((pairId, index) => ({ slot: index + 1, pairId })) } },
-        });
-        lineupId = created.id;
-      } else {
-        const editableSlots = Array.from({ length: required }, (_, index) => index + 1).filter((slot) => !lockedSlots.has(slot));
-        if (editableSlots.length) {
-          await tx.lineupSlot.deleteMany({ where: { lineupId: before.id, slot: { in: editableSlots } } });
-          await tx.lineupSlot.createMany({ data: editableSlots.map((slot) => ({ lineupId: before.id, slot, pairId: resolvedPairIds[slot - 1]! })) });
-        }
-        await tx.lineup.update({ where: { id: before.id }, data: { submittedAt: new Date() } });
-        lineupId = before.id;
-      }
+      if (lockedSlots.size) throw new Error("Recorded matches exist but this team's saved lineup is missing. Ask an admin to review the matchup before submitting.");
+      const created = await tx.lineup.create({
+        data: { matchupId: id, teamId, slots: { create: resolvedPairIds.map((pairId, index) => ({ slot: index + 1, pairId })) } },
+      });
+      const lineupId = created.id;
 
       const relevantLineups = await tx.lineup.findMany({
         where: { matchupId: id, teamId: { in: [matchup.homeTeamId, matchup.awayTeamId] } },
@@ -209,10 +203,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await writeAudit(tx, {
         tournamentId: matchup.tournamentId,
         actorId: user.id,
-        action: before ? "LINEUP_CHANGED" : "LINEUP_SUBMITTED",
+        action: "LINEUP_SUBMITTED",
         entityType: "Lineup",
         entityId: lineupId,
-        beforeState: before ? { pairIds: before.slots.sort((a, b) => a.slot - b.slot).map((slot) => slot.pairId) } : undefined,
         afterState: {
           playersByGame: requestedSlots.map((slot, index) => ({ game: index + 1, playerAId: slot.playerAId, playerBId: slot.playerBId })),
           gamesPerMatchup: required,

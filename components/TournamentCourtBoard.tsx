@@ -133,7 +133,7 @@ export default function TournamentCourtBoard({
           </div>
           <div className="text-xs font-bold text-gray-500">{state.availableMatchups.length} available</div>
         </div>
-        <p className="mt-2 text-xs leading-5 text-gray-500">Queue order also controls Team Manager lineup access: each team can edit only its earliest unfinished queued matchup.</p>
+        <p className="mt-2 text-xs leading-5 text-gray-500">Queue order controls Team Manager lineup access. A team's following lineup opens once a majority of its earlier submitted matchup is decided.</p>
         <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_150px_auto]">
           <select
             aria-label="Available matchup"

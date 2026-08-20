@@ -40,7 +40,7 @@ function pairMatchesCategory(a: PlayerOption | undefined, b: PlayerOption | unde
   return a.sex !== b.sex;
 }
 
-export default function LineupEditor({ matchupId, required, players, slots, categories }: { matchupId: string; required: number; players: PlayerOption[]; slots: Slot[]; categories: Category[] }) {
+export default function LineupEditor({ matchupId, required, players, slots, categories, readOnly = false }: { matchupId: string; required: number; players: PlayerOption[]; slots: Slot[]; categories: Category[]; readOnly?: boolean }) {
   const initial = baseSelections(required, slots);
   const [selected, setSelected] = useState<Selection[]>(initial);
   const [busy, setBusy] = useState(false);
@@ -164,6 +164,25 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
     setError(null);
   }
 
+  if (readOnly) return <section className="mt-6 border border-line bg-white">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-emerald-50 p-4">
+      <div><div className="label text-emerald-700">Manager lineup</div><h2 className="font-black uppercase">Submitted lineup</h2><p className="mt-1 text-sm text-gray-600">This lineup is final and can no longer be edited by the Team Manager.</p></div>
+      <span className="border border-emerald-300 bg-white px-3 py-2 text-xs font-black uppercase text-emerald-800">Submitted · locked</span>
+    </div>
+    <div className="divide-y divide-line">
+      {selected.map((selection, index) => {
+        const playerA = playerById.get(selection.playerAId);
+        const playerB = playerById.get(selection.playerBId);
+        return <div key={index} className="grid gap-3 p-4 sm:grid-cols-[120px_1fr] sm:items-center">
+          <div><div className="font-black uppercase">Match {index + 1}</div><div className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-500">{categoryLabel(categories[index] ?? null)}</div></div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <SubmittedPlayer player={playerA}/><span className="hidden font-black text-gray-300 sm:block">+</span><SubmittedPlayer player={playerB}/>
+          </div>
+        </div>;
+      })}
+    </div>
+  </section>;
+
   return <div className="panel mt-6 overflow-visible">
     <div className="border-b border-line bg-court/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -250,6 +269,11 @@ export default function LineupEditor({ matchupId, required, players, slots, cate
       </div>
     </div>
   </div>;
+}
+
+function SubmittedPlayer({ player }: { player?: PlayerOption }) {
+  if (!player) return <div className="border border-dashed border-line px-3 py-2 text-sm font-bold text-gray-500">Player unavailable</div>;
+  return <div className="flex min-w-0 items-center gap-2 border border-line bg-paper/50 px-3 py-2"><PlayerAvatar {...player} size="sm"/><span className="min-w-0 truncate text-sm font-black">{player.name}</span><GenderIndicator sex={player.sex} className="text-sm"/></div>;
 }
 
 function MiniStat({ label, value, tone }: { label: string; value: string; tone: "good" | "warn" | "locked" | "neutral" }) {

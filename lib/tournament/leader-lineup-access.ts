@@ -3,6 +3,9 @@ export type TeamLineupAccessMatchup = {
   status: string;
   queuePosition: number | null;
   order: number;
+  lineupSubmitted?: boolean;
+  decidedMatches?: number;
+  gamesPerMatchup?: number;
 };
 
 export function isTerminalTeamMatchup(status: string) {
@@ -12,8 +15,9 @@ export function isTerminalTeamMatchup(status: string) {
 /**
  * Team-manager lineup access follows the live court queue.
  *
- * - A currently LIVE/INTERRUPTED matchup stays the team's active matchup until it ends.
- * - Otherwise, only the team's earliest unfinished queued matchup is editable.
+ * - The earliest unfinished queued matchup without a submitted lineup is open.
+ * - A submitted earlier matchup blocks the next lineup until a majority of its
+ *   configured pair matches are decided.
  * - Unqueued/later matchups stay locked until the facilitator schedules them into the queue.
  *
  * This is deliberately a pure helper so the manager UI and the lineup API enforce
@@ -29,10 +33,16 @@ export function nextEditableTeamMatchupId(matchups: TeamLineupAccessMatchup[]) {
   const inProgress = active
     .filter((matchup) => matchup.status === "LIVE" || matchup.status === "INTERRUPTED")
     .sort(byQueueThenOrder);
-  if (inProgress[0]) return inProgress[0].id;
-
   const queued = active
-    .filter((matchup) => matchup.queuePosition !== null)
+    .filter((matchup) => matchup.queuePosition !== null && !inProgress.some((current) => current.id === matchup.id))
     .sort(byQueueThenOrder);
-  return queued[0]?.id ?? null;
+  const ordered = [...inProgress, ...queued];
+
+  for (const matchup of ordered) {
+    if (!matchup.lineupSubmitted) return matchup.id;
+    const required = Math.max(1, matchup.gamesPerMatchup ?? 1);
+    const majority = Math.floor(required / 2) + 1;
+    if ((matchup.decidedMatches ?? 0) < majority) return null;
+  }
+  return null;
 }

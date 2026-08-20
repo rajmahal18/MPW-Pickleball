@@ -33,7 +33,11 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
   const revision = matchups[0] ? await getPublicTournamentRevision(matchups[0].tournamentId) : "none:0";
   const active = matchups.filter((matchup) => matchup.status !== "COMPLETED" && matchup.status !== "FORFEITED");
   const history = matchups.filter((matchup) => matchup.status === "COMPLETED" || matchup.status === "FORFEITED");
-  const nextEditableId = nextEditableTeamMatchupId(active);
+  const nextEditableId = nextEditableTeamMatchupId(active.map((matchup) => ({
+    ...matchup,
+    lineupSubmitted: matchup.lineups.some((lineup) => lineup.teamId === user.teamId),
+    decidedMatches: matchup.games.filter((game) => game.status === "COMPLETED" || game.status === "FORFEITED").length,
+  })));
   const nextMatchup = active.find((matchup) => matchup.id === nextEditableId) ?? null;
   const laterMatchups = active.filter((matchup) => matchup.id !== nextEditableId);
 
@@ -61,7 +65,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     const protectedGames = matchup.games.filter((game) => game.status !== "SCHEDULED" || game.homeScore !== 0 || game.awayScore !== 0).length;
     const fullyProtected = matchup.games.length === matchup.gamesPerMatchup && protectedGames === matchup.gamesPerMatchup;
     const decided = matchup.status === "COMPLETED" || matchup.status === "FORFEITED";
-    const locked = access === "LOCKED" && !decided;
+    const locked = access === "LOCKED" && !decided && !submitted;
     const managerStatus = locked
       ? { status: "SCHEDULED", label: matchup.queuePosition === null ? "Not scheduled yet" : "Locked · later matchup" }
       : decided
@@ -87,10 +91,10 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
       {locked
-        ? <div className="w-full rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-gray-500 sm:w-auto">{matchup.queuePosition === null ? "Waiting for the facilitator to place this in the court schedule." : "Opens after your earlier matchup is completed."}</div>
+        ? <div className="w-full rounded-lg border border-line bg-white px-3 py-2 text-xs font-bold text-gray-500 sm:w-auto">{matchup.queuePosition === null ? "Waiting for the facilitator to place this in the court schedule." : "Opens after the majority of your earlier matchup is decided."}</div>
         : decided || fullyProtected
           ? <span className="bg-gray-100 px-3 py-2 text-xs font-bold text-gray-600">{decided ? "No lineup action needed" : "All matches started · lineup fixed"}</span>
-          : <Link className={`${!submitted ? "btn-primary" : "btn-ghost"} w-full justify-center sm:w-auto`} href={`/leader/matchups/${matchup.id}`}>{!submitted ? hasSavedDraft ? "Finish lineup" : "Set lineup" : protectedGames ? "Edit future matches" : "Review lineup"}</Link>}
+          : <Link className={`${!submitted ? "btn-primary" : "btn-ghost"} w-full justify-center sm:w-auto`} href={`/leader/matchups/${matchup.id}`}>{submitted ? "View submitted lineup" : "Set lineup"}</Link>}
     </div>;
   };
 
@@ -98,7 +102,7 @@ export default async function Leader({ searchParams }: { searchParams: Promise<{
     <TournamentSync initialRevision={revision} />
     <FlashMessage {...query}/>
     <div>
-      <div className="flex items-center gap-3"><TeamLogo team={user.team!} variant="standard"/><div className="min-w-0"><div className="label">Team manager portal</div><h1 className="truncate text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1></div></div><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Only your next unfinished matchup in the court schedule is open for lineup work. Later matchups unlock automatically after the earlier one is completed.</p>
+      <div className="flex items-center gap-3"><TeamLogo team={user.team!} variant="standard"/><div className="min-w-0"><div className="label">Team manager portal</div><h1 className="truncate text-2xl font-black uppercase sm:text-3xl md:text-4xl">{user.team?.name}</h1></div></div><p className="mt-1 hidden max-w-3xl text-sm text-gray-500 md:block">Submit the next open lineup in court-queue order. The following lineup unlocks once a majority of the earlier matchup is decided.</p>
     </div>
 
     <section className="mt-4 md:mt-6">
