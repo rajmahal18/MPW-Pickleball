@@ -23,7 +23,7 @@ export default function StandingsTable({ rows, qualificationByTeam }: { rows: St
   const hasQualificationState = Boolean(qualificationByTeam?.size);
   return <div className="w-full min-w-0">
     {hasQualificationState && <div className="flex flex-wrap items-center gap-2 border-b border-line bg-white px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-gray-500 sm:text-[10px]">
-      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-emerald-500"/> {[...qualificationByTeam!.values()].includes("CLINCHED") ? "Clinched" : "Through"}</span>
+      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-emerald-500"/> Through</span>
       <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-red-500"/> Eliminated</span>
       {[...qualificationByTeam!.values()].includes("CONTENDING") && <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-blue-500"/> Still alive</span>}
       {[...qualificationByTeam!.values()].includes("PENDING") && <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-amber-400"/> Tiebreak pending</span>}
@@ -57,7 +57,6 @@ export default function StandingsTable({ rows, qualificationByTeam }: { rows: St
             <div className={`${outcome === "QUALIFIED" || outcome === "CLINCHED" ? "text-emerald-950" : outcome === "ELIMINATED" ? "text-red-950" : ""}`} title={row.team.name}><span className="sm:hidden"><TeamIdentity team={row.team} variant="micro"/></span><span className="hidden sm:inline"><TeamIdentity team={row.team} variant="micro" fullName/></span></div>
             <div className="mt-1 hidden flex-wrap gap-1 sm:flex">
               {outcome === "PENDING" && <span className="border border-amber-300 bg-amber-100 px-1 py-0.5 text-[8px] font-black uppercase text-amber-900 sm:text-[9px]">Tiebreak pending</span>}
-              {outcome === "CLINCHED" && <span className="border border-emerald-300 bg-emerald-50 px-1 py-0.5 text-[8px] font-black uppercase text-emerald-800 sm:text-[9px]">Clinched</span>}
               {outcome === "CONTENDING" && <span className="border border-blue-200 bg-blue-50 px-1 py-0.5 text-[8px] font-black uppercase text-blue-800 sm:text-[9px]">Still alive</span>}
               {row.rankStatus === "TIED" && <span className="border border-amber-300 bg-amber-50 px-1 py-0.5 text-[8px] font-black uppercase text-amber-950 sm:text-[9px]">Tie</span>}
               {row.tiebreakApplied && <span className="border border-court/30 bg-court/10 px-1 py-0.5 text-[8px] font-black uppercase text-court sm:text-[9px]">Tiebreak</span>}
