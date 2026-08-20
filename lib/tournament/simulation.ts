@@ -5,6 +5,7 @@ import { recalculateTournament } from "@/lib/tournament/recalculate";
 import { writeAudit } from "@/lib/audit";
 import { categoriesForStage, scoreRuleForStage, winsNeededForMatchup, type MatchScoreRule } from "@/lib/tournament/rules";
 import { recognitionDivisionSlug } from "@/lib/tournament/recognition-division";
+import { entireDivisionSimulationPlan } from "@/lib/tournament/simulation-plan";
 
 export type SimulationOptions = {
   kind: string;
@@ -18,6 +19,7 @@ export type SimulationOptions = {
   selectedWeight?: number;
   divisionId?: string;
   stage?: "GROUP" | "ROUND_ROBIN" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL" | "THIRD_PLACE" | "CUSTOM";
+  bracketTrack?: "CHAMPIONSHIP" | "WILDCARD";
   autoGeneratePairs?: boolean;
   scopeDivisionId?: string;
 };
@@ -442,6 +444,31 @@ async function simulateKnockoutStages(
   return simulated;
 }
 
+async function simulateConfiguredStage(
+  db: Prisma.TransactionClient,
+  tournamentId: string,
+  divisionId: string,
+  stage: MatchupStage,
+  bracketTrack: "CHAMPIONSHIP" | "WILDCARD",
+  options: SimulationOptions,
+  random: () => number,
+  actorId: string,
+  simulationRunId: string,
+) {
+  let simulated = 0;
+  await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Simulation ${bracketTrack} ${stage}`, divisionId });
+  const matchups = await db.matchup.findMany({
+    where: { tournamentId, divisionId, bracketTrack, stage, homeTeamId: { not: null }, awayTeamId: { not: null }, status: { notIn: ["COMPLETED", "FORFEITED"] } },
+    orderBy: { order: "asc" },
+  });
+  for (const matchup of matchups) {
+    await simulateOneMatchup(db, matchup.id, options, random, actorId, simulationRunId);
+    await recalculateTournament(db, tournamentId, { actorId, simulationRunId, reason: `Simulation ${bracketTrack} ${stage}`, divisionId });
+    simulated += 1;
+  }
+  return simulated;
+}
+
 async function simulateVotingAttemptScenario(
   db: Prisma.TransactionClient,
   tournamentId: string,
@@ -628,29 +655,28 @@ export async function executeSimulation(
           : options.kind === "SEMIFINAL"
             ? ["SEMIFINAL"]
             : ["FINAL"];
+    const selectedDivisions = await db.division.findMany({
+      where: { tournamentId, ...(options.divisionId ? { id: options.divisionId } : {}) },
+      select: { id: true, wildcardMode: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
     let simulated = 0;
-    for (const currentStage of stages) {
-      await recalculateTournament(db, tournamentId, { actorId, simulationRunId, divisionId: options.scopeDivisionId });
-      const matchups = await db.matchup.findMany({
-        where: {
-          tournamentId,
-          ...(options.divisionId ? { divisionId: options.divisionId } : {}),
-          stage: currentStage,
-          homeTeamId: { not: null },
-          awayTeamId: { not: null },
-        },
-        orderBy: { order: "asc" },
-      });
-      for (const matchup of matchups) {
-        if (matchup.status === "COMPLETED" || matchup.status === "FORFEITED") continue;
-        await simulateOneMatchup(db, matchup.id, options, random, actorId, simulationRunId);
-        await recalculateTournament(db, tournamentId, { actorId, simulationRunId, divisionId: options.scopeDivisionId });
-        simulated += 1;
+    for (const division of selectedDivisions) {
+      if (options.kind === "ENTIRE_TOURNAMENT") {
+        for (const { bracketTrack, stage } of entireDivisionSimulationPlan(division.wildcardMode)) {
+          simulated += await simulateConfiguredStage(db, tournamentId, division.id, stage, bracketTrack, options, random, actorId, simulationRunId);
+        }
+      } else {
+        for (const currentStage of stages) {
+          const bracketTrack = ["GROUP", "ROUND_ROBIN", "CUSTOM"].includes(currentStage) ? "CHAMPIONSHIP" : options.bracketTrack ?? "CHAMPIONSHIP";
+          simulated += await simulateConfiguredStage(db, tournamentId, division.id, currentStage, bracketTrack, options, random, actorId, simulationRunId);
+        }
       }
     }
     result.matchupsSimulated = simulated;
     result.divisionId = options.divisionId ?? null;
     result.stage = options.kind === "STAGE" ? options.stage ?? "CUSTOM" : null;
+    result.bracketTrack = options.kind === "STAGE" ? options.bracketTrack ?? "CHAMPIONSHIP" : null;
   } else if (options.kind === "FAN_VOTING") {
     result.votesCreated = await simulateVoting(db, tournamentId, options, random, actorId, simulationRunId);
   } else if (options.kind === "RESET_VOTING") {

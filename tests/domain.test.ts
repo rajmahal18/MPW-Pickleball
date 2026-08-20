@@ -15,6 +15,16 @@ import { DEFAULT_RECOGNITION_DIVISION_SLUG, isRecognitionDivision, recognitionDi
 import { mvpVisibilityFromState } from "../lib/tournament/mvp-visibility";
 import { isProductionPrivateLabDivision, isProductionPrivateLabKind } from "../lib/tournament/private-division-lab";
 import { downstreamSourceIndexes, sourceDisplayOrder } from "../lib/tournament/knockout-progression";
+import { entireDivisionSimulationPlan } from "../lib/tournament/simulation-plan";
+
+test("full division simulation finishes Wildcard Battle before Championship knockout", () => {
+  const plan = entireDivisionSimulationPlan("BATTLE");
+  const wildcardFinal = plan.findIndex((step) => step.bracketTrack === "WILDCARD" && step.stage === "FINAL");
+  const championshipQuarterfinal = plan.findIndex((step) => step.bracketTrack === "CHAMPIONSHIP" && step.stage === "QUARTERFINAL");
+  assert.ok(wildcardFinal >= 0);
+  assert.ok(championshipQuarterfinal > wildcardFinal);
+  assert.equal(plan.filter((step) => step.bracketTrack === "WILDCARD").length, 4);
+});
 
 function team(id: string, name: string, groupName: string) {
   return { id, name, shortName: id, logoUrl: null, groupId: groupName, group: { name: groupName, slug: groupName.toLowerCase() } } as never;

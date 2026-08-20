@@ -25,6 +25,7 @@ export async function POST(request: Request) {
   const scoreStyleValues = ["RANDOM", "DOMINANT", "CLOSE", "DEUCE"] as const;
   const outcomeValues = ["RANDOM", "HOME", "AWAY", "SWEEP_HOME", "SWEEP_AWAY", "CLOSE_HOME", "CLOSE_AWAY"] as const;
   const stageValues = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+  const bracketTrackValues = ["CHAMPIONSHIP", "WILDCARD"] as const;
   const requestedWinner = data.winner ? String(data.winner) : undefined;
   const requestedStyle = data.scoreStyle ? String(data.scoreStyle) : undefined;
   const requestedOutcome = data.matchupOutcome ? String(data.matchupOutcome) : undefined;
@@ -40,8 +41,20 @@ export async function POST(request: Request) {
     selectedPlayerId: data.selectedPlayerId ? String(data.selectedPlayerId) : undefined,
     divisionId: data.divisionId ? String(data.divisionId) : undefined,
     stage: stageValues.find((value) => value === String(data.stage || "")),
+    bracketTrack: bracketTrackValues.find((value) => value === String(data.bracketTrack || "")),
     autoGeneratePairs: data.autoGeneratePairs === "on",
   };
+  if (["STAGE", "ENTIRE_TOURNAMENT"].includes(options.kind) && !options.divisionId) {
+    return new NextResponse("Select one division to simulate.", { status: 400 });
+  }
+  if (options.kind === "STAGE" && ["GROUP", "ROUND_ROBIN", "CUSTOM"].includes(options.stage ?? "")) {
+    options.bracketTrack = "CHAMPIONSHIP";
+  }
+  if (options.kind === "STAGE" && options.bracketTrack === "WILDCARD" && options.divisionId) {
+    const wildcardDivision = await prisma.division.findFirst({ where: { id: options.divisionId, tournamentId: tournament.id }, select: { wildcardMode: true } });
+    if (!wildcardDivision) return new NextResponse("Division not found.", { status: 404 });
+    if (wildcardDivision.wildcardMode !== "BATTLE") return new NextResponse("This division does not use a Wildcard Battle bracket.", { status: 409 });
+  }
   let productionLabDivisionId: string | null = null;
   if (process.env.NODE_ENV === "production") {
     if (!isProductionPrivateLabKind(options.kind)) return new NextResponse("Production lab mode allows private-division match simulation only.", { status: 403 });
@@ -53,8 +66,9 @@ export async function POST(request: Request) {
       divisionId = (await prisma.matchup.findFirst({ where: { id: options.targetId, tournamentId: tournament.id }, select: { divisionId: true } }))?.divisionId;
     }
     if (!divisionId) return new NextResponse("Select one private Executive division. All-divisions simulation is blocked in production.", { status: 403 });
-    const division = await prisma.division.findFirst({ where: { id: divisionId, tournamentId: tournament.id }, select: { id: true, slug: true, isPublic: true } });
+    const division = await prisma.division.findFirst({ where: { id: divisionId, tournamentId: tournament.id }, select: { id: true, slug: true, isPublic: true, wildcardMode: true } });
     if (!division || !isProductionPrivateLabDivision(division)) return new NextResponse("Only private non-Team-Event divisions may be simulated in production.", { status: 403 });
+    if (options.bracketTrack === "WILDCARD" && division.wildcardMode !== "BATTLE") return new NextResponse("This division does not use a Wildcard Battle bracket.", { status: 409 });
     options.divisionId = division.id;
     options.scopeDivisionId = division.id;
     productionLabDivisionId = division.id;
