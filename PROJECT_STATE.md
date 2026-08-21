@@ -246,7 +246,7 @@ Primary operational requirement: organizers may change attendance, pairs, teams,
 ## Playoff clinch, stage scoring + public UX pass — 2026-08-13
 
 - Knockout team matchups are majority series. A 5-match playoff is best-of-5 / first to 3; once a side reaches three match wins, the matchup is complete immediately and untouched remaining slots are shown as **Not needed** rather than blocking advancement. Group/round-robin team matchups still play every configured pair match because pair-match wins, NPD, and TP all matter to standings.
-- Stage scoring is now authoritative in shared tournament rules and score validation: **Group/round-robin = first to 11, sudden death at 10-10, hard max 11**; **QF/SF/Final/Battle for 3rd = target 11, win by 2 after 10-10, hard cap 15**, with 15-14 valid at the cap.
+- Stage scoring is authoritative in shared tournament rules and score validation: **Group/round-robin = first to 11, sudden death at 10-10, hard max 11**; **R16/QF = target 11, win by 2 after 10-10, hard cap 15**; **SF/Grand Final/Battle for 3rd = target 15, hard cap 15**.
 - Simulation uses the same stage score rules, lineup-category restrictions, no-duplicate-player rule, and knockout early-clinch behavior. Sweep simulations of a 5-match playoff record only three matches; close series may use all five.
 - Public live-match/scoring surfaces use compact player names where full legal names are unnecessary (for example, `A. Eala`). Full names remain on identity-heavy pages such as Players, MVP, and Fan Favorite.
 - Signed-in mobile users again have the sticky **Home / Dashboard** bottom navigation. The top-header Dashboard remains desktop-only, while Sign in / Sign out stays at the far-right header slot.

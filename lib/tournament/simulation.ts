@@ -30,14 +30,16 @@ function simulationScore(
   rule: MatchScoreRule,
   style: SimulationOptions["scoreStyle"] = "RANDOM",
 ) {
-  let winnerScore = 11;
-  let loserScore = randomInteger(random, 3, 9);
+  let winnerScore: number = rule.target;
+  let loserScore: number = rule.mode === "HARD_CAP_15" ? randomInteger(random, 5, 14) : randomInteger(random, 3, 9);
 
-  if (style === "DOMINANT") loserScore = randomInteger(random, 0, 4);
-  if (style === "CLOSE") loserScore = randomInteger(random, 8, 9);
+  if (style === "DOMINANT") loserScore = randomInteger(random, 0, rule.mode === "HARD_CAP_15" ? 6 : 4);
+  if (style === "CLOSE") loserScore = rule.mode === "HARD_CAP_15" ? randomInteger(random, 12, 14) : randomInteger(random, 8, 9);
 
   if (rule.mode === "SUDDEN_DEATH_11") {
     if (style === "DEUCE" || (style === "RANDOM" && random() > 0.85)) loserScore = 10;
+  } else if (rule.mode === "HARD_CAP_15") {
+    if (style === "DEUCE") loserScore = 14;
   } else if (rule.mode === "WIN_BY_TWO_CAP_15") {
     const extended = [
       { winnerScore: 12, loserScore: 10 },

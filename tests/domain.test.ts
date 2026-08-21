@@ -642,14 +642,22 @@ test("lineup match categories follow separate group and playoff patterns", () =>
   assert.deepEqual(categoriesForStage({ ...division, groupCategoryRulesEnabled: false } as never, "GROUP"), [null, null, null, null, null, null, null]);
 });
 
-test("stage scoring enforces group sudden death and playoff win-by-two with a 15 cap", () => {
+test("stage scoring enforces group sudden death, semifinal hard-cap 15, and other playoff win-by-two", () => {
   const groupRule = scoreRuleForStage("GROUP");
-  const playoffRule = scoreRuleForStage("SEMIFINAL");
+  const semifinalRule = scoreRuleForStage("SEMIFINAL");
+  const playoffRule = scoreRuleForStage("QUARTERFINAL");
 
   assert.doesNotThrow(() => assertValidCompletedScore(11, 10, groupRule));
   assert.doesNotThrow(() => assertValidCompletedScore(11, 9, groupRule));
   assert.throws(() => assertValidCompletedScore(12, 10, groupRule), /end at 11/);
   assert.throws(() => assertValidCompletedScore(10, 9, groupRule), /reach 11/);
+
+  assert.doesNotThrow(() => assertValidCompletedScore(15, 14, semifinalRule));
+  assert.doesNotThrow(() => assertValidCompletedScore(15, 0, semifinalRule));
+  assert.throws(() => assertValidCompletedScore(14, 13, semifinalRule), /reach 15/);
+  assert.throws(() => assertValidCompletedScore(16, 14, semifinalRule), /15-point hard cap/);
+  assert.doesNotThrow(() => assertValidCompletedScore(15, 14, scoreRuleForStage("FINAL")));
+  assert.doesNotThrow(() => assertValidCompletedScore(15, 14, scoreRuleForStage("THIRD_PLACE")));
 
   for (const [home, away] of [[11, 9], [12, 10], [13, 11], [14, 12], [15, 13], [15, 14]] as const) {
     assert.doesNotThrow(() => assertValidCompletedScore(home, away, playoffRule));

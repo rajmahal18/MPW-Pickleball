@@ -14,6 +14,7 @@ export type StageCategoryRuleSource = StageGameRuleSource & {
 
 export type MatchScoreRule =
   | { mode: "SUDDEN_DEATH_11"; target: 11; cap: 11; label: string }
+  | { mode: "HARD_CAP_15"; target: 15; cap: 15; label: string }
   | { mode: "WIN_BY_TWO_CAP_15"; target: 11; cap: 15; label: string }
   | { mode: "WIN_BY_TWO"; target: 11; cap: null; label: string };
 
@@ -36,6 +37,9 @@ export function winsNeededForMatchup(stage: MatchupStage, gamesPerMatchup: numbe
 export function scoreRuleForStage(stage: MatchupStage, legacySuddenDeathAtTen = false): MatchScoreRule {
   if (stage === "GROUP" || stage === "ROUND_ROBIN") {
     return { mode: "SUDDEN_DEATH_11", target: 11, cap: 11, label: "First to 11 · sudden death at 10-10" };
+  }
+  if (stage === "SEMIFINAL" || stage === "FINAL" || stage === "THIRD_PLACE") {
+    return { mode: "HARD_CAP_15", target: 15, cap: 15, label: "First to 15 · hard cap 15" };
   }
   if (isKnockoutStage(stage)) {
     return { mode: "WIN_BY_TWO_CAP_15", target: 11, cap: 15, label: "First to 11 · win by 2 · cap 15" };
@@ -87,6 +91,11 @@ export function assertValidCompletedScore(homeScore: number, awayScore: number, 
     if (winner !== 11 || loser > 10) {
       throw new Error("Group-stage matches end at 11; at 10-10, the next point wins 11-10.");
     }
+    return;
+  }
+
+  if (resolvedRule.mode === "HARD_CAP_15") {
+    if (winner !== 15 || loser > 14) throw new Error("Late-stage playoff matches end when a side reaches the 15-point hard cap.");
     return;
   }
 

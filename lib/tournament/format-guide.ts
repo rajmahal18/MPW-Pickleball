@@ -71,6 +71,7 @@ export function buildDivisionGuide(division: GuideDivision) {
   }
   if (division.formatType === "GROUP_KNOCKOUT" || division.formatType === "SINGLE_ELIMINATION") {
     rules.push(`Playoff scoring: ${scoreRuleForStage("FINAL").label}.`);
+    rules.push(`Semifinal, Final, and Battle for 3rd scoring: ${scoreRuleForStage("SEMIFINAL").label}.`);
     if (division.entrantType !== "PAIR") rules.push(`Knockout team matchups are best of ${knockoutMatches}: first to ${knockoutWinsNeeded} match wins. Once clinched, remaining pair-match slots are not played.`);
   }
   if (division.formatType === "CUSTOM") {
