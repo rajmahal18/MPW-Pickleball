@@ -7,9 +7,10 @@ import { TeamLogo } from "@/components/TeamIdentity";
 import { sourceDisplayOrder } from "@/lib/tournament/knockout-progression";
 import { formatPlayerCompactName, type PlayerNameParts } from "@/lib/player-name";
 
-const PROGRESSION_STAGES = ["QUARTERFINAL", "SEMIFINAL", "FINAL"] as const;
+const PROGRESSION_STAGES = ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL"] as const;
 export const KNOCKOUT_STAGES = [...PROGRESSION_STAGES, "THIRD_PLACE"] as const;
 const STAGE_LABELS: Record<(typeof KNOCKOUT_STAGES)[number], string> = {
+  ROUND_OF_16: "Round of 16",
   QUARTERFINAL: "Quarterfinals",
   SEMIFINAL: "Semifinals",
   FINAL: "Grand Final",

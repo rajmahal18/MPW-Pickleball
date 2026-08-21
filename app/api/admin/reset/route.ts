@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         for (const matchup of matchups) {
           const autoKnockout = matchup.division.autoProgression
             && matchup.division.formatType === "GROUP_KNOCKOUT"
-            && (["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] as string[]).includes(matchup.stage);
+            && (["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] as string[]).includes(matchup.stage);
           if (autoKnockout) {
             await tx.game.deleteMany({ where: { matchupId: matchup.id } });
             await tx.lineup.deleteMany({ where: { matchupId: matchup.id } });

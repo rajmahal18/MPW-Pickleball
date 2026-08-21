@@ -9,7 +9,7 @@ import TournamentCourtBoard, { type CourtQueueMatchup } from "@/components/Tourn
 import TournamentSetupTabs from "@/components/TournamentSetupTabs";
 import QuarterfinalSeedMapper from "@/components/QuarterfinalSeedMapper";
 import GroupAssignmentBoard from "@/components/GroupAssignmentBoard";
-import { formatPlayerDisplayName } from "@/lib/player-name";
+import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import { computeStandings, type StandingRow } from "@/lib/tournament/standings";
 import { displayStatus } from "@/components/StatusBadge";
 import { categoryLabel, defaultCategoryPattern } from "@/lib/tournament/rules";
@@ -19,7 +19,7 @@ import { TeamLogo } from "@/components/TeamIdentity";
 export const dynamic = "force-dynamic";
 
 const formats = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
-const stages = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+const stages = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const entrantTypes = ["TEAM", "PLAYER", "PAIR"] as const;
 
 const formatCopy: Record<(typeof formats)[number], string> = {
@@ -193,7 +193,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
   const expectedQualifierCount = selected.wildcardMode === "DIRECT" || selected.wildcardMode === "BATTLE"
     ? selected.groups.length + 1
     : selected.groups.length * Math.max(0, selected.qualifiersPerGroup) + Math.max(0, selected.wildcardCount);
-  const firstKnockoutStage = expectedQualifierCount === 4 ? "SEMIFINAL" : expectedQualifierCount === 8 ? "QUARTERFINAL" : null;
+  const firstKnockoutStage = expectedQualifierCount === 4 ? "SEMIFINAL" : expectedQualifierCount === 8 ? "QUARTERFINAL" : expectedQualifierCount === 16 ? "ROUND_OF_16" : null;
   const firstRoundMatchups = firstKnockoutStage ? selected.matchups.filter((matchup) => matchup.bracketTrack === "CHAMPIONSHIP" && matchup.stage === firstKnockoutStage).sort((a, b) => a.order - b.order) : [];
   const firstRoundSourceOptions = selected.wildcardMode === "DIRECT" || selected.wildcardMode === "BATTLE"
     ? [...qualificationSourceOptions(selected.groups, 1, selected.wildcardMode === "DIRECT" ? 1 : 0), ...(selected.wildcardMode === "BATTLE" ? [{ value: bracketWinnerQualificationSource("WILDCARD"), label: "Wildcard tournament winner" }] : [])]
@@ -339,7 +339,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
                 <div className="flex min-w-0 items-center gap-3"><TeamLogo team={team} size="sm"/><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-black uppercase text-ink">{team.name}</h3><StatusBadge>{slotLabel(team)}</StatusBadge>{teamHasRecordedPlay && <StatusBadge tone="locked">History protected</StatusBadge>}</div><div className="mt-1 text-xs text-gray-500">{team.shortName} · {team.group?.name ?? "No group"} · {selected.entrantType === "PAIR" ? "fixed pair" : `${team._count.players} rostered`}</div></div></div>
                 <Link href="/admin/players" className="text-xs font-black text-court hover:underline">{selected.entrantType === "PAIR" ? "Manage pair" : "Manage roster"}</Link>
               </div>
-              <div className="mt-3 flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">{selected.entrantType === "PAIR" ? (team.pairs[0] ? [team.pairs[0].playerA, team.pairs[0].playerB].map((player) => <span key={player.id} className="rounded-md border border-court/30 bg-court/5 px-2 py-1 text-[11px] font-bold text-court">{formatPlayerDisplayName(player)}</span>) : <span className="text-xs text-red-600">Pair players are missing.</span>) : (team.players.length ? team.players.map((player) => <span key={player.id} className={`rounded-md border px-2 py-1 text-[11px] font-bold ${player.participationStatus === "CONFIRMED" ? "border-court/30 bg-court/5 text-court" : "border-line bg-paper text-gray-500"}`}>{formatPlayerDisplayName(player)}</span>) : <span className="text-xs text-gray-500">No players assigned.</span>)}</div>
+              <div className="mt-3 flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">{selected.entrantType === "PAIR" ? (team.pairs[0] ? [team.pairs[0].playerA, team.pairs[0].playerB].map((player) => <span key={player.id} className="rounded-md border border-court/30 bg-court/5 px-2 py-1 text-[11px] font-bold text-court">{formatPlayerCompactName(player)}</span>) : <span className="text-xs text-red-600">Pair players are missing.</span>) : (team.players.length ? team.players.map((player) => <span key={player.id} className={`rounded-md border px-2 py-1 text-[11px] font-bold ${player.participationStatus === "CONFIRMED" ? "border-court/30 bg-court/5 text-court" : "border-line bg-paper text-gray-500"}`}>{formatPlayerDisplayName(player)}</span>) : <span className="text-xs text-gray-500">No players assigned.</span>)}</div>
               <form action="/api/admin/tournament-structure" method="post" className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_auto] sm:items-end"><input type="hidden" name="action" value="update-team-identity"/><input type="hidden" name="teamId" value={team.id}/><Field label={selected.entrantType === "PAIR" ? "Pair display name" : "Team name"} name="name" defaultValue={team.name} required/><Field label="Short name" name="shortName" defaultValue={team.shortName} required/><SubmitButton className="btn-primary min-h-11 rounded-md px-3 text-xs" pendingLabel="Saving...">Save name</SubmitButton></form>
               <form action={`/api/admin/teams/${team.id}/logo`} method="post" encType="multipart/form-data" className="mt-3 flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1"><span className="label">Official team logo</span><input name="logo" type="file" accept="image/jpeg,image/png,image/webp" required className="mt-1 block w-full rounded-md border border-line bg-white p-2 text-xs"/><span className="mt-1 block text-[11px] text-gray-500">JPEG, PNG, or WebP up to 5 MB. Colors are generated automatically.</span></label><SubmitButton className="btn-primary min-h-11 rounded-md px-3 text-xs" pendingLabel="Analyzing...">Upload logo</SubmitButton></form>
               <details className="mt-3 rounded-md border border-line bg-paper p-3"><summary className="cursor-pointer text-xs font-black uppercase text-gray-600">{selected.entrantType === "PAIR" ? "Pair actions" : "Team actions"}</summary><div className="mt-3"><form action="/api/admin/tournament-structure" method="post"><input type="hidden" name="action" value="delete-team"/><input type="hidden" name="teamId" value={team.id}/><SubmitButton className="btn-ghost rounded-md px-3 py-2 text-xs text-red-700" pendingLabel="Removing...">Remove unplayed {selected.entrantType === "PAIR" ? "pair" : "team"}</SubmitButton></form></div></details>
@@ -377,12 +377,12 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
       <section id="matchups" className="scroll-mt-40 rounded-xl border border-line bg-white p-5 shadow-panel">
         <SectionHeader eyebrow="Future structure" title="Matchups" action={<details className="rounded-md border border-line bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-xs font-black uppercase text-court">+ Matchup</summary><form action="/api/admin/tournament-structure" method="post" className="grid gap-3 border-t border-line p-3 sm:w-96"><input type="hidden" name="action" value="create-matchup"/><input type="hidden" name="divisionId" value={selected.id}/><Select label="Stage" name="stage" defaultValue="CUSTOM">{stages.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</Select><Field label="Scope / group label" name="groupLabel"/><Field label="Round label" name="roundLabel" defaultValue="Custom match" required/>{selected.entrantType === "PAIR" ? <input type="hidden" name="gamesPerMatchup" value="1"/> : <Field label="Matches" name="gamesPerMatchup" type="number" min={1} max={31}/>}<SubmitButton className="btn-primary rounded-md text-xs" pendingLabel="Creating...">Create future matchup</SubmitButton></form></details>}>Create or edit future {selected.entrantType === "PAIR" ? "pair" : "team"} matchups.</SectionHeader>
         {selected.formatType === "GROUP_KNOCKOUT" && selected.autoProgression && firstKnockoutStage && <section className="mb-5 rounded-xl border border-court/25 bg-court/5 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="label text-court">Championship bracket map</div><h3 className="mt-1 text-lg font-black uppercase">Choose who enters each {firstKnockoutStage === "QUARTERFINAL" ? "QF" : "SF"} slot</h3><p className="mt-1 max-w-3xl text-sm text-gray-600">Map qualification sources to the first Championship round. Actual {selected.entrantType === "PAIR" ? "pairs" : "teams"} fill automatically after their source resolves; later rounds advance from real winners.</p></div><StatusBadge tone={firstRoundConfigurationLocked ? "locked" : "ready"}>{firstRoundConfigurationLocked ? "Locked by recorded play" : "Configurable"}</StatusBadge></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="label text-court">Championship bracket map</div><h3 className="mt-1 text-lg font-black uppercase">Choose who enters each {firstKnockoutStage === "ROUND_OF_16" ? "R16" : firstKnockoutStage === "QUARTERFINAL" ? "QF" : "SF"} slot</h3><p className="mt-1 max-w-3xl text-sm text-gray-600">Map qualification sources to the first Championship round. Actual {selected.entrantType === "PAIR" ? "pairs" : "teams"} fill automatically after their source resolves; later rounds advance from real winners.</p></div><StatusBadge tone={firstRoundConfigurationLocked ? "locked" : "ready"}>{firstRoundConfigurationLocked ? "Locked by recorded play" : "Configurable"}</StatusBadge></div>
           {firstRoundConfigurationLocked ? <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-950">Seed mapping is protected because this knockout round has already started.</div> : <QuarterfinalSeedMapper
             divisionId={selected.id}
             stage={firstKnockoutStage}
             options={firstRoundSourceOptions}
-            initial={Array.from({ length: firstKnockoutStage === "QUARTERFINAL" ? 4 : 2 }, (_, index) => ({
+            initial={Array.from({ length: firstKnockoutStage === "ROUND_OF_16" ? 8 : firstKnockoutStage === "QUARTERFINAL" ? 4 : 2 }, (_, index) => ({
               home: firstRoundMatchups[index]?.homeQualificationSource ?? "",
               away: firstRoundMatchups[index]?.awayQualificationSource ?? "",
             }))}
@@ -392,7 +392,7 @@ export default async function TournamentSetup({ searchParams }: { searchParams: 
         <div className="grid gap-3 2xl:grid-cols-2">
           {selected.matchups.map((matchup) => {
             const locked = matchupLocked(matchup);
-            const isKnockout = matchup.stage === "QUARTERFINAL" || matchup.stage === "SEMIFINAL" || matchup.stage === "FINAL" || matchup.stage === "THIRD_PLACE";
+            const isKnockout = matchup.stage === "ROUND_OF_16" || matchup.stage === "QUARTERFINAL" || matchup.stage === "SEMIFINAL" || matchup.stage === "FINAL" || matchup.stage === "THIRD_PLACE";
             const configuredCategories = isKnockout ? selected.knockoutMatchCategories : selected.groupMatchCategories;
             const categoryRulesEnabled = isKnockout ? selected.knockoutCategoryRulesEnabled : selected.groupCategoryRulesEnabled;
             return <article key={matchup.id} className={`rounded-lg border p-4 ${locked ? "border-amber-300 bg-amber-50" : "border-line bg-white"}`}>

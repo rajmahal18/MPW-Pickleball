@@ -84,7 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
         const game = await tx.game.findUnique({ where: { id: gameId }, include: { matchup: { include: { division: { select: { suddenDeathAtTen: true } }, lineups: { include: { slots: true } } } } } });
         if (!game) throw new Error("Match not found.");
         if (expectedVersion !== null && game.version !== expectedVersion) throw new Error("The score changed in another session. Reload this match before submitting again.");
-        if (game.matchup.stage === "QUARTERFINAL" && (game.matchup.homeQualificationSource || game.matchup.awayQualificationSource)) {
+        if (["ROUND_OF_16", "QUARTERFINAL"].includes(game.matchup.stage) && (game.matchup.homeQualificationSource || game.matchup.awayQualificationSource)) {
           const [groupCount, unfinishedGroups] = await Promise.all([
             tx.matchup.count({ where: { divisionId: game.matchup.divisionId, stage: "GROUP" } }),
             tx.matchup.count({ where: { divisionId: game.matchup.divisionId, stage: "GROUP", status: { notIn: ["COMPLETED", "FORFEITED"] } } }),

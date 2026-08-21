@@ -12,7 +12,7 @@ import { preparePairEntrantMatchup, preparePairEntrantDivision } from "@/lib/tou
 import { isEarlyQualificationPreview, qualificationSourceOptions } from "@/lib/tournament/bracket-seeding";
 
 const FORMATS = ["GROUP_KNOCKOUT", "ROUND_ROBIN", "SINGLE_ELIMINATION", "CUSTOM"] as const;
-const STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+const STAGES = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const ENTRANT_TYPES = ["TEAM", "PLAYER", "PAIR"] as const;
 const SEX_CATEGORIES = ["MALE", "FEMALE"] as const;
 const PAIR_MATCH_CATEGORIES = ["MENS", "WOMENS", "MIXED"] as const;
@@ -158,7 +158,7 @@ async function syncFutureKnockoutGameCounts(
   tx: Prisma.TransactionClient,
   division: { id: string; defaultGamesPerMatchup: number; knockoutGamesPerMatchup: number | null },
 ) {
-  const knockoutStages = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] as const;
+  const knockoutStages = ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] as const;
   const matchups = await tx.matchup.findMany({
     where: { divisionId: division.id, stage: { in: [...knockoutStages] } },
     include: { games: true },
@@ -305,12 +305,16 @@ export async function POST(request: Request) {
         const groupCount = await prisma.group.count({ where: { divisionId } });
         if (![2, 4, 8].includes(groupCount + 1)) throw new Error("The group winners plus one wildcard must form a supported 2, 4, or 8-entry Championship bracket.");
       }
-      if (before.wildcardMode !== next.wildcardMode || before.wildcardBattleSize !== next.wildcardBattleSize) {
+      const bracketShapeChanged = before.wildcardMode !== next.wildcardMode
+        || before.wildcardBattleSize !== next.wildcardBattleSize
+        || before.qualifiersPerGroup !== next.qualifiersPerGroup
+        || before.wildcardCount !== next.wildcardCount;
+      if (bracketShapeChanged) {
         const playedChampionship = await prisma.matchup.findFirst({
-          where: { divisionId, bracketTrack: "CHAMPIONSHIP", stage: { in: ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] }, OR: [{ status: { in: ["COMPLETED", "FORFEITED", "LIVE", "INTERRUPTED"] } }, { games: { some: { OR: [{ status: { not: "SCHEDULED" } }, { homeScore: { not: 0 } }, { awayScore: { not: 0 } }] } } }] },
+          where: { divisionId, bracketTrack: "CHAMPIONSHIP", stage: { in: ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"] }, OR: [{ status: { in: ["COMPLETED", "FORFEITED", "LIVE", "INTERRUPTED"] } }, { games: { some: { OR: [{ status: { not: "SCHEDULED" } }, { homeScore: { not: 0 } }, { awayScore: { not: 0 } }] } } }] },
           select: { id: true },
         });
-        if (playedChampionship) throw new Error("Wildcard mode and battle size cannot change after Championship knockout play has started.");
+        if (playedChampionship) throw new Error("Qualifier and wildcard settings cannot change after Championship knockout play has started.");
       }
       await prisma.$transaction(async (tx) => {
         if (before.wildcardMode === "BATTLE" && (next.wildcardMode !== "BATTLE" || before.wildcardBattleSize !== next.wildcardBattleSize)) {
@@ -898,8 +902,8 @@ export async function POST(request: Request) {
 
     if (action === "configure-bracket-seeds") {
       const divisionId = text(data.divisionId, "Division ID");
-      const firstStage = data.stage === "SEMIFINAL" ? "SEMIFINAL" : "QUARTERFINAL";
-      const slotCount = firstStage === "QUARTERFINAL" ? 4 : 2;
+      const firstStage = data.stage === "ROUND_OF_16" ? "ROUND_OF_16" : data.stage === "SEMIFINAL" ? "SEMIFINAL" : "QUARTERFINAL";
+      const slotCount = firstStage === "ROUND_OF_16" ? 8 : firstStage === "QUARTERFINAL" ? 4 : 2;
       const requiredSources = slotCount * 2;
       const division = await prisma.division.findUnique({
         where: { id: divisionId },
@@ -941,7 +945,7 @@ export async function POST(request: Request) {
               divisionId,
               bracketTrack: "CHAMPIONSHIP",
               stage: firstStage,
-              roundLabel: `${firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} ${sequence}`,
+              roundLabel: `${firstStage === "ROUND_OF_16" ? "Round of 16" : firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} ${sequence}`,
               roundNumber: 1,
               order: nextOrder++,
               gamesPerMatchup: gamesForStage(division, firstStage),
@@ -975,7 +979,7 @@ export async function POST(request: Request) {
         await recalculateTournament(tx, tournament.id, { actorId: user.id, reason: `${firstStage} seed map updated` });
         await writeAudit(tx, { tournamentId: tournament.id, actorId: user.id, action: "KNOCKOUT_SEED_MAP_UPDATED", entityType: "Division", entityId: divisionId, afterState: { stage: firstStage, sources: requested } });
       }, TOURNAMENT_TRANSACTION_OPTIONS);
-      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} bracket map saved.` }), 303);
+      return NextResponse.redirect(redirectBack(request, "/admin/tournament", { success: `${firstStage === "ROUND_OF_16" ? "Round of 16" : firstStage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal"} bracket map saved.` }), 303);
     }
 
     if (action === "generate-all-group-round-robins") {
@@ -1111,7 +1115,7 @@ export async function POST(request: Request) {
       const matchup = await prisma.matchup.findUnique({ where: { id: matchupId }, include: { games: true } });
       if (!matchup || matchup.tournamentId !== tournament.id) throw new Error("Matchup not found.");
       if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("Assign both teams before adding this matchup to the queue.");
-      if (matchup.stage === "QUARTERFINAL" && (matchup.homeQualificationSource || matchup.awayQualificationSource)) {
+      if (["ROUND_OF_16", "QUARTERFINAL"].includes(matchup.stage) && (matchup.homeQualificationSource || matchup.awayQualificationSource)) {
         const [groupCount, unfinishedGroups] = await Promise.all([
           prisma.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP" } }),
           prisma.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP", status: { notIn: ["COMPLETED", "FORFEITED"] } } }),
@@ -1247,7 +1251,7 @@ export async function POST(request: Request) {
               homeWins: 0,
               awayWins: 0,
               winnerTeamId: null,
-              ...((["QUARTERFINAL", "SEMIFINAL"].includes(before.stage) && (requestedStage !== before.stage || competitorsChanged)) ? { homeQualificationSource: null, awayQualificationSource: null } : {}),
+              ...((["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL"].includes(before.stage) && (requestedStage !== before.stage || competitorsChanged)) ? { homeQualificationSource: null, awayQualificationSource: null } : {}),
               ...(!homeTeamId || !awayTeamId ? { queuePosition: null, courtLabel: null, scheduledAt: null } : {}),
               version: { increment: 1 },
             },

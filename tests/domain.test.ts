@@ -23,7 +23,10 @@ test("full division simulation finishes Wildcard Battle before Championship knoc
   const championshipQuarterfinal = plan.findIndex((step) => step.bracketTrack === "CHAMPIONSHIP" && step.stage === "QUARTERFINAL");
   assert.ok(wildcardFinal >= 0);
   assert.ok(championshipQuarterfinal > wildcardFinal);
-  assert.equal(plan.filter((step) => step.bracketTrack === "WILDCARD").length, 4);
+  assert.equal(plan.filter((step) => step.bracketTrack === "WILDCARD").length, 5);
+  const championshipRoundOf16 = plan.findIndex((step) => step.bracketTrack === "CHAMPIONSHIP" && step.stage === "ROUND_OF_16");
+  assert.ok(championshipRoundOf16 > wildcardFinal);
+  assert.ok(championshipQuarterfinal > championshipRoundOf16);
 });
 
 function team(id: string, name: string, groupName: string) {

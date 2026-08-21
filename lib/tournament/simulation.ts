@@ -18,7 +18,7 @@ export type SimulationOptions = {
   selectedPlayerId?: string;
   selectedWeight?: number;
   divisionId?: string;
-  stage?: "GROUP" | "ROUND_ROBIN" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL" | "THIRD_PLACE" | "CUSTOM";
+  stage?: "GROUP" | "ROUND_ROBIN" | "ROUND_OF_16" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL" | "THIRD_PLACE" | "CUSTOM";
   bracketTrack?: "CHAMPIONSHIP" | "WILDCARD";
   autoGeneratePairs?: boolean;
   scopeDivisionId?: string;
@@ -310,7 +310,7 @@ export async function resetScenarioState(db: Prisma.TransactionClient, tournamen
   await db.game.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
   await db.lineup.deleteMany({ where: { matchup: { tournamentId, divisionId } } });
   for (const matchup of matchups) {
-    const autoKnockout = division.autoProgression && ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"].includes(matchup.stage);
+    const autoKnockout = division.autoProgression && ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"].includes(matchup.stage);
     const homeTeamId = autoKnockout ? null : matchup.homeTeamId;
     const awayTeamId = autoKnockout ? null : matchup.awayTeamId;
     await db.matchup.update({
@@ -645,7 +645,7 @@ export async function executeSimulation(
     await simulateOneMatchup(db, options.targetId, options, random, actorId, simulationRunId);
     result.matchupId = options.targetId;
   } else if (["STAGE", "GROUP_STAGE", "SEMIFINAL", "FINAL", "ENTIRE_TOURNAMENT"].includes(options.kind)) {
-    const allStages: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"];
+    const allStages: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"];
     const stages: MatchupStage[] = options.kind === "ENTIRE_TOURNAMENT"
       ? allStages
       : options.kind === "STAGE"

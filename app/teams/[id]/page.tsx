@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import GenderIndicator from "@/components/GenderIndicator";
 import StatusBadge from "@/components/StatusBadge";
-import { formatPlayerDisplayName } from "@/lib/player-name";
+import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import { TeamHeroArtwork, TeamIdentity } from "@/components/TeamIdentity";
 import { teamHeroStyle } from "@/lib/team-branding";
 import { computeStandings } from "@/lib/tournament/standings";
@@ -84,7 +84,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     <section className="public-hero relative isolate mt-2 overflow-hidden rounded-2xl border border-line p-5 shadow-sm md:mt-4 md:p-7" style={teamHeroStyle(team)}>
       <TeamHeroArtwork team={team}/>
       <div className="relative z-10 min-w-0">
-        <h1><TeamIdentity team={team} variant="hero" link={false}/></h1>
+        <h1>{team.division.entrantType === "PAIR" ? <span className="block break-words text-3xl font-black leading-tight md:text-5xl">{players.map(formatPlayerCompactName).join(" / ") || team.shortName}</span> : <TeamIdentity team={team} variant="hero" link={false}/>}</h1>
         <div className="mt-3 min-w-0">
           <div className="public-kicker !text-current opacity-[.82]">{team.division.name}{team.group ? <> · <Link href={`/groups/${team.group.slug}`} className="hover:underline">{team.group.name}</Link></> : null}</div>
           <p className="public-lede !text-current opacity-75">{team.division.entrantType === "PAIR" ? "Fixed Executive pair" : `${players.length} confirmed player${players.length === 1 ? "" : "s"}`} · {team.shortName}</p>
@@ -98,7 +98,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 
     <section className="mt-4 md:mt-7">
       <div className="mb-4"><div className="public-kicker">{team.division.entrantType === "PAIR" ? "Pair members" : "Roster"}</div><h2 className="text-2xl font-black tracking-tight">Players</h2></div>
-      {players.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} className="public-card group p-3 text-center md:p-4"><Player player={player}/><div className="mt-3 text-[9px] font-black uppercase tracking-widest text-court opacity-60 group-hover:opacity-100">View profile →</div></Link>)}</div> : <div className="public-empty">No confirmed public players are currently assigned to this entrant.</div>}
+      {players.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{players.map((player) => <Link key={player.id} href={`/players/${player.id}`} className="public-card group p-3 text-center md:p-4"><Player player={player} compact={team.division.entrantType === "PAIR"}/><div className="mt-3 text-[9px] font-black uppercase tracking-widest text-court opacity-60 group-hover:opacity-100">View profile →</div></Link>)}</div> : <div className="public-empty">No confirmed public players are currently assigned to this entrant.</div>}
     </section>
 
     <section className="mt-6 md:mt-8">
@@ -131,6 +131,6 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   </main>;
 }
 
-function Player({ player }: { player: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: string } }) {
-  return <div className="text-center"><div className="mx-auto w-fit"><PlayerAvatar {...player} size="lg"/></div><div className="mt-3 flex items-center justify-center gap-1.5 font-black leading-tight"><span>{formatPlayerDisplayName(player)}</span><GenderIndicator sex={player.sex as "MALE" | "FEMALE"} className="text-base"/></div></div>;
+function Player({ player, compact = false }: { player: { firstName: string; middleInitial?: string | null; lastName: string; displayName: string | null; avatarUrl: string | null; sex: string }; compact?: boolean }) {
+  return <div className="text-center"><div className="mx-auto w-fit"><PlayerAvatar {...player} size="lg"/></div><div className="mt-3 flex items-center justify-center gap-1.5 font-black leading-tight"><span>{compact ? formatPlayerCompactName(player) : formatPlayerDisplayName(player)}</span><GenderIndicator sex={player.sex as "MALE" | "FEMALE"} className="text-base"/></div></div>;
 }

@@ -27,6 +27,7 @@ enum PairMatchCategory {
 enum MatchupStage {
   GROUP
   ROUND_ROBIN
+  ROUND_OF_16
   QUARTERFINAL
   SEMIFINAL
   FINAL

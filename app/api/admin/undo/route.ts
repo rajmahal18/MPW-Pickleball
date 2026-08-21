@@ -9,7 +9,7 @@ import { writeAudit } from "@/lib/audit";
 import { invalidatePublicVotingCodeSnapshot } from "@/lib/tournament/fan-favorite-codes";
 
 const GAME_STATUSES = ["SCHEDULED", "LIVE", "COMPLETED", "FORFEITED", "INTERRUPTED"] as const;
-const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+const MATCHUP_STAGES = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
 const LONG_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 };
 
 function gameStatus(value: unknown) {

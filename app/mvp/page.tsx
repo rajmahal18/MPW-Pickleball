@@ -209,7 +209,7 @@ function FactorBreakdown({ row }: { row: MvpRow }) {
 }
 
 function StageContext({ row }: { row: MvpRow }) {
-  const stages = (["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"] as const)
+  const stages = (["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"] as const)
     .map((stage) => ({ stage, ...row.stageBreakdown[stage] }))
     .filter((item) => item.played > 0);
   return <div className="mt-4 border-t border-line pt-3">
@@ -221,4 +221,4 @@ function StageContext({ row }: { row: MvpRow }) {
 function FormulaRow({ factor, weight, formula }: { factor: string; weight: number; formula: string }) { return <tr><td className="py-2.5 font-black text-ink">{factor}</td><td className="py-2.5 font-black text-court">{formatNumber(weight)}%</td><td className="py-2.5 text-gray-600">{formula}</td></tr>; }
 function formatNumber(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, ""); }
 function signed(value: number) { const formatted = formatNumber(value); return value > 0 ? `+${formatted}` : formatted; }
-function stageName(stage: string) { if (stage === "QUARTERFINAL") return "QF"; if (stage === "SEMIFINAL") return "SF"; if (stage === "THIRD_PLACE") return "3rd Place"; if (stage === "FINAL") return "GF"; if (stage === "ROUND_ROBIN") return "Round Robin"; if (stage === "GROUP") return "Group"; return stage.replaceAll("_", " "); }
+function stageName(stage: string) { if (stage === "ROUND_OF_16") return "R16"; if (stage === "QUARTERFINAL") return "QF"; if (stage === "SEMIFINAL") return "SF"; if (stage === "THIRD_PLACE") return "3rd Place"; if (stage === "FINAL") return "GF"; if (stage === "ROUND_ROBIN") return "Round Robin"; if (stage === "GROUP") return "Group"; return stage.replaceAll("_", " "); }

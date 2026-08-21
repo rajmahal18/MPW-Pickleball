@@ -10,13 +10,13 @@ type Props = {
   divisionId: string;
   options: QualificationSourceOption[];
   initial: SeedPair[];
-  stage?: "QUARTERFINAL" | "SEMIFINAL";
+  stage?: "ROUND_OF_16" | "QUARTERFINAL" | "SEMIFINAL";
 };
 
 export default function QuarterfinalSeedMapper({ divisionId, options, initial, stage = "QUARTERFINAL" }: Props) {
-  const slotCount = stage === "QUARTERFINAL" ? 4 : 2;
-  const shortLabel = stage === "QUARTERFINAL" ? "QF" : "SF";
-  const stageLabel = stage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal";
+  const slotCount = stage === "ROUND_OF_16" ? 8 : stage === "QUARTERFINAL" ? 4 : 2;
+  const shortLabel = stage === "ROUND_OF_16" ? "R16" : stage === "QUARTERFINAL" ? "QF" : "SF";
+  const stageLabel = stage === "ROUND_OF_16" ? "Round of 16" : stage === "QUARTERFINAL" ? "Quarterfinal" : "Semifinal";
   const [slots, setSlots] = useState<SeedPair[]>(() => Array.from({ length: slotCount }, (_, index) => ({
     home: initial[index]?.home ?? "",
     away: initial[index]?.away ?? "",

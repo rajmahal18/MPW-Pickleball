@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!matchup.homeTeamId || !matchup.awayTeamId) throw new Error("This matchup does not have both teams assigned yet.");
       const submittedLineup = matchup.lineups.find((lineup) => lineup.teamId === teamId);
       if (submittedLineup) throw new Error("This lineup has already been submitted and can no longer be changed.");
-      if (matchup.stage === "QUARTERFINAL" && (matchup.homeQualificationSource || matchup.awayQualificationSource)) {
+      if (["ROUND_OF_16", "QUARTERFINAL"].includes(matchup.stage) && (matchup.homeQualificationSource || matchup.awayQualificationSource)) {
         const [groupCount, unfinishedGroups] = await Promise.all([
           tx.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP" } }),
           tx.matchup.count({ where: { divisionId: matchup.divisionId, stage: "GROUP", status: { notIn: ["COMPLETED", "FORFEITED"] } } }),

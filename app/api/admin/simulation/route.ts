@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const winnerValues = ["HOME", "AWAY", "RANDOM"] as const;
   const scoreStyleValues = ["RANDOM", "DOMINANT", "CLOSE", "DEUCE"] as const;
   const outcomeValues = ["RANDOM", "HOME", "AWAY", "SWEEP_HOME", "SWEEP_AWAY", "CLOSE_HOME", "CLOSE_AWAY"] as const;
-  const stageValues = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
+  const stageValues = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"] as const;
   const bracketTrackValues = ["CHAMPIONSHIP", "WILDCARD"] as const;
   const requestedWinner = data.winner ? String(data.winner) : undefined;
   const requestedStyle = data.scoreStyle ? String(data.scoreStyle) : undefined;

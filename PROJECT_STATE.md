@@ -1,5 +1,12 @@
 # 2026-08-18 Fan Favorite fairness / MVP UI / visitor analytics patch
 
+## Configurable 16-entrant knockout — 2026-08-21
+
+- Automatic group-to-knockout progression supports 16 qualifiers through a real Round of 16, then QF, SF, Final, and optional Battle for 3rd.
+- A seven-group pair division can advance two per group plus two best remaining standings rows by using configured qualifiers with `qualifiersPerGroup = 2` and `wildcardCount = 2`.
+- Recorded group and knockout history remains protected; only untouched future knockout structure may be regenerated after a format change.
+- Pair-event competition views use compact player labels such as `A. Eala`; the Players directory retains full names.
+
 ## Multi-track Executive knockout formats — 2026-08-20
 
 - Matchups now carry an additive `bracketTrack`; existing/live rows backfill to `CHAMPIONSHIP`. This allows one division to own an independent `WILDCARD` knockout without merging QF/SF/Final progression or rewriting Team Event history.

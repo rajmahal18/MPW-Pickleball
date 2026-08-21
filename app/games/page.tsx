@@ -214,8 +214,9 @@ export default async function GamesPage({ searchParams }: { searchParams: Promis
     if (stage === "THIRD_PLACE") return 1;
     if (stage === "SEMIFINAL") return 2;
     if (stage === "QUARTERFINAL") return 3;
-    if (stage === "GROUP" || stage === "ROUND_ROBIN") return 4;
-    return 5;
+    if (stage === "ROUND_OF_16") return 4;
+    if (stage === "GROUP" || stage === "ROUND_ROBIN") return 5;
+    return 6;
   };
   allGames.sort((a, b) => {
     const stageDiff = stagePriority(a.matchup.stage) - stagePriority(b.matchup.stage);

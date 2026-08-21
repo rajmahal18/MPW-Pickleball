@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, isTerminalMatchupStatus } from "@/lib/tournament/standings";
-import { formatPlayerDisplayName } from "@/lib/player-name";
+import { formatPlayerCompactName, formatPlayerDisplayName } from "@/lib/player-name";
 import { TeamIdentity } from "@/components/TeamIdentity";
 import { teamCardStyle } from "@/lib/team-branding";
 import EventTabs from "@/components/EventTabs";
@@ -91,7 +91,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
                   const decided = group.groupMatchups.filter((matchup) => isTerminalMatchupStatus(matchup.status) && (matchup.homeTeamId === team.id || matchup.awayTeamId === team.id));
                   const matchupWins = decided.filter((matchup) => matchup.winnerTeamId === team.id).length;
                   const matchupLosses = decided.filter((matchup) => matchup.winnerTeamId && matchup.winnerTeamId !== team.id).length;
-                  return <TeamRow key={team.id} team={team} players={players} rankLabel={standing?.rankLabel ?? null} matchupWins={matchupWins} matchupLosses={matchupLosses}/>;
+                  return <TeamRow key={team.id} team={team} players={players} compactNames={division.entrantType === "PAIR"} rankLabel={standing?.rankLabel ?? null} matchupWins={matchupWins} matchupLosses={matchupLosses}/>;
                 })}
               </div>
             </section>)}
@@ -101,7 +101,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
             <div className="border-b border-line px-3 py-2.5"><div className="public-kicker">Awaiting group</div><h2 className="text-lg font-black">Unassigned {division.entrantType === "PAIR" ? "pairs" : "teams"}</h2></div>
             <div className="grid gap-2 p-2.5 md:grid-cols-2">{unassigned.map((team) => {
               const players = division.entrantType === "PAIR" && team.pairs[0] ? [team.pairs[0].playerA, team.pairs[0].playerB] : team.players.filter((player) => player.divisionEntries.some((entry) => entry.divisionId === division.id));
-              return <TeamRow key={team.id} team={team} players={players} rankLabel={null} matchupWins={0} matchupLosses={0}/>;
+              return <TeamRow key={team.id} team={team} players={players} compactNames={division.entrantType === "PAIR"} rankLabel={null} matchupWins={0} matchupLosses={0}/>;
             })}</div>
           </section>}
 
@@ -115,19 +115,23 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 function TeamRow({
   team,
   players,
+  compactNames,
   rankLabel,
   matchupWins,
   matchupLosses,
 }: {
   team: { id: string; name: string; shortName: string; logoUrl: string | null; brandingPrimary: string | null; brandingSecondary: string | null; brandingAccent: string | null; brandingText: string | null; brandingSurface: string | null };
   players: Array<{ firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null }>;
+  compactNames: boolean;
   rankLabel: string | null;
   matchupWins: number;
   matchupLosses: number;
 }) {
   const hasResults = matchupWins + matchupLosses > 0;
   return <Link href={`/teams/${team.id}`} style={teamCardStyle(team)} className="group flex min-w-0 items-center gap-3 rounded-lg border p-3 transition hover:-translate-y-px hover:shadow-sm md:p-3.5">
-    <TeamIdentity team={team} variant="standard" link={false} className="max-w-[58%]"/>
+    {compactNames
+      ? <div className="min-w-0 max-w-[58%] font-black leading-tight text-ink">{players.map(formatPlayerCompactName).join(" / ") || team.shortName}</div>
+      : <TeamIdentity team={team} variant="standard" link={false} className="max-w-[58%]"/>}
     <div className="min-w-0 flex-1">
       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold text-gray-500 md:text-xs">
         <span className="font-black uppercase tracking-wide text-gray-400">{team.shortName}</span>
@@ -135,7 +139,7 @@ function TeamRow({
         {hasResults && rankLabel && <span className="font-black text-court">Rank {rankLabel} · {matchupWins}–{matchupLosses}</span>}
       </div>
       {players.length > 0 && <div className="mt-2 flex items-center">
-        <div className="flex -space-x-1.5">{players.slice(0, 4).map((player, index) => <MiniAvatar key={`${team.id}-${index}`} player={player}/>)}</div>
+        <div className="flex -space-x-1.5">{players.slice(0, 4).map((player, index) => <MiniAvatar key={`${team.id}-${index}`} player={player} compact={compactNames}/>)}</div>
         {players.length > 4 && <span className="ml-2 text-[10px] font-bold text-gray-400">+{players.length - 4}</span>}
       </div>}
     </div>
@@ -143,8 +147,8 @@ function TeamRow({
   </Link>;
 }
 
-function MiniAvatar({ player }: { player: { firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null } }) {
-  const name = formatPlayerDisplayName(player);
+function MiniAvatar({ player, compact }: { player: { firstName: string; middleInitial: string | null; lastName: string; displayName: string | null; avatarUrl: string | null }; compact: boolean }) {
+  const name = compact ? formatPlayerCompactName(player) : formatPlayerDisplayName(player);
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
   return player.avatarUrl
     ? <img src={player.avatarUrl} alt="" title={name} className="h-7 w-7 rounded-full border-2 border-white bg-paper object-cover" loading="lazy"/>

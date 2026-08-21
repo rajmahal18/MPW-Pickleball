@@ -154,7 +154,7 @@ async function configureAutoKnockout(
   bracketTrack = "CHAMPIONSHIP",
 ) {
   const count = qualifierIds.length;
-  if (![2, 4, 8].includes(count)) return { supported: false, stage: null as MatchupStage | null };
+  if (![2, 4, 8, 16].includes(count)) return { supported: false, stage: null as MatchupStage | null };
 
   if (count === 2) {
     if (bracketTrack === "CHAMPIONSHIP") await removeFutureThirdPlace(db, division.id);
@@ -189,6 +189,43 @@ async function configureAutoKnockout(
     await assignTeams(db, final.id, semifinals[0]!.winnerTeamId, semifinals[1]!.winnerTeamId);
     if (bracketTrack === "CHAMPIONSHIP") await configureThirdPlace(db, division, semifinals);
     return { supported: true, stage: "SEMIFINAL" as MatchupStage };
+  }
+
+  if (count === 16) {
+    const roundOf16 = await ensureStageMatchups(db, division, "ROUND_OF_16", 8, bracketTrack === "CHAMPIONSHIP" ? "Round of 16" : "Wildcard Round of 16", bracketTrack);
+    const quarters = await ensureStageMatchups(db, division, "QUARTERFINAL", 4, bracketTrack === "CHAMPIONSHIP" ? "Quarterfinal" : "Wildcard Quarterfinal", bracketTrack);
+    const semifinals = await ensureStageMatchups(db, division, "SEMIFINAL", 2, bracketTrack === "CHAMPIONSHIP" ? "Semifinal" : "Wildcard Semifinal", bracketTrack);
+    const [final] = await ensureStageMatchups(db, division, "FINAL", 1, bracketTrack === "CHAMPIONSHIP" ? "Grand Final" : "Wildcard Final", bracketTrack);
+    const configuredSources = roundOf16.flatMap((row) => [row.homeQualificationSource, row.awayQualificationSource]);
+    if (configuredSources.some(Boolean)) {
+      const resolved = configuredSources.every(Boolean) && qualificationContext
+        ? roundOf16.map((row) => ({
+            homeTeamId: resolveQualificationSource(row.homeQualificationSource, qualificationContext.groupTables, qualificationContext.wildcards, qualificationContext.bracketWinners),
+            awayTeamId: resolveQualificationSource(row.awayQualificationSource, qualificationContext.groupTables, qualificationContext.wildcards, qualificationContext.bracketWinners),
+          }))
+        : [];
+      const resolvedIds = resolved.flatMap((slot) => [slot.homeTeamId, slot.awayTeamId]).filter(Boolean) as string[];
+      if (resolved.length !== 8 || new Set(configuredSources).size !== 16 || new Set(resolvedIds).size !== 16) {
+        for (const row of roundOf16) await assignTeams(db, row.id, null, null);
+        return { supported: false, stage: "ROUND_OF_16" as MatchupStage };
+      }
+      for (let index = 0; index < 8; index += 1) await assignTeams(db, roundOf16[index]!.id, resolved[index]!.homeTeamId, resolved[index]!.awayTeamId);
+    } else {
+      for (let index = 0; index < 8; index += 1) await assignTeams(db, roundOf16[index]!.id, qualifierIds[index] ?? null, qualifierIds[15 - index] ?? null);
+    }
+    const quarterFeeds = downstreamSourceIndexes(roundOf16.length, quarters.length, "STANDARD");
+    for (let index = 0; index < quarters.length; index += 1) {
+      const [homeIndex, awayIndex] = quarterFeeds[index]!;
+      await assignTeams(db, quarters[index]!.id, roundOf16[homeIndex!]!.winnerTeamId, roundOf16[awayIndex!]!.winnerTeamId);
+    }
+    const semifinalFeeds = downstreamSourceIndexes(quarters.length, semifinals.length, division.entrantType === "TEAM" ? "CROSSED" : "STANDARD");
+    for (let index = 0; index < semifinals.length; index += 1) {
+      const [homeIndex, awayIndex] = semifinalFeeds[index]!;
+      await assignTeams(db, semifinals[index]!.id, quarters[homeIndex!]!.winnerTeamId, quarters[awayIndex!]!.winnerTeamId);
+    }
+    await assignTeams(db, final.id, semifinals[0]!.winnerTeamId, semifinals[1]!.winnerTeamId);
+    if (bracketTrack === "CHAMPIONSHIP") await configureThirdPlace(db, division, semifinals);
+    return { supported: true, stage: "ROUND_OF_16" as MatchupStage };
   }
 
   const quarters = await ensureStageMatchups(db, division, "QUARTERFINAL", 4, bracketTrack === "CHAMPIONSHIP" ? "Quarterfinal" : "Wildcard Quarterfinal", bracketTrack);
@@ -240,7 +277,7 @@ async function configureAutoKnockout(
   return { supported: true, stage: "QUARTERFINAL" as MatchupStage };
 }
 
-async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId: string, futureStages: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]) {
+async function clearFutureKnockoutSlots(db: Prisma.TransactionClient, divisionId: string, futureStages: MatchupStage[] = ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]) {
   const future = await db.matchup.findMany({ where: { divisionId, stage: { in: futureStages } }, include: { games: true } });
   let cleared = 0;
   for (const matchup of future) {
@@ -328,17 +365,18 @@ async function configureWildcardPath(
   return { supported: configured.supported, qualifierIds: championshipIds.filter(Boolean) as string[], unresolved: 0 };
 }
 
-async function populateSecuredQuarterfinalSeeds(
+async function populateSecuredFirstRoundSeeds(
   db: Prisma.TransactionClient,
   divisionId: string,
   securedByGroup: Map<string, Map<number, string>>,
 ) {
-  const quarters = await db.matchup.findMany({
-    where: { divisionId, stage: "QUARTERFINAL" },
+  const roundOf16Count = await db.matchup.count({ where: { divisionId, stage: "ROUND_OF_16" } });
+  const firstRound = await db.matchup.findMany({
+    where: { divisionId, stage: roundOf16Count ? "ROUND_OF_16" : "QUARTERFINAL" },
     include: { games: true },
     orderBy: { order: "asc" },
   });
-  const hasConfiguredSources = quarters.some((quarter) => quarter.homeQualificationSource || quarter.awayQualificationSource);
+  const hasConfiguredSources = firstRound.some((matchup) => matchup.homeQualificationSource || matchup.awayQualificationSource);
   if (!hasConfiguredSources) return false;
 
   const resolveEarly = (value: string | null) => {
@@ -346,13 +384,13 @@ async function populateSecuredQuarterfinalSeeds(
     if (!source || source.type !== "GROUP") return null;
     return securedByGroup.get(source.groupId)?.get(source.rank) ?? null;
   };
-  for (const quarter of quarters) {
-    if (matchupHasStarted(quarter)) continue;
-    const homeTeamId = quarter.homeQualificationSource ? resolveEarly(quarter.homeQualificationSource) : quarter.homeTeamId;
-    const awayTeamId = quarter.awayQualificationSource ? resolveEarly(quarter.awayQualificationSource) : quarter.awayTeamId;
-    await assignTeams(db, quarter.id, homeTeamId, awayTeamId);
+  for (const matchup of firstRound) {
+    if (matchupHasStarted(matchup)) continue;
+    const homeTeamId = matchup.homeQualificationSource ? resolveEarly(matchup.homeQualificationSource) : matchup.homeTeamId;
+    const awayTeamId = matchup.awayQualificationSource ? resolveEarly(matchup.awayQualificationSource) : matchup.awayTeamId;
+    await assignTeams(db, matchup.id, homeTeamId, awayTeamId);
     await db.matchup.update({
-      where: { id: quarter.id },
+      where: { id: matchup.id },
       data: { status: "SCHEDULED", queuePosition: null, courtLabel: null, scheduledAt: null },
     });
   }
@@ -450,7 +488,7 @@ export async function recalculateTournament(
     } else if (division.autoProgression && division.formatType === "GROUP_KNOCKOUT" && !allGroupComplete) {
       if (division.wildcardMode === "DIRECT" || division.wildcardMode === "BATTLE") {
         const entrantCount = division.groups.length + 1;
-        if ([2, 4, 8].includes(entrantCount)) {
+        if ([2, 4, 8, 16].includes(entrantCount)) {
           const pendingEntrants = Array<string | null>(entrantCount).fill(null);
           if (division.wildcardMode === "BATTLE") {
             await configureAutoKnockout(db, division, Array<string | null>(division.wildcardBattleSize).fill(null), undefined, "WILDCARD");
@@ -459,6 +497,10 @@ export async function recalculateTournament(
         }
         await clearFutureKnockoutSlots(db, division.id);
       } else {
+        const entrantCount = division.groups.length * Math.max(0, division.qualifiersPerGroup) + Math.max(0, division.wildcardCount);
+        if ([2, 4, 8, 16].includes(entrantCount)) {
+          await configureAutoKnockout(db, division, Array<string | null>(entrantCount).fill(null), undefined, "CHAMPIONSHIP");
+        }
         const securedByGroup = new Map(division.groups.map((group) => [
           group.id,
           securedGroupSeedTeamIds(
@@ -467,8 +509,8 @@ export async function recalculateTournament(
             division.qualifiersPerGroup,
           ),
         ]));
-        const populated = await populateSecuredQuarterfinalSeeds(db, division.id, securedByGroup);
-        await clearFutureKnockoutSlots(db, division.id, populated ? ["SEMIFINAL", "FINAL", "THIRD_PLACE"] : ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]);
+        const populated = await populateSecuredFirstRoundSeeds(db, division.id, securedByGroup);
+        await clearFutureKnockoutSlots(db, division.id, populated ? ["SEMIFINAL", "FINAL", "THIRD_PLACE"] : ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"]);
       }
     }
 

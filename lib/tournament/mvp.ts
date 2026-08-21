@@ -91,9 +91,9 @@ type MutablePlayerStats = {
   opponentResults: Map<string, { winsAgainstCandidate: number; lossesAgainstCandidate: number }>;
 };
 
-const STAGES: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL", "CUSTOM"];
-const PLAYOFF_STAGES = new Set<MatchupStage>(["QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"]);
-const WIN_TIEBREAK_ORDER: MatchupStage[] = ["FINAL", "THIRD_PLACE", "SEMIFINAL", "QUARTERFINAL", "ROUND_ROBIN", "GROUP", "CUSTOM"];
+const STAGES: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL", "CUSTOM"];
+const PLAYOFF_STAGES = new Set<MatchupStage>(["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "THIRD_PLACE", "FINAL"]);
+const WIN_TIEBREAK_ORDER: MatchupStage[] = ["FINAL", "THIRD_PLACE", "SEMIFINAL", "QUARTERFINAL", "ROUND_OF_16", "ROUND_ROBIN", "GROUP", "CUSTOM"];
 
 function blankBreakdown(): StageBreakdown {
   return Object.fromEntries(STAGES.map((stage) => [stage, { played: 0, wins: 0, leverage: 0 }])) as StageBreakdown;
@@ -122,6 +122,7 @@ function teamFinish(teamIds: Set<string>, matchups: MvpMatchup[]) {
   for (const matchup of matchups) {
     const involved = (matchup.homeTeamId && teamIds.has(matchup.homeTeamId)) || (matchup.awayTeamId && teamIds.has(matchup.awayTeamId));
     if (!involved) continue;
+    if (matchup.stage === "ROUND_OF_16") consider(20, "Round-of-16 qualifier");
     if (matchup.stage === "QUARTERFINAL") consider(35, "Quarterfinalist");
     if (matchup.stage === "SEMIFINAL") consider(55, "Semifinalist");
     if (matchup.stage === "THIRD_PLACE") consider(matchup.winnerTeamId && teamIds.has(matchup.winnerTeamId) ? 65 : 55, matchup.winnerTeamId && teamIds.has(matchup.winnerTeamId) ? "3rd place" : "3rd-place playoff");

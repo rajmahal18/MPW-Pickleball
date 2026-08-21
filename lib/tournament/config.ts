@@ -15,6 +15,7 @@ export const MVP_COMPONENT_WEIGHTS = {
 export const MVP_PLAYOFF_LEVERAGE = {
   GROUP: { played: 0, win: 0 },
   ROUND_ROBIN: { played: 0, win: 0 },
+  ROUND_OF_16: { played: 1, win: 1 },
   QUARTERFINAL: { played: 1, win: 1 },
   SEMIFINAL: { played: 2, win: 2 },
   THIRD_PLACE: { played: 2, win: 2 },

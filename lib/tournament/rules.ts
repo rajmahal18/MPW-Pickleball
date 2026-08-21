@@ -17,7 +17,7 @@ export type MatchScoreRule =
   | { mode: "WIN_BY_TWO_CAP_15"; target: 11; cap: 15; label: string }
   | { mode: "WIN_BY_TWO"; target: 11; cap: null; label: string };
 
-export const KNOCKOUT_STAGES: MatchupStage[] = ["QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"];
+export const KNOCKOUT_STAGES: MatchupStage[] = ["ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE"];
 
 export function isKnockoutStage(stage: MatchupStage) {
   return KNOCKOUT_STAGES.includes(stage);

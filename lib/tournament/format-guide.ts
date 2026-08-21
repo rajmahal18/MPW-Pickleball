@@ -30,11 +30,12 @@ const FORMAT_LABELS: Record<DivisionFormat, string> = {
   CUSTOM: "Custom / organizer-controlled",
 };
 
-const STAGE_ORDER: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"];
+const STAGE_ORDER: MatchupStage[] = ["GROUP", "ROUND_ROBIN", "ROUND_OF_16", "QUARTERFINAL", "SEMIFINAL", "FINAL", "THIRD_PLACE", "CUSTOM"];
 
 const STAGE_LABELS: Record<MatchupStage, string> = {
   GROUP: "Group stage",
   ROUND_ROBIN: "Round robin",
+  ROUND_OF_16: "Round of 16",
   QUARTERFINAL: "Quarterfinals",
   SEMIFINAL: "Semifinals",
   FINAL: "Final",

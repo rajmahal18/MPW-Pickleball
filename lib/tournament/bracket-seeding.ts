@@ -9,7 +9,7 @@ export function isEarlyQualificationPreview(
   matchup: { stage: string; homeQualificationSource?: string | null; awayQualificationSource?: string | null },
   groupStageComplete: boolean,
 ) {
-  return matchup.stage === "QUARTERFINAL"
+  return (matchup.stage === "ROUND_OF_16" || matchup.stage === "QUARTERFINAL")
     && !groupStageComplete
     && Boolean(matchup.homeQualificationSource || matchup.awayQualificationSource);
 }
