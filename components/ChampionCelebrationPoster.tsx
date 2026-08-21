@@ -48,7 +48,7 @@ export default function ChampionCelebrationPoster({
         <div className="flex min-w-0 items-center gap-4">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[.2em] opacity-[.85]">{divisionName} champion</div>
-            <h2 className="mt-2"><TeamIdentity team={team} variant="hero"/></h2>
+            <h2 className="mt-2"><TeamIdentity team={team} variant="hero" forceTeamName/></h2>
             <div className="mt-2 text-xs font-black uppercase tracking-[.18em] opacity-70">Dink & Dash 2026</div>
           </div>
         </div>

@@ -23,10 +23,10 @@ export function TeamLogo({ team, variant, size, className = "" }: { team: TeamId
     : <span className={`${shared} grid place-items-center`} style={{ borderColor: branding.accent, color: branding.primary }} aria-label={`${team.name} initials`}>{team.shortName.slice(0, 2).toUpperCase()}</span>;
 }
 
-export function TeamIdentity({ team, variant = "compact", compact, link = true, className = "", meta, fullName = false, pairMode = false }: { team: TeamIdentityTeam; variant?: TeamIdentityVariant; compact?: boolean; link?: boolean; className?: string; meta?: React.ReactNode; fullName?: boolean; pairMode?: boolean }) {
+export function TeamIdentity({ team, variant = "compact", compact, link = true, className = "", meta, fullName = false, pairMode = false, forceTeamName = false }: { team: TeamIdentityTeam; variant?: TeamIdentityVariant; compact?: boolean; link?: boolean; className?: string; meta?: React.ReactNode; fullName?: boolean; pairMode?: boolean; forceTeamName?: boolean }) {
   const resolved = compact ? "micro" : variant;
   const nameClass = resolved === "hero" ? "text-3xl font-black leading-tight tracking-tight md:text-5xl" : resolved === "standard" ? "text-base font-black" : resolved === "micro" ? "text-xs font-bold" : "text-sm font-bold";
-  const pair = pairMode || team.pairs?.length ? team.pairs?.[0] : null;
+  const pair = !forceTeamName && (pairMode || team.pairs?.length) ? team.pairs?.[0] : null;
   const displayName = pair
     ? `${formatPlayerCompactName(pair.playerA)} / ${formatPlayerCompactName(pair.playerB)}`
     : resolved === "micro" && !fullName ? team.shortName : team.name;
