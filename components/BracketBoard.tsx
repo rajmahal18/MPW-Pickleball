@@ -42,7 +42,7 @@ export default function BracketBoard({ matchups, pairMode = false, championship 
   const thirdPlaceRows = matchups.filter((matchup) => matchup.stage === "THIRD_PLACE").sort((a, b) => a.order - b.order);
   const mobilePreFinalRows = stageRows.filter((entry) => entry.stage !== "FINAL");
   const mobileFinalRows = stageRows.filter((entry) => entry.stage === "FINAL");
-  const gridTemplate = stageRows.flatMap((_, index) => index < stageRows.length - 1 ? ["minmax(260px, 1fr)", "72px"] : ["minmax(260px, 1fr)"]);
+  const gridTemplate = stageRows.flatMap((_, index) => index < stageRows.length - 1 ? ["minmax(200px, 1fr)", "48px"] : ["minmax(200px, 1fr)"]);
 
   const MobileStage = ({ entry }: { entry: (typeof stageRows)[number] }) => <section key={entry.stage}>
     <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-black uppercase">{!championship && entry.stage === "FINAL" ? "Wildcard Final" : STAGE_LABELS[entry.stage]}</h3><span className="text-[10px] font-bold uppercase text-gray-400">{entry.rows.length} matchup{entry.rows.length === 1 ? "" : "s"}</span></div>
@@ -50,7 +50,7 @@ export default function BracketBoard({ matchups, pairMode = false, championship 
   </section>;
 
   return <>
-    <div className="space-y-5 p-3 md:hidden">
+    <div className="space-y-5 p-3 lg:hidden">
       {mobilePreFinalRows.map((entry) => <MobileStage key={entry.stage} entry={entry} />)}
       {thirdPlaceRows.length > 0 && <section>
         <div className="mb-2"><div className="label text-amber-800">Semifinal consolation</div><h3 className="text-sm font-black uppercase">Battle for 3rd</h3></div>
@@ -58,7 +58,7 @@ export default function BracketBoard({ matchups, pairMode = false, championship 
       </section>}
       {mobileFinalRows.map((entry) => <MobileStage key={entry.stage} entry={entry} />)}
     </div>
-    <div className="bracket-scroll hidden md:block">
+    <div className="bracket-scroll hidden lg:block">
     <div className="bracket-progression-grid" style={{ gridTemplateColumns: gridTemplate.join(" ") }}>
       {stageRows.map((entry, stageIndex) => {
         const next = stageRows[stageIndex + 1];

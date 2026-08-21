@@ -33,7 +33,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
                 include: { divisionEntries: { where: { status: "CONFIRMED" }, select: { divisionId: true } } },
                 orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
               },
-              pairs: { where: { isActive: true }, include: { playerA: true, playerB: true } },
+              pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, include: { playerA: true, playerB: true } },
             },
           },
           matchups: {

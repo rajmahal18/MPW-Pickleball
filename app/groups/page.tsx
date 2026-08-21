@@ -20,7 +20,7 @@ export default async function GroupsIndexPage({ searchParams }: { searchParams: 
         where: divisionFilter,
         include: {
           groups: {
-            include: { standingOverrides: true, teams: { include: { group: true }, orderBy: { shortName: "asc" } } },
+            include: { standingOverrides: true, teams: { include: { group: true, pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } }, orderBy: { shortName: "asc" } } },
             orderBy: { name: "asc" },
           },
           matchups: { where: { stage: "GROUP" }, include: { games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: { order: "asc" } },

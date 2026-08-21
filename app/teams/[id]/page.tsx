@@ -43,7 +43,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         include: { divisionEntries: true },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       },
-      pairs: { where: { isActive: true }, include: { playerA: true, playerB: true } },
+      pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, include: { playerA: true, playerB: true } },
     },
   });
   if (!team) notFound();

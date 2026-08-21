@@ -122,8 +122,8 @@ html { scroll-behavior: smooth; }
 }
 
 /* Public knockout bracket board. Connectors derive from actual feeder winners instead of row-parity guesses. */
-.bracket-scroll { overflow-x: auto; padding: 1.25rem; }
-.bracket-progression-grid { display: grid; min-width: 920px; align-items: stretch; }
+.bracket-scroll { max-width: 100%; overflow-x: auto; padding: 1rem; }
+.bracket-progression-grid { display: grid; min-width: 880px; align-items: stretch; }
 .bracket-column { min-width: 0; display: grid; grid-template-rows: auto 640px; gap: 1rem; align-content: center; }
 .bracket-stage-title { border-radius: 4px; background: #e8e8e8; padding: .35rem .75rem; text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: #050505; }
 .bracket-stage-stack { position: relative; min-width: 0; height: 640px; }
@@ -135,10 +135,11 @@ html { scroll-behavior: smooth; }
 .bracket-connector { height: 640px; align-self: end; }
 .bracket-connector-svg { display: block; width: 100%; height: 640px; overflow: visible; }
 .bracket-connector-svg line, .bracket-connector-svg path { fill: none; stroke: #cfcfcf; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.bracket-card-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 0 .25rem .35rem; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-card-meta { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: .35rem; padding: 0 .2rem .35rem; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .02em; }
+.bracket-card-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bracket-card-meta strong { border-radius: 4px; background: rgba(255,255,255,.9); padding: .15rem .35rem; color: #050505; font-size: 9px; }
-.bracket-team-row { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: stretch; gap: .25rem; margin-top: .25rem; }
-.bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .55rem; border-radius: 6px; background: #fff; padding: .5rem; color: #050505; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-team-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: stretch; gap: .25rem; margin-top: .25rem; }
+.bracket-team-line { min-width: 0; display: flex; align-items: center; gap: .4rem; border-radius: 6px; background: #fff; padding: .4rem; color: #050505; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .01em; }
 .bracket-team-row-faded .bracket-team-line { background: #f7f7f7; color: #7a7a7a; }
 .bracket-team-row-faded .bracket-team-mark { background: #e6e6e6; color: #9a9a9a; }
 .bracket-team-row-faded .bracket-score { background: #f7f7f7; color: #7a7a7a; }
@@ -148,17 +149,18 @@ html { scroll-behavior: smooth; }
 .bracket-team-row-champion .bracket-team-name { width: 100%; flex: 0 0 auto; display: block; overflow: visible; text-overflow: clip; white-space: normal; line-height: 1.15; color: #050505; }
 .bracket-champion-crown { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .25rem; border-radius: 999px; background: #f4b11f; padding: .25rem .45rem; color: #050505; font-size: 8px; font-weight: 900; letter-spacing: .05em; }
 .bracket-team-row-champion .bracket-team-line { background: #fff8dc; box-shadow: 0 0 0 2px rgba(244,177,31,.85), 0 8px 24px rgba(0,0,0,.12); }
-.bracket-score { display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,.7); font-size: 22px; font-weight: 900; color: #050505; }
+.bracket-score { display: grid; place-items: center; border-radius: 4px; background: rgba(255,255,255,.7); font-size: 18px; font-weight: 900; color: #050505; }
 .bracket-team-logo { width: 34px; height: 34px; object-fit: contain; flex: 0 0 auto; }
 .bracket-team-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #ececec; color: #777; font-size: 11px; font-weight: 900; }
 .bracket-team-mark-winner { background: #050505; color: #fff; }
-.bracket-card-footer { display: flex; justify-content: space-between; gap: .75rem; padding: .5rem .25rem 0; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+.bracket-card-footer { min-width: 0; display: flex; justify-content: space-between; gap: .4rem; padding: .4rem .2rem 0; font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: .01em; }
+.bracket-card-footer > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bracket-third-place-section { margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
 .bracket-third-place-heading { margin-bottom: .75rem; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem; }
 
 @media (max-width: 900px) {
   .bracket-scroll { margin-inline: -1rem; padding: 1rem; }
-  .bracket-progression-grid { min-width: 900px; }
+  .bracket-progression-grid { min-width: 880px; }
 }
 
 /* Official matchup scorecard preview + print layout. A4 portrait, cut crosswise: two landscape scorecards stacked per sheet. */

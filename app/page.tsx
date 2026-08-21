@@ -40,7 +40,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       divisions: {
         where: divisionFilter,
         include: {
-          groups: { include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } },
+          groups: { include: { standingOverrides: true, teams: { include: { group: true, pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } } }, orderBy: { name: "asc" } },
           teams: true,
           matchups: {
             include: {
@@ -81,7 +81,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       },
       orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { gameNumber: "asc" }],
     }) : Promise.resolve([]),
-    prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: true, awayTeam: true }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
+    prisma.matchup.findMany({ where: { tournamentId: tournament.id, division: { isPublic: true }, queuePosition: { not: null }, status: { in: ["READY", "LINEUP_PENDING", "SCHEDULED"] } }, include: { division: true, homeTeam: { include: { pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } }, awayTeam: { include: { pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } } }, orderBy: [{ queuePosition: "asc" }, { order: "asc" }], take: 8 }),
     getFanFavoriteSnapshot(tournament.id),
     prisma.game.findMany({
       where: { matchup: { tournamentId: tournament.id, ...(mvpDivision ? { divisionId: mvpDivision.id } : { division: { isPublic: true } }) }, status: { in: ["COMPLETED", "FORFEITED"] } },

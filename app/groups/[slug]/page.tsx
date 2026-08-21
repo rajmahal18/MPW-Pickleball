@@ -13,11 +13,11 @@ export const dynamic = "force-dynamic";
 export default async function GroupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const divisionFilter = await publicDivisionFilter();
-  const group = await prisma.group.findFirst({ where: { slug, tournament: { isPublished: true }, division: divisionFilter }, include: { tournament: true, division: true, standingOverrides: true, teams: { include: { group: true } } } });
+  const group = await prisma.group.findFirst({ where: { slug, tournament: { isPublished: true }, division: divisionFilter }, include: { tournament: true, division: true, standingOverrides: true, teams: { include: { group: true, pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } } } });
   if (!group) notFound();
   const [matchups, divisionGroups, allGroupMatchups, revision] = await Promise.all([
-    prisma.matchup.findMany({ where: { divisionId: group.divisionId, stage: "GROUP", groupLabel: group.name }, include: { homeTeam: true, awayTeam: true, games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: [{ updatedAt: "desc" }, { order: "desc" }] }),
-    prisma.group.findMany({ where: { divisionId: group.divisionId }, include: { standingOverrides: true, teams: { include: { group: true } } }, orderBy: { name: "asc" } }),
+    prisma.matchup.findMany({ where: { divisionId: group.divisionId, stage: "GROUP", groupLabel: group.name }, include: { homeTeam: { include: { pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } }, awayTeam: { include: { pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } }, games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: [{ updatedAt: "desc" }, { order: "desc" }] }),
+    prisma.group.findMany({ where: { divisionId: group.divisionId }, include: { standingOverrides: true, teams: { include: { group: true, pairs: { where: { isActive: true, team: { division: { entrantType: "PAIR" } } }, take: 1, include: { playerA: true, playerB: true } } } } }, orderBy: { name: "asc" } }),
     prisma.matchup.findMany({ where: { divisionId: group.divisionId, stage: "GROUP" }, include: { games: { select: { homeScore: true, awayScore: true, status: true } } }, orderBy: { order: "asc" } }),
     getPublicTournamentRevision(group.tournamentId),
   ]);

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { getTeamBranding, teamBrandingStyle, type TeamBrandingSource } from "@/lib/team-branding";
+import { formatPlayerCompactName, type PlayerNameParts } from "@/lib/player-name";
 
-export type TeamIdentityTeam = TeamBrandingSource & { id?: string; name: string; shortName: string };
+export type TeamIdentityTeam = TeamBrandingSource & {
+  id?: string;
+  name: string;
+  shortName: string;
+  pairs?: Array<{ playerA: PlayerNameParts; playerB: PlayerNameParts }>;
+};
 
 export type TeamIdentityVariant = "micro" | "compact" | "standard" | "hero";
 export type TeamLogoVariant = TeamIdentityVariant | "match";
@@ -17,10 +23,14 @@ export function TeamLogo({ team, variant, size, className = "" }: { team: TeamId
     : <span className={`${shared} grid place-items-center`} style={{ borderColor: branding.accent, color: branding.primary }} aria-label={`${team.name} initials`}>{team.shortName.slice(0, 2).toUpperCase()}</span>;
 }
 
-export function TeamIdentity({ team, variant = "compact", compact, link = true, className = "", meta, fullName = false }: { team: TeamIdentityTeam; variant?: TeamIdentityVariant; compact?: boolean; link?: boolean; className?: string; meta?: React.ReactNode; fullName?: boolean }) {
+export function TeamIdentity({ team, variant = "compact", compact, link = true, className = "", meta, fullName = false, pairMode = false }: { team: TeamIdentityTeam; variant?: TeamIdentityVariant; compact?: boolean; link?: boolean; className?: string; meta?: React.ReactNode; fullName?: boolean; pairMode?: boolean }) {
   const resolved = compact ? "micro" : variant;
   const nameClass = resolved === "hero" ? "text-3xl font-black leading-tight tracking-tight md:text-5xl" : resolved === "standard" ? "text-base font-black" : resolved === "micro" ? "text-xs font-bold" : "text-sm font-bold";
-  const content = <span className={`inline-flex min-w-0 items-center ${resolved === "hero" ? "gap-4" : "gap-2"} ${className}`} style={teamBrandingStyle(team)}><TeamLogo team={team} variant={resolved}/><span className="min-w-0"><span className={`block truncate ${nameClass}`}>{resolved === "micro" && !fullName ? team.shortName : team.name}</span>{meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-[.65]">{meta}</span>}</span></span>;
+  const pair = pairMode || team.pairs?.length ? team.pairs?.[0] : null;
+  const displayName = pair
+    ? `${formatPlayerCompactName(pair.playerA)} / ${formatPlayerCompactName(pair.playerB)}`
+    : resolved === "micro" && !fullName ? team.shortName : team.name;
+  const content = <span className={`inline-flex min-w-0 items-center ${resolved === "hero" ? "gap-4" : "gap-2"} ${className}`} style={teamBrandingStyle(team)}><TeamLogo team={team} variant={resolved}/><span className="min-w-0"><span className={`block truncate ${nameClass}`} title={pair ? team.name : undefined}>{displayName}</span>{meta && <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-[.65]">{meta}</span>}</span></span>;
   return link && team.id ? <Link href={`/teams/${team.id}`} className="min-w-0 hover:opacity-80">{content}</Link> : content;
 }
 

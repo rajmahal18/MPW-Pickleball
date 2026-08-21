@@ -18,7 +18,8 @@ function rowTone(outcome?: QualificationOutcome) {
   return "hover:bg-gray-50/80";
 }
 
-export default function StandingsTable({ rows, qualificationByTeam }: { rows: StandingRow[]; qualificationByTeam?: Map<string, QualificationOutcome> }) {
+export default function StandingsTable({ rows, qualificationByTeam, pairMode = false }: { rows: StandingRow[]; qualificationByTeam?: Map<string, QualificationOutcome>; pairMode?: boolean }) {
+  const compactPairNames = pairMode || rows.some((row) => "pairs" in row.team && Array.isArray(row.team.pairs) && row.team.pairs.length > 0);
   const hasQualificationState = Boolean(qualificationByTeam?.size);
   return <div className="w-full min-w-0">
     {hasQualificationState && <div className="flex flex-wrap items-center gap-2 border-b border-line bg-white px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-gray-500 sm:text-[10px]">
@@ -52,7 +53,7 @@ export default function StandingsTable({ rows, qualificationByTeam }: { rows: St
         return <tr key={row.team.id} className={`border-b border-line align-top transition-colors last:border-0 ${rowTone(outcome)}`}>
           <td className={`px-1.5 py-3 font-black ${outcome === "QUALIFIED" || outcome === "CLINCHED" ? "text-emerald-800" : outcome === "ELIMINATED" ? "text-red-800" : ""}`}>{row.rankLabel || row.rank}</td>
           <td className="min-w-0 px-1 py-2.5 sm:px-1.5 sm:py-3">
-            <div className={`${outcome === "QUALIFIED" || outcome === "CLINCHED" ? "text-emerald-950" : outcome === "ELIMINATED" ? "text-red-950" : ""}`} title={row.team.name}><span className="sm:hidden"><TeamIdentity team={row.team} variant="micro"/></span><span className="hidden sm:inline"><TeamIdentity team={row.team} variant="micro" fullName/></span></div>
+            <div className={`${outcome === "QUALIFIED" || outcome === "CLINCHED" ? "text-emerald-950" : outcome === "ELIMINATED" ? "text-red-950" : ""}`} title={row.team.name}><span className="sm:hidden"><TeamIdentity team={row.team} variant="micro" pairMode={compactPairNames}/></span><span className="hidden sm:inline"><TeamIdentity team={row.team} variant="micro" fullName pairMode={compactPairNames}/></span></div>
             <div className="mt-1 hidden flex-wrap gap-1 sm:flex">
               {outcome === "PENDING" && <span className="border border-amber-300 bg-amber-100 px-1 py-0.5 text-[8px] font-black uppercase text-amber-900 sm:text-[9px]">Tiebreak pending</span>}
               {row.rankStatus === "TIED" && <span className="border border-amber-300 bg-amber-50 px-1 py-0.5 text-[8px] font-black uppercase text-amber-950 sm:text-[9px]">Tie</span>}
