@@ -43,6 +43,7 @@ export default function BracketBoard({ matchups, pairMode = false, championship 
   const mobilePreFinalRows = stageRows.filter((entry) => entry.stage !== "FINAL");
   const mobileFinalRows = stageRows.filter((entry) => entry.stage === "FINAL");
   const gridTemplate = stageRows.flatMap((_, index) => index < stageRows.length - 1 ? ["minmax(200px, 1fr)", "48px"] : ["minmax(200px, 1fr)"]);
+  const desktopTrackHeight = Math.max(640, ...stageRows.map((entry) => entry.rows.length * 104));
 
   const MobileStage = ({ entry }: { entry: (typeof stageRows)[number] }) => <section key={entry.stage}>
     <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-black uppercase">{!championship && entry.stage === "FINAL" ? "Wildcard Final" : STAGE_LABELS[entry.stage]}</h3><span className="text-[10px] font-bold uppercase text-gray-400">{entry.rows.length} matchup{entry.rows.length === 1 ? "" : "s"}</span></div>
@@ -59,7 +60,7 @@ export default function BracketBoard({ matchups, pairMode = false, championship 
       {mobileFinalRows.map((entry) => <MobileStage key={entry.stage} entry={entry} />)}
     </div>
     <div className="bracket-scroll hidden lg:block">
-    <div className="bracket-progression-grid" style={{ gridTemplateColumns: gridTemplate.join(" ") }}>
+    <div className="bracket-progression-grid" style={{ gridTemplateColumns: gridTemplate.join(" "), "--bracket-track-height": `${desktopTrackHeight}px` } as React.CSSProperties}>
       {stageRows.map((entry, stageIndex) => {
         const next = stageRows[stageIndex + 1];
         return <div key={entry.stage} className="contents">

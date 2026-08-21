@@ -124,16 +124,16 @@ html { scroll-behavior: smooth; }
 /* Public knockout bracket board. Connectors derive from actual feeder winners instead of row-parity guesses. */
 .bracket-scroll { max-width: 100%; overflow-x: auto; padding: 1rem; }
 .bracket-progression-grid { display: grid; min-width: 880px; align-items: stretch; }
-.bracket-column { min-width: 0; display: grid; grid-template-rows: auto 640px; gap: 1rem; align-content: center; }
+.bracket-column { min-width: 0; display: grid; grid-template-rows: auto var(--bracket-track-height, 640px); gap: 1rem; align-content: center; }
 .bracket-stage-title { border-radius: 4px; background: #e8e8e8; padding: .35rem .75rem; text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: #050505; }
-.bracket-stage-stack { position: relative; min-width: 0; height: 640px; }
+.bracket-stage-stack { position: relative; min-width: 0; height: var(--bracket-track-height, 640px); }
 .bracket-positioned-card { position: absolute; left: 0; width: 100%; transform: translateY(-50%); }
 .bracket-match-card { position: relative; display: block; border-radius: 8px; background: #f2f2f2; padding: .5rem; color: #050505; box-shadow: 0 1px 0 rgba(0,0,0,.05); }
 .bracket-match-card:hover { outline: 2px solid rgba(31,111,178,.22); }
 .bracket-match-card-final { background: linear-gradient(135deg, #ff4b1f, #d9c56d); color: #fff; }
 .bracket-match-card-bronze { border: 1px solid #d5a342; background: linear-gradient(135deg, #fff7e6, #f2e0b8); }
-.bracket-connector { height: 640px; align-self: end; }
-.bracket-connector-svg { display: block; width: 100%; height: 640px; overflow: visible; }
+.bracket-connector { height: var(--bracket-track-height, 640px); align-self: end; }
+.bracket-connector-svg { display: block; width: 100%; height: var(--bracket-track-height, 640px); overflow: visible; }
 .bracket-connector-svg line, .bracket-connector-svg path { fill: none; stroke: #cfcfcf; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .bracket-card-meta { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: .35rem; padding: 0 .2rem .35rem; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .02em; }
 .bracket-card-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
